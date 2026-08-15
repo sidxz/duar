@@ -53,7 +53,7 @@ function getJWKS(url: string) {
  *
  * Validates:
  * 1. IdP token (Authorization: Bearer) — signature + audience (+ issuer if provided)
- * 2. Authz token (X-Authz-Token) — signature + audience (sentinel:authz) + issuer
+ * 2. Authz token (X-Authz-Token) — signature + audience (duar:authz) + issuer
  * 3. idp_sub binding — authz token's idp_sub must match IdP token's sub
  * 4. svc binding — authz token's svc must equal configured serviceName
  *
@@ -144,7 +144,7 @@ export function createDuarAuthzMiddleware(config: DuarAuthzMiddlewareConfig) {
 
       const [idpResult, authzPayload] = await Promise.all([
         jwtVerify(idpToken, getJWKS(idpJwksUrl), idpVerifyOptions),
-        verifyToken(authzToken, { jwksUrl: duarJwksUrl, audience: 'sentinel:authz', issuer }),
+        verifyToken(authzToken, { jwksUrl: duarJwksUrl, audience: 'duar:authz', issuer }),
       ])
 
       const idpPayload = idpResult.payload

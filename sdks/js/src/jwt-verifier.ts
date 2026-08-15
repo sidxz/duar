@@ -22,7 +22,7 @@ export async function verifyToken(
 ): Promise<JWTPayload> {
   const jwks = getJWKS(options.jwksUrl)
   const { payload } = await jwtVerify(token, jwks, {
-    audience: options.audience ?? 'sentinel:access',
+    audience: options.audience ?? 'duar:access',
     issuer: options.issuer,
   })
   return payload as unknown as JWTPayload

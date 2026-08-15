@@ -48,7 +48,7 @@ duar.protect(app)  # preferred
 | `duar_instance` | `Duar \| None` | `None` | Duar instance (reads keys lazily) |
 | `idp_algorithm` | `str` | `"RS256"` | IdP token signing algorithm |
 | `duar_algorithm` | `str` | `"RS256"` | Authz token signing algorithm |
-| `duar_audience` | `str` | `"sentinel:authz"` | Expected `aud` claim in authz token |
+| `duar_audience` | `str` | `"duar:authz"` | Expected `aud` claim in authz token |
 | `exclude_paths` | `list[str] \| None` | `["/health", "/docs", "/openapi.json"]` | Paths that bypass authentication |
 
 Either `duar_public_key` or `duar_instance` is required. For IdP validation, the middleware uses `idp_jwks_url` or `idp_public_key` (from the params or from the Duar instance).
@@ -68,7 +68,7 @@ After successful validation, the middleware sets:
 1. Extract IdP token from `Authorization: Bearer ...`
 2. Extract authz token from `X-Authz-Token`
 3. Validate IdP token: signature, expiry, `aud == idp_audience` (+ `iss == idp_issuer` if configured) via JWKS or static key
-4. Validate authz token: signature, expiry, `aud == "sentinel:authz"`
+4. Validate authz token: signature, expiry, `aud == "duar:authz"`
 5. Verify binding: IdP `sub` must equal authz `idp_sub` (both must be non-empty)
 6. Verify service binding: authz `svc` must equal `service_name`
 7. Build `AuthenticatedUser` and set on `request.state`
@@ -107,7 +107,7 @@ app.add_middleware(
 | `public_key` | `str \| None` | `None` | RSA PEM key for air-gapped deployments |
 | `jwks_url` | `str \| None` | `None` | Explicit JWKS URL (non-standard paths only) |
 | `algorithm` | `str` | `"RS256"` | JWT signing algorithm |
-| `audience` | `str` | `"sentinel:access"` | Expected `aud` claim |
+| `audience` | `str` | `"duar:access"` | Expected `aud` claim |
 | `exclude_paths` | `list[str] \| None` | `["/health", "/docs", "/openapi.json"]` | Paths that bypass authentication |
 | `allowed_workspaces` | `set[str] \| None` | `None` | Workspace IDs permitted. `None` allows all |
 

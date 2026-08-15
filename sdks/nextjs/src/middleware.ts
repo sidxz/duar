@@ -9,7 +9,7 @@ export interface DuarMiddlewareConfig {
   publicPaths?: string[]
   /** Redirect target for unauthenticated page requests. Defaults to "/login". */
   loginPath?: string
-  /** Expected audience. Defaults to "sentinel:access". */
+  /** Expected audience. Defaults to "duar:access". */
   audience?: string
   /** Expected JWT issuer claim. Defaults to the origin of jwksUrl. */
   issuer?: string
@@ -35,7 +35,7 @@ export function createDuarMiddleware(config: DuarMiddlewareConfig) {
     jwksUrl,
     publicPaths = [],
     loginPath = '/login',
-    audience = 'sentinel:access',
+    audience = 'duar:access',
     allowedWorkspaces,
   } = config
   const issuer = config.issuer ?? new URL(jwksUrl).origin

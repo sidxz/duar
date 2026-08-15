@@ -657,7 +657,7 @@ async def logout(
     auth_header = request.headers.get("Authorization", "")
     token_str = auth_header.removeprefix("Bearer ")
     try:
-        payload = decode_token(token_str, audience="sentinel:access")
+        payload = decode_token(token_str, audience="duar:access")
         if jti := payload.get("jti"):
             await token_service.blacklist_access_token(jti, payload["exp"])
     except Exception:

@@ -53,7 +53,7 @@ export default createDuarMiddleware({
 export const config = { matcher: ['/((?!_next|favicon.ico).*)'] }
 ```
 
-Additional options: `audience` (default `"sentinel:access"`), `allowedWorkspaces` (optional workspace ID allowlist). Reads token from `Authorization: Bearer` header or `duar_access_token` cookie.
+Additional options: `audience` (default `"duar:access"`), `allowedWorkspaces` (optional workspace ID allowlist). Reads token from `Authorization: Bearer` header or `duar_access_token` cookie.
 
 ## Headers set by middleware
 

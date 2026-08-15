@@ -48,7 +48,7 @@ Token set (labels):
 | `m2m_aud_target` | `create_m2m_token(..., aud_target="billing")` | targeted token → reject for a different receiver |
 | `authz_valid` | `create_authz_token(service_name="acme-suite", ...)` | Flow A token, svc = realm slug; **also** the wrong-audience negative |
 
-The "wrong audience" negative reuses `authz_valid` (aud = `sentinel:authz`): fed to the m2m verifier it must reject (token-type-confusion defense). So the fixture holds **five** tokens, not six — no separate `wrong_aud` entry.
+The "wrong audience" negative reuses `authz_valid` (aud = `duar:authz`): fed to the m2m verifier it must reject (token-type-confusion defense). So the fixture holds **five** tokens, not six — no separate `wrong_aud` entry.
 
 Regenerated via a `make` target (e.g. `make realm-fixtures`) when the token shape changes. The script is the single source of the committed bytes.
 

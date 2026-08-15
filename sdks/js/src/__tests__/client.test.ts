@@ -19,7 +19,7 @@ const validPayload = {
   wslug: 'test-ws',
   wrole: 'editor',
   groups: [],
-  aud: 'sentinel:access',
+  aud: 'duar:access',
   iss: 'duar',
   exp: Math.floor(Date.now() / 1000) + 3600,
   iat: Math.floor(Date.now() / 1000),

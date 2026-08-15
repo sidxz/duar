@@ -24,7 +24,7 @@
 ## Plan sequence (this is Plan 1 of N)
 
 1. **Realm scope core** ← this plan (models, migration, `effective_scope`, the 3 checks, realm-scoped minting)
-2. Token flows — `GET /realm/whoami`, `sentinel:m2m` token + `POST /realm/m2m-token`, SDK `SystemAuth`
+2. Token flows — `GET /realm/whoami`, `duar:m2m` token + `POST /realm/m2m-token`, SDK `SystemAuth`
 3. Network split — `create_app(tier)`, unpublished internal listener
 4. Admin — `/admin/realms` CRUD + membership, React Realms page
 5. SDKs — Python + JS m2m mint/accept
@@ -918,7 +918,7 @@ git commit -m "feat(realm): mint realm-scoped authz tokens (svc + RBAC = effecti
 
 ## Self-review (done by plan author)
 
-**Spec coverage (Plan 1's slice):** `realms` table + `realm_id` FK → Task 1. `effective_scope` mechanism + the two surgical comparison spots → Tasks 3-4. Realm-scoped authz minting (`/authz/resolve`) → Task 5. Membership management (service layer) → Task 2. Deferred to later plans (explicitly out of this plan's scope): `whoami`, `sentinel:m2m` token + mint endpoint (Plan 2), network split (Plan 3), admin CRUD/UI (Plan 4), SDKs (Plan 5), docs (Plan 6).
+**Spec coverage (Plan 1's slice):** `realms` table + `realm_id` FK → Task 1. `effective_scope` mechanism + the two surgical comparison spots → Tasks 3-4. Realm-scoped authz minting (`/authz/resolve`) → Task 5. Membership management (service layer) → Task 2. Deferred to later plans (explicitly out of this plan's scope): `whoami`, `duar:m2m` token + mint endpoint (Plan 2), network split (Plan 3), admin CRUD/UI (Plan 4), SDKs (Plan 5), docs (Plan 6).
 
 **Placeholder scan:** none — every step carries full code/commands.
 

@@ -20,11 +20,11 @@ def get_public_key() -> str:
     return key_provider.verification_keys()[kid]
 
 
-_AUD_ACCESS = "sentinel:access"
-_AUD_ADMIN = "sentinel:admin"
-_AUD_REFRESH = "sentinel:refresh"
-_AUD_AUTHZ = "sentinel:authz"
-_AUD_M2M = "sentinel:m2m"
+_AUD_ACCESS = "duar:access"
+_AUD_ADMIN = "duar:admin"
+_AUD_REFRESH = "duar:refresh"
+_AUD_AUTHZ = "duar:authz"
+_AUD_M2M = "duar:m2m"
 _ISSUER = settings.base_url
 
 

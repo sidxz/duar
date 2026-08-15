@@ -40,10 +40,10 @@ See [How Duar Works](how-it-works.md) for the full login flows in both AuthZ and
 
 | Token | Audience | TTL | Purpose |
 |---|---|---|---|
-| Access | `sentinel:access` | 15 min | Identity + authorization in Proxy mode. Carries user info, workspace context, and group memberships. |
-| Refresh | `sentinel:refresh` | 7 days | Silent renewal of access tokens. Supports rotation with reuse detection. |
-| Admin | `sentinel:admin` | 60 min | Admin panel sessions. Carries `admin: true` flag. |
-| Authz | `sentinel:authz` | 5 min | Authorization-only in AuthZ mode. Carries workspace role and RBAC actions. No identity -- identity comes from the IdP token. |
+| Access | `duar:access` | 15 min | Identity + authorization in Proxy mode. Carries user info, workspace context, and group memberships. |
+| Refresh | `duar:refresh` | 7 days | Silent renewal of access tokens. Supports rotation with reuse detection. |
+| Admin | `duar:admin` | 60 min | Admin panel sessions. Carries `admin: true` flag. |
+| Authz | `duar:authz` | 5 min | Authorization-only in AuthZ mode. Carries workspace role and RBAC actions. No identity -- identity comes from the IdP token. |
 
 All tokens are RS256-signed JWTs. The algorithm is hardcoded at both encode and decode time to prevent algorithm substitution attacks. Audience validation is mandatory on every decode call.
 
@@ -56,7 +56,7 @@ All tokens are RS256-signed JWTs. The algorithm is hardcoded at both encode and 
 | `iss` | string | `https://auth.example.com` | Issuer. Duar's `BASE_URL`. |
 | `sub` | string (UUID) | `"d4f5a..."` | User ID. |
 | `jti` | string (UUID) | `"8b3c1..."` | Unique token ID. Enables per-token revocation via Redis denylist. |
-| `aud` | string | `"sentinel:access"` | Audience. Always `sentinel:access`. |
+| `aud` | string | `"duar:access"` | Audience. Always `duar:access`. |
 | `email` | string | `"alice@co.com"` | User's email address. |
 | `name` | string | `"Alice Chen"` | User's display name. |
 | `wid` | string (UUID) | `"a1b2c..."` | Workspace ID. |
@@ -74,7 +74,7 @@ All tokens are RS256-signed JWTs. The algorithm is hardcoded at both encode and 
 | `iss` | string | `https://auth.example.com` | Issuer. Duar's `BASE_URL`. |
 | `sub` | string (UUID) | `"d4f5a..."` | User ID. |
 | `jti` | string (UUID) | `"8b3c1..."` | Unique token ID. Enables revocation via denylist. |
-| `aud` | string | `"sentinel:authz"` | Audience. Always `sentinel:authz`. |
+| `aud` | string | `"duar:authz"` | Audience. Always `duar:authz`. |
 | `idp_sub` | string | `"104523..."` | IdP subject identifier. Binds this token to a specific IdP identity. The backend validates that the IdP token's `sub` matches this value. |
 | `svc` | string | `"docu-store"` | Service name. Binds the token to a specific service, preventing cross-service replay. |
 | `wid` | string (UUID) | `"a1b2c..."` | Workspace ID. |
@@ -92,7 +92,7 @@ All tokens are RS256-signed JWTs. The algorithm is hardcoded at both encode and 
 | `iss` | string | `https://auth.example.com` | Issuer. |
 | `sub` | string (UUID) | `"d4f5a..."` | User ID. |
 | `jti` | string (UUID) | `"8b3c1..."` | Unique token ID. |
-| `aud` | string | `"sentinel:refresh"` | Audience. Always `sentinel:refresh`. |
+| `aud` | string | `"duar:refresh"` | Audience. Always `duar:refresh`. |
 | `fid` | string (UUID) | `"f7e8d..."` | Family ID. Groups refresh tokens into rotation families for reuse detection. |
 | `iat` | number | `1709827200` | Issued-at timestamp (UTC). |
 | `exp` | number | `1710432000` | Expiration timestamp (UTC). `iat` + 7 days. |
@@ -105,7 +105,7 @@ All tokens are RS256-signed JWTs. The algorithm is hardcoded at both encode and 
 | `iss` | string | `https://auth.example.com` | Issuer. |
 | `sub` | string (UUID) | `"d4f5a..."` | User ID. |
 | `jti` | string (UUID) | `"8b3c1..."` | Unique token ID. |
-| `aud` | string | `"sentinel:admin"` | Audience. Always `sentinel:admin`. |
+| `aud` | string | `"duar:admin"` | Audience. Always `duar:admin`. |
 | `email` | string | `"alice@co.com"` | Admin user's email. |
 | `name` | string | `"Alice Chen"` | Admin user's display name. |
 | `admin` | boolean | `true` | Always `true`. |

@@ -76,7 +76,7 @@ curl -X POST http://duar-internal:9010/realm/m2m-token \
 ```jsonc
 {
   "iss": "<base_url>",
-  "aud": "sentinel:m2m",     // separate from user audiences — never accepted as a user
+  "aud": "duar:m2m",     // separate from user audiences — never accepted as a user
   "type": "m2m",
   "svc": "acme-suite",        // realm slug = effective_scope
   "caller": "app-a",          // server-stamped: which member minted it (audit)

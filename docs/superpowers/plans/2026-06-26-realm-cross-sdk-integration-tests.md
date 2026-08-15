@@ -16,7 +16,7 @@
 - **No committed private key.** `gen_fixtures.py` uses an **ephemeral in-memory RSA keypair** (temp files, discarded). Only `fixtures.json` (public PEM + JWKS + tokens) is committed.
 - **Python run/format:** tests run `cd service && uv run pytest tests/integration/`. Format **changed files only**: `cd service && uv run ruff format <files> && uv run ruff check --fix <files>`. **NEVER** `ruff format .` / whole-tree `--fix` / `make fmt` (they would reformat the user's uncommitted `role_service.py`).
 - **JS run/style:** `cd sdks/js && npm test` (vitest). Match existing JS style — **2-space indent, single quotes, no semicolons**. The new test file must **NOT** `vi.mock('jose')` (real crypto is the point); per-file mocking keeps it isolated from the existing mocked `m2m.test.ts`.
-- **Frozen identifiers** (from shipped code): minters `create_m2m_token(svc, caller, ttl_s, actions=None, aud_target=None)` and `create_authz_token(user_id, idp_sub, workspace_id, workspace_slug, workspace_role, actions, service_name, org_id, org_slug, org_is_public)`; audiences `sentinel:m2m` / `sentinel:authz`; SDK `Duar(base_url, service_name, service_key, idp_public_key=…, idp_audience=…)` with attrs `_duar_public_key` / `_effective_scope`, method `verify_m2m_token(token) -> SystemAuth` (raises `duar_auth.types.DuarError`, `.status_code` 401/403); `AuthzMiddleware(service_name=…, idp_audience=…, idp_public_key=…, duar_public_key=…, duar_instance=…)`, headers `Authorization: Bearer <idp>` + `X-Authz-Token: <authz>`; JS `verifyM2mToken(token, { jwksUrl, effectiveScope, serviceName?, issuer? }) -> SystemAuth` (`{caller, actions, svc, can}`).
+- **Frozen identifiers** (from shipped code): minters `create_m2m_token(svc, caller, ttl_s, actions=None, aud_target=None)` and `create_authz_token(user_id, idp_sub, workspace_id, workspace_slug, workspace_role, actions, service_name, org_id, org_slug, org_is_public)`; audiences `duar:m2m` / `duar:authz`; SDK `Duar(base_url, service_name, service_key, idp_public_key=…, idp_audience=…)` with attrs `_duar_public_key` / `_effective_scope`, method `verify_m2m_token(token) -> SystemAuth` (raises `duar_auth.types.DuarError`, `.status_code` 401/403); `AuthzMiddleware(service_name=…, idp_audience=…, idp_public_key=…, duar_public_key=…, duar_instance=…)`, headers `Authorization: Bearer <idp>` + `X-Authz-Token: <authz>`; JS `verifyM2mToken(token, { jwksUrl, effectiveScope, serviceName?, issuer? }) -> SystemAuth` (`{caller, actions, svc, can}`).
 - Branch: `realm-trusted-app-group` (already checked out).
 - **SDD housekeeping (before Task 1):** archive `.superpowers/sdd/progress.md` → `progress-plan6-archive.md`; start a fresh ledger; regenerate each `task-N-brief` from THIS plan. One implementer at a time.
 
@@ -176,7 +176,7 @@ def _decode(label: str, aud: str, **opts):
 
 
 def test_m2m_valid_claim_shape():
-    p = _decode("m2m_valid", "sentinel:m2m")
+    p = _decode("m2m_valid", "duar:m2m")
     assert p["type"] == "m2m"
     assert p["svc"] == "acme-suite"
     assert p["caller"] == "app-a"
@@ -186,22 +186,22 @@ def test_m2m_valid_claim_shape():
 
 
 def test_authz_valid_claim_shape():
-    p = _decode("authz_valid", "sentinel:authz")
+    p = _decode("authz_valid", "duar:authz")
     assert p["type"] == "authz"
     assert p["svc"] == "acme-suite"  # svc is the realm slug, not a bare service name
 
 
 def test_expired_token_is_actually_expired():
     with pytest.raises(pyjwt.ExpiredSignatureError):
-        _decode("m2m_expired", "sentinel:m2m")
+        _decode("m2m_expired", "duar:m2m")
 
 
 def test_wrong_realm_token_has_foreign_svc():
-    assert _decode("m2m_wrong_realm", "sentinel:m2m")["svc"] == "other-realm"
+    assert _decode("m2m_wrong_realm", "duar:m2m")["svc"] == "other-realm"
 
 
 def test_aud_target_token_is_targeted():
-    assert _decode("m2m_aud_target", "sentinel:m2m")["aud_target"] == "billing"
+    assert _decode("m2m_aud_target", "duar:m2m")["aud_target"] == "billing"
 
 
 def test_jwks_contains_the_signing_kid():
@@ -377,8 +377,8 @@ def test_flow_b_expired_rejected():
 
 
 def test_flow_b_authz_token_rejected_as_m2m():
-    # Token-type-confusion defense: a real authz token (aud=sentinel:authz) must never
-    # validate through the m2m verifier (aud=sentinel:m2m).
+    # Token-type-confusion defense: a real authz token (aud=duar:authz) must never
+    # validate through the m2m verifier (aud=duar:m2m).
     import uuid
 
     token = create_authz_token(
@@ -428,14 +428,14 @@ def test_committed_m2m_claims_match_current_minter():
     not regenerated, this fails — keeping the JS vector honest. Compares claim KEYS
     (and aud/type), not volatile values (iat/exp/jti)."""
     committed = pyjwt.decode(
-        _FIX["tokens"]["m2m_valid"], _FIX["public_pem"], algorithms=["RS256"], audience="sentinel:m2m"
+        _FIX["tokens"]["m2m_valid"], _FIX["public_pem"], algorithms=["RS256"], audience="duar:m2m"
     )
     fresh_token = create_m2m_token(svc="acme-suite", caller="app-a", ttl_s=300)
     fresh = pyjwt.decode(
-        fresh_token, _pubpem_for(fresh_token), algorithms=["RS256"], audience="sentinel:m2m"
+        fresh_token, _pubpem_for(fresh_token), algorithms=["RS256"], audience="duar:m2m"
     )
     assert sorted(committed.keys()) == sorted(fresh.keys())
-    assert committed["aud"] == fresh["aud"] == "sentinel:m2m"
+    assert committed["aud"] == fresh["aud"] == "duar:m2m"
     assert committed["type"] == fresh["type"] == "m2m"
 ```
 

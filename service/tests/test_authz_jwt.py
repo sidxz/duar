@@ -31,7 +31,7 @@ class TestAuthzToken:
         assert payload["wid"] == str(workspace_id)
         assert payload["wrole"] == "editor"
         assert payload["actions"] == ["read", "write"]
-        assert payload["aud"] == "sentinel:authz"
+        assert payload["aud"] == "duar:authz"
         assert payload["type"] == "authz"
 
     def test_wrong_audience_rejected(self):
@@ -48,4 +48,4 @@ class TestAuthzToken:
             org_is_public=False,
         )
         with pytest.raises(pyjwt.InvalidAudienceError):
-            decode_token(token, audience="sentinel:access")
+            decode_token(token, audience="duar:access")

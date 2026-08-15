@@ -21,7 +21,7 @@ const user = payloadToUser(payload)
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `jwksUrl` | `string` | required | Duar JWKS endpoint |
-| `audience` | `string` | `"sentinel:access"` | Expected `aud` claim |
+| `audience` | `string` | `"duar:access"` | Expected `aud` claim |
 | `issuer` | `string` | -- | Expected `iss` claim |
 
 JWKS keys are fetched and cached automatically.

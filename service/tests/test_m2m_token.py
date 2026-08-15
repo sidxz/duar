@@ -1,4 +1,4 @@
-"""The no-user realm m2m token: service identity only, sentinel:m2m audience."""
+"""The no-user realm m2m token: service identity only, duar:m2m audience."""
 
 import pytest
 

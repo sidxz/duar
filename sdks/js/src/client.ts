@@ -67,7 +67,7 @@ export class DuarAuth {
     this.refreshBuffer = config.refreshBuffer ?? 60
     // Per-app lock name so tabs of the same app coordinate but distinct apps
     // on one origin don't contend.
-    this.refreshLockName = `sentinel:refresh:${this.clientId}`
+    this.refreshLockName = `duar:refresh:${this.clientId}`
     // Cross-tab auth events (logout / refreshed) so other tabs of this app
     // react immediately instead of only on their own next timer or request.
     if (typeof BroadcastChannel !== 'undefined') {

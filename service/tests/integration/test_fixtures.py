@@ -22,7 +22,7 @@ def _decode(label: str, aud: str, **opts):
 
 
 def test_m2m_valid_claim_shape():
-    p = _decode("m2m_valid", "sentinel:m2m")
+    p = _decode("m2m_valid", "duar:m2m")
     assert p["type"] == "m2m"
     assert p["svc"] == "acme-suite"
     assert p["caller"] == "app-a"
@@ -32,22 +32,22 @@ def test_m2m_valid_claim_shape():
 
 
 def test_authz_valid_claim_shape():
-    p = _decode("authz_valid", "sentinel:authz")
+    p = _decode("authz_valid", "duar:authz")
     assert p["type"] == "authz"
     assert p["svc"] == "acme-suite"  # svc is the realm slug, not a bare service name
 
 
 def test_expired_token_is_actually_expired():
     with pytest.raises(pyjwt.ExpiredSignatureError):
-        _decode("m2m_expired", "sentinel:m2m")
+        _decode("m2m_expired", "duar:m2m")
 
 
 def test_wrong_realm_token_has_foreign_svc():
-    assert _decode("m2m_wrong_realm", "sentinel:m2m")["svc"] == "other-realm"
+    assert _decode("m2m_wrong_realm", "duar:m2m")["svc"] == "other-realm"
 
 
 def test_aud_target_token_is_targeted():
-    assert _decode("m2m_aud_target", "sentinel:m2m")["aud_target"] == "billing"
+    assert _decode("m2m_aud_target", "duar:m2m")["aud_target"] == "billing"
 
 
 def test_jwks_contains_the_signing_kid():

@@ -65,7 +65,7 @@ def _tokens(keypairs, *, svc: str):
             "wslug": "acme",
             "wrole": "editor",
             "actions": ["read"],
-            "aud": "sentinel:authz",
+            "aud": "duar:authz",
             "iat": now,
             "exp": now + datetime.timedelta(minutes=5),
         },

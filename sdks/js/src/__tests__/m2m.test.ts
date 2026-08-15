@@ -14,7 +14,7 @@ function mockM2mPayload(over: Record<string, unknown> = {}) {
   vi.mocked(jwtVerify).mockResolvedValue({
     payload: {
       iss: 'http://localhost:9010',
-      aud: 'sentinel:m2m',
+      aud: 'duar:m2m',
       type: 'm2m',
       svc: 'acme-suite',
       caller: 'docs',
@@ -40,11 +40,11 @@ describe('verifyM2mToken', () => {
     expect(sys.can('anything')).toBe(true)
   })
 
-  it('verifies against the sentinel:m2m audience', async () => {
+  it('verifies against the duar:m2m audience', async () => {
     mockM2mPayload()
     await verifyM2mToken('tok', { jwksUrl: JWKS, effectiveScope: 'acme-suite' })
     expect(jwtVerify).toHaveBeenCalledWith(
-      'tok', expect.anything(), expect.objectContaining({ audience: 'sentinel:m2m' }),
+      'tok', expect.anything(), expect.objectContaining({ audience: 'duar:m2m' }),
     )
   })
 

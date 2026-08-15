@@ -20,7 +20,7 @@ const basePayload = {
   wslug: 'ws',
   wrole: 'editor',
   groups: [],
-  aud: 'sentinel:access',
+  aud: 'duar:access',
   iss: 'duar',
   iat: now,
   exp: now + 3600,

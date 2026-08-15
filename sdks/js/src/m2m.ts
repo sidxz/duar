@@ -1,7 +1,7 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose'
 import type { M2mJWTPayload, M2mVerifyOptions, SystemAuth, WhoamiResponse } from './types'
 
-const M2M_AUDIENCE = 'sentinel:m2m'
+const M2M_AUDIENCE = 'duar:m2m'
 
 const jwksSets = new Map<string, ReturnType<typeof createRemoteJWKSet>>()
 

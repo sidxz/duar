@@ -63,7 +63,7 @@ Requests must send two tokens:
 The middleware enforces:
 
 - IdP token signature, `aud` (= `idp_audience`), and optional `iss`
-- Authz token signature and `aud == "sentinel:authz"`
+- Authz token signature and `aud == "duar:authz"`
 - `authz_token.idp_sub == idp_token.sub` (token binding)
 - `authz_token.svc == service_name` (prevents cross-service token replay)
 

@@ -4,7 +4,7 @@
 
 **Goal:** Make realm Flow A (shared user-context) and Flow B (no-user m2m) work end-to-end **from the SDK side** — the receiver-side acceptance and sender-side minting the service endpoints (Plan 2) already expose but nothing consumes yet.
 
-**Architecture:** The SDK self-discovers its shared scope from Duar via `GET /realm/whoami` (cached, no app-side realm config). That `effective_scope` (realm slug for a member, else the service's own name) is then substituted in three places: (1) the authz-token `svc` check broadens from `service_name` to `effective_scope` so a realm-shared user token validates on any member; (2) the `PermissionClient`/`RoleClient` send `effective_scope` so a member's permission/RBAC rows land in the shared namespace (the server's `verify_service_scope` rejects anything else); (3) a new no-user `SystemAuth` context accepts `type=m2m` tokens (`aud=sentinel:m2m`), and a `mint_m2m_token()` helper mints+caches them for outbound system calls. All trust is rooted in Duar's RS256 signature — never app↔app.
+**Architecture:** The SDK self-discovers its shared scope from Duar via `GET /realm/whoami` (cached, no app-side realm config). That `effective_scope` (realm slug for a member, else the service's own name) is then substituted in three places: (1) the authz-token `svc` check broadens from `service_name` to `effective_scope` so a realm-shared user token validates on any member; (2) the `PermissionClient`/`RoleClient` send `effective_scope` so a member's permission/RBAC rows land in the shared namespace (the server's `verify_service_scope` rejects anything else); (3) a new no-user `SystemAuth` context accepts `type=m2m` tokens (`aud=duar:m2m`), and a `mint_m2m_token()` helper mints+caches them for outbound system calls. All trust is rooted in Duar's RS256 signature — never app↔app.
 
 **Tech Stack:** Python SDK (`sdk/`, `duar_auth`): PyJWT, httpx, FastAPI/Starlette, pytest + pytest-asyncio + respx. JS SDKs (`sdks/js`, `sdks/nextjs`): TypeScript, `jose`, vitest, tsup.
 
@@ -89,7 +89,7 @@ class SystemAuth:
     """Per-request context for a no-user (machine-to-machine) in-realm call.
 
     The no-user counterpart to :class:`RequestAuth`. It is produced by
-    ``Duar.verify_m2m_token`` after a ``type=m2m`` token (``aud=sentinel:m2m``)
+    ``Duar.verify_m2m_token`` after a ``type=m2m`` token (``aud=duar:m2m``)
     passes Duar's RS256 signature + realm-scope checks. It carries service
     identity only — never a user:
 
@@ -429,7 +429,7 @@ def _tokens(keypairs, *, svc: str):
     authz_token = pyjwt.encode(
         {"sub": str(uuid.uuid4()), "idp_sub": idp_sub, "svc": svc,
          "wid": str(uuid.uuid4()), "wslug": "acme", "wrole": "editor",
-         "actions": ["read"], "aud": "sentinel:authz",
+         "actions": ["read"], "aud": "duar:authz",
          "iat": now, "exp": now + datetime.timedelta(minutes=5)},
         duar_priv, algorithm="RS256",
     )
@@ -540,7 +540,7 @@ git commit -m "feat(sdk): broaden authz svc check to effective_scope (realm-shar
 **Interfaces:**
 - Consumes: `SystemAuth` (Task A1), `effective_scope` (Task A2), `self.duar_public_key`, `jwt`, `DuarError`, FastAPI `Request`/`HTTPException`.
 - Produces on `Duar`:
-  - module constant `_AUD_M2M = "sentinel:m2m"`.
+  - module constant `_AUD_M2M = "duar:m2m"`.
   - `verify_m2m_token(token: str) -> SystemAuth` — RS256-verify against the lifespan-fetched Duar public key, `aud=_AUD_M2M`; assert `type=="m2m"`, `svc==effective_scope`, optional `aud_target==service_name`; returns `SystemAuth(caller, actions, svc)`. Raises `DuarError` (with `status_code` 401/403) on failure.
   - `require_system` property → a FastAPI dependency returning `SystemAuth` from the `Authorization: Bearer` header.
 
@@ -574,7 +574,7 @@ def _duar(public_pem: str, *, effective_scope: str = "acme-suite", service_name:
 
 
 def _m2m(private_pem: str, *, svc="acme-suite", caller="docs", actions=None,
-         aud="sentinel:m2m", typ="m2m", aud_target=None, ttl=300) -> str:
+         aud="duar:m2m", typ="m2m", aud_target=None, ttl=300) -> str:
     now = datetime.datetime.now(datetime.UTC)
     return pyjwt.encode(
         {"iss": "https://duar.test", "aud": aud, "type": typ, "svc": svc,
@@ -606,9 +606,9 @@ def test_rejects_cross_realm_svc(rsa_keypair):
 def test_rejects_wrong_audience(rsa_keypair):
     private_pem, public_pem = rsa_keypair
     s = _duar(public_pem)
-    # A user authz token (aud=sentinel:authz) must never validate as m2m.
+    # A user authz token (aud=duar:authz) must never validate as m2m.
     with pytest.raises(DuarError):
-        s.verify_m2m_token(_m2m(private_pem, aud="sentinel:authz", typ="authz"))
+        s.verify_m2m_token(_m2m(private_pem, aud="duar:authz", typ="authz"))
 
 
 def test_rejects_expired(rsa_keypair):
@@ -667,7 +667,7 @@ from duar_auth.auth import SystemAuth
 module-level constant just below the imports, before `class Duar`:
 
 ```python
-_AUD_M2M = "sentinel:m2m"
+_AUD_M2M = "duar:m2m"
 ```
 
 Also ensure `DuarError` is importable — add:
@@ -918,7 +918,7 @@ git commit -m "feat(sdk): mint_m2m_token with ~80%-TTL auto-refresh"
 - Consumes: `jose` `jwtVerify` + the module-scoped JWKS cache (re-implemented locally, mirroring `jwt-verifier.ts`).
 - Produces:
   - Types: `M2mJWTPayload`, `WhoamiResponse`, `M2mVerifyOptions`, `SystemAuth`.
-  - `verifyM2mToken(token, options) -> Promise<SystemAuth>` — verifies `aud=sentinel:m2m`, `type=m2m`, `svc===options.effectiveScope`, optional `aud_target===options.serviceName`; returns `{ caller, actions, svc, can(action) }`.
+  - `verifyM2mToken(token, options) -> Promise<SystemAuth>` — verifies `aud=duar:m2m`, `type=m2m`, `svc===options.effectiveScope`, optional `aud_target===options.serviceName`; returns `{ caller, actions, svc, can(action) }`.
   - `fetchWhoami({ duarUrl, serviceKey }) -> Promise<WhoamiResponse>`.
 
 - [ ] **Step 1: Write the failing test**
@@ -941,7 +941,7 @@ function mockM2mPayload(over: Record<string, unknown> = {}) {
   vi.mocked(jwtVerify).mockResolvedValue({
     payload: {
       iss: 'http://localhost:9010',
-      aud: 'sentinel:m2m',
+      aud: 'duar:m2m',
       type: 'm2m',
       svc: 'acme-suite',
       caller: 'docs',
@@ -967,11 +967,11 @@ describe('verifyM2mToken', () => {
     expect(sys.can('anything')).toBe(true)
   })
 
-  it('verifies against the sentinel:m2m audience', async () => {
+  it('verifies against the duar:m2m audience', async () => {
     mockM2mPayload()
     await verifyM2mToken('tok', { jwksUrl: JWKS, effectiveScope: 'acme-suite' })
     expect(jwtVerify).toHaveBeenCalledWith(
-      'tok', expect.anything(), expect.objectContaining({ audience: 'sentinel:m2m' }),
+      'tok', expect.anything(), expect.objectContaining({ audience: 'duar:m2m' }),
     )
   })
 
@@ -1079,7 +1079,7 @@ export interface SystemAuth {
 import { createRemoteJWKSet, jwtVerify } from 'jose'
 import type { M2mJWTPayload, M2mVerifyOptions, SystemAuth, WhoamiResponse } from './types'
 
-const M2M_AUDIENCE = 'sentinel:m2m'
+const M2M_AUDIENCE = 'duar:m2m'
 
 const jwksSets = new Map<string, ReturnType<typeof createRemoteJWKSet>>()
 
@@ -1404,7 +1404,7 @@ git commit -m "feat(nextjs-sdk): re-export m2m helpers from server entry"
 
 **Type consistency:**
 - `SystemAuth(caller, actions, svc)` + `can(action)` — defined A1, returned by A4's `verify_m2m_token`; the JS `SystemAuth` interface (B1) mirrors it (`caller`, `actions`, `svc`, `can`).
-- `_AUD_M2M = "sentinel:m2m"` (A4) matches the server's `_AUD_M2M` (Plan 2) and the JS `M2M_AUDIENCE` (B1).
+- `_AUD_M2M = "duar:m2m"` (A4) matches the server's `_AUD_M2M` (Plan 2) and the JS `M2M_AUDIENCE` (B1).
 - `effective_scope` property (A2) consumed by A3 (`AuthzMiddleware.effective_scope`), A4 (`verify_m2m_token` svc check), and the A2 client substitution — one source of truth.
 - `fetch_whoami` / `WhoamiResponse` shape `{service_name, effective_scope, realm}` matches the server `/realm/whoami` (Plan 2) on both Python (A2) and JS (B1) sides.
 - `mint_m2m_token` (A5) / `M2mTokenClient.getToken` (B2) both POST `/realm/m2m-token` with `{}` body + `X-Service-Key`, parse `{token, expires_in}`, refresh at 80% — matching the server `M2MTokenResponse` (Plan 2).

@@ -29,7 +29,7 @@ def _m2m(
     svc="acme-suite",
     caller="docs",
     actions=None,
-    aud="sentinel:m2m",
+    aud="duar:m2m",
     typ="m2m",
     aud_target=None,
     ttl=300,
@@ -74,9 +74,9 @@ def test_rejects_cross_realm_svc(rsa_keypair):
 def test_rejects_wrong_audience(rsa_keypair):
     private_pem, public_pem = rsa_keypair
     s = _duar(public_pem)
-    # A user authz token (aud=sentinel:authz) must never validate as m2m.
+    # A user authz token (aud=duar:authz) must never validate as m2m.
     with pytest.raises(DuarError) as exc:
-        s.verify_m2m_token(_m2m(private_pem, aud="sentinel:authz", typ="authz"))
+        s.verify_m2m_token(_m2m(private_pem, aud="duar:authz", typ="authz"))
     assert exc.value.status_code == 401
 
 

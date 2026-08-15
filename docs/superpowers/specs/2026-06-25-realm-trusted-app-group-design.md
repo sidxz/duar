@@ -83,7 +83,7 @@ intent even though it superficially resembles an OAuth `client_credentials` gran
 2. **`effective_scope`** = `realm.slug` for members, else the service's own
    `service_name`. This single resolved value substitutes for `service_name` in two
    surgical spots (scope check + svc-claim check).
-3. **No-user m2m required** → a new `sentinel:m2m` token, service-key-minted,
+3. **No-user m2m required** → a new `duar:m2m` token, service-key-minted,
    **server-stamped** identity, **full realm trust** in v1 with an `actions:["*"]`
    field that is enforceable later with **no migration**. Optional per-call
    `aud_target` reserved but **off by default**.
@@ -171,7 +171,7 @@ cron in App A (no human)
 App A backend → POST /realm/m2m-token (X-Service-Key only) → Duar
    ← JWT { type=m2m, svc="acme-suite", caller="docs", actions=["*"] }
 App A → forwards m2m token → App B
-   App B SDK: type=m2m, aud=sentinel:m2m, svc == my effective_scope?  ✓
+   App B SDK: type=m2m, aud=duar:m2m, svc == my effective_scope?  ✓
             → trusted in-realm system caller; actions=["*"] ⇒ full; logs caller
 ```
 
@@ -187,7 +187,7 @@ App A → forwards m2m token → App B
 **Realm m2m token** (new):
 
 ```jsonc
-{ "iss":"<base_url>", "aud":"sentinel:m2m", "type":"m2m",
+{ "iss":"<base_url>", "aud":"duar:m2m", "type":"m2m",
   "svc":"acme-suite",        // realm slug = effective_scope
   "caller":"docs",            // server-stamped: which member minted it (audit)
   "actions":["*"],            // full trust v1; enforce later, no migration
@@ -196,7 +196,7 @@ App A → forwards m2m token → App B
   // NO sub / email / user claims — an honest "no human" token
 ```
 
-New audience constant `_AUD_M2M = "sentinel:m2m"` (`jwt.py`, alongside `:23-26`), kept
+New audience constant `_AUD_M2M = "duar:m2m"` (`jwt.py`, alongside `:23-26`), kept
 **separate** from access/authz/admin/refresh so a user-token validator can never
 accept an m2m token as a user (token-type-confusion defense).
 
@@ -211,7 +211,7 @@ or jump realms. Mint rejects if the service is not an active member of an active
 
 **Present-time** (App A → App B): App B verifies Duar's **RS256 signature** over
 JWKS (existing `kid`-based resolution from the key-rotation work) — only Duar can
-sign, so a fabricated token fails. Plus `aud==sentinel:m2m`, `svc==effective_scope`
+sign, so a fabricated token fails. Plus `aud==duar:m2m`, `svc==effective_scope`
 (cross-realm replay dies), and short `exp`.
 
 | Threat | Defense |

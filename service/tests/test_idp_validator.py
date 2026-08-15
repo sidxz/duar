@@ -420,7 +420,7 @@ async def test_gated_test_oidc_provider_validates_static_key(
     ).decode()
     monkeypatch.setenv("TEST_TRUSTED_ISSUER_PUBKEY", pub_pem)
     monkeypatch.setenv("TEST_TRUSTED_ISSUER", "https://rogue.test")
-    monkeypatch.setenv("TEST_TRUSTED_AUDIENCE", "sentinel:authz")
+    monkeypatch.setenv("TEST_TRUSTED_AUDIENCE", "duar:authz")
     idp_validator._register_test_provider()
     try:
         good = make_token(
@@ -429,7 +429,7 @@ async def test_gated_test_oidc_provider_validates_static_key(
                 "email": "u1@x.test",
                 "email_verified": True,
                 "iss": "https://rogue.test",
-                "aud": "sentinel:authz",
+                "aud": "duar:authz",
             }
         )
         result = await validate_idp_token(good, "test_oidc")
@@ -441,7 +441,7 @@ async def test_gated_test_oidc_provider_validates_static_key(
                 "email": "u1@x.test",
                 "email_verified": False,
                 "iss": "https://rogue.test",
-                "aud": "sentinel:authz",
+                "aud": "duar:authz",
             }
         )
         with pytest.raises(IdpValidationError, match="not verified"):
@@ -461,7 +461,7 @@ async def test_gated_test_oidc_provider_validates_static_key(
                 "email": "u1@x.test",
                 "email_verified": True,
                 "iss": "https://rogue.test",
-                "aud": "sentinel:authz",
+                "aud": "duar:authz",
                 "iat": now,
                 "exp": now + 3600,
             },

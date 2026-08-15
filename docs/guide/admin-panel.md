@@ -10,7 +10,7 @@ make admin    # starts admin UI on http://localhost:9004
 
 On first launch, you are prompted to create an admin account with a username and password. This is the only locally-managed account in Duar — all other users authenticate through external IdPs.
 
-Admin sessions use a secure HTTP-only cookie with a dedicated `sentinel:admin` JWT audience, separate from user tokens.
+Admin sessions use a secure HTTP-only cookie with a dedicated `duar:admin` JWT audience, separate from user tokens.
 
 ## Sections
 

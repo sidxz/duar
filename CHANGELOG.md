@@ -30,10 +30,10 @@ migration. Consumers upgrade by search-and-replace:
 | Browser storage / cookie keys `sentinel_*` | `duar_*` (users are signed out once on upgrade) |
 | Repo `github.com/sidxz/Sentinel` | `github.com/sidxz/duar` |
 
-Deliberately **unchanged** for now: the JWT `aud` values (`sentinel:access`,
-`sentinel:refresh`, `sentinel:admin`, `sentinel:authz`, `sentinel:m2m`). They are
-internal wire strings; renaming them needs a dual-accept window in the SDKs and
-is scheduled for a later release.
+JWT `aud` values are renamed too: `sentinel:{access,refresh,admin,authz,m2m}` →
+`duar:{access,refresh,admin,authz,m2m}`. Tokens issued by a pre-rename service
+are rejected by the renamed SDKs and vice-versa — upgrade service and SDKs
+together; existing sessions re-authenticate once.
 
 ---
 
@@ -411,7 +411,7 @@ Layer-2 live pentest (tenant isolation and auth-token integrity both proven).
 ### Added
 
 - **Realms — trusted app groups + no-user (m2m) authz** — a shared authz scope across a
-  group of apps, plus machine-to-machine tokens with no user context: `sentinel:m2m`
+  group of apps, plus machine-to-machine tokens with no user context: `duar:m2m`
   tokens, `/realm/whoami` and `/realm/m2m-token` endpoints, admin Realms CRUD + membership
   UI, and Python/JS SDK helpers (`SystemAuth`, `mint_m2m_token`, `verify_m2m_token`,
   `require_system`).

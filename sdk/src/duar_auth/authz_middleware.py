@@ -67,7 +67,7 @@ class AuthzMiddleware(BaseHTTPMiddleware):
         duar_instance: Duar | None = None,
         idp_algorithm: str = "RS256",
         duar_algorithm: str = "RS256",
-        duar_audience: str = "sentinel:authz",
+        duar_audience: str = "duar:authz",
         exclude_paths: list[str] | None = None,
     ):
         super().__init__(app)

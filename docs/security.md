@@ -111,10 +111,10 @@ Tokens carry a `type` claim that prevents cross-use:
 
 | Token Type | `type` Claim | Audience |
 |------------|-------------|----------|
-| Access token | `access` | `sentinel:access` |
+| Access token | `access` | `duar:access` |
 | Refresh token | (Redis only) | N/A |
-| Admin token | `admin_access` | `sentinel:admin` |
-| Authz token | `authz` | `sentinel:authz` |
+| Admin token | `admin_access` | `duar:admin` |
+| Authz token | `authz` | `duar:authz` |
 
 ### Token ID (`jti`)
 
@@ -315,7 +315,7 @@ The authz JWT carries three binding claims that the middleware enforces on every
 
 | Claim | Bound to | Enforcement |
 |-------|----------|-------------|
-| `aud` | `sentinel:authz` | JWT decode |
+| `aud` | `duar:authz` | JWT decode |
 | `idp_sub` | IdP token's `sub` | Middleware asserts equality (both non-empty) |
 | `svc` | Calling service's `service_name` | Middleware asserts equality — stops cross-service token replay |
 

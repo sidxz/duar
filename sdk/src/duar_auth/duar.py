@@ -22,7 +22,7 @@ from duar_auth.permissions import PermissionClient
 from duar_auth.roles import RoleClient
 from duar_auth.types import DuarError
 
-_AUD_M2M = "sentinel:m2m"
+_AUD_M2M = "duar:m2m"
 
 
 class Duar:

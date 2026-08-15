@@ -446,7 +446,7 @@ duar = Duar(
 In proxy mode:
 
 - `protect()` adds `JWTAuthMiddleware` instead of `AuthzMiddleware`
-- The middleware validates a single Duar-issued JWT (`audience: sentinel:access`)
+- The middleware validates a single Duar-issued JWT (`audience: duar:access`)
 - No IdP token handling on your side — Duar manages the entire OAuth flow
 
 ### Everything else stays the same

@@ -139,7 +139,7 @@ export interface ActionDefinition {
 export interface VerifyOptions {
   /** URL to the JWKS endpoint (e.g. "http://localhost:9003/.well-known/jwks.json") */
   jwksUrl: string
-  /** Expected audience claim. Defaults to "sentinel:access". */
+  /** Expected audience claim. Defaults to "duar:access". */
   audience?: string
   /** Expected issuer claim. */
   issuer?: string

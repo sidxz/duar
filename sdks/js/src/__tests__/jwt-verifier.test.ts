@@ -17,7 +17,7 @@ const mockPayload = {
   wslug: 'test-ws',
   wrole: 'admin',
   groups: ['g1'],
-  aud: 'sentinel:access',
+  aud: 'duar:access',
   iss: 'duar',
   exp: Math.floor(Date.now() / 1000) + 3600,
   iat: Math.floor(Date.now() / 1000),
@@ -54,14 +54,14 @@ describe('verifyToken', () => {
     )
   })
 
-  it('defaults audience to sentinel:access', async () => {
+  it('defaults audience to duar:access', async () => {
     await verifyToken('fake-token', {
       jwksUrl: 'http://localhost:9003/.well-known/jwks.json',
     })
     expect(jwtVerify).toHaveBeenCalledWith(
       'fake-token',
       expect.anything(),
-      expect.objectContaining({ audience: 'sentinel:access' }),
+      expect.objectContaining({ audience: 'duar:access' }),
     )
   })
 })

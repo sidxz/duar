@@ -18,7 +18,7 @@ const authzPayload = {
   idp_sub: 'google|123',
   svc: 'notes',
   actions: ['notes:create'],
-  aud: 'sentinel:authz',
+  aud: 'duar:authz',
   iss: 'duar',
   exp: Math.floor(Date.now() / 1000) + 300,
   iat: Math.floor(Date.now() / 1000),

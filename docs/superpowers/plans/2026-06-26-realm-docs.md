@@ -114,7 +114,7 @@ sequenceDiagram
     A->>S: POST /realm/m2m-token (X-Service-Key)
     S-->>A: m2m token { type=m2m, svc="acme-suite", caller="app-a", actions=["*"] }
     A->>B: call + forward m2m token (Authorization: Bearer)
-    Note over B: SDK: type=m2m, aud=sentinel:m2m, svc == my effective_scope ✓
+    Note over B: SDK: type=m2m, aud=duar:m2m, svc == my effective_scope ✓
     B-->>A: response (trusted in-realm system caller)
 ```
 
@@ -125,7 +125,7 @@ The m2m token carries **no user claims** — it is an honest "no human" credenti
 Two independent, Duar-rooted checks — apps never trust each other directly:
 
 - **Mint-time** (App A → Duar): the m2m endpoint is gated by the service key. The token's `caller` and `svc` are **server-stamped from the authenticated key**, never client-asserted — so a leaked key can only mint *that member's* token, and cannot impersonate another member or jump realms. Minting is rejected unless the service is an active member of an active realm.
-- **Present-time** (App A → App B): App B verifies Duar's RS256 signature over JWKS, plus `aud == sentinel:m2m`, `svc == effective_scope` (a cross-realm replay fails), and a short expiry.
+- **Present-time** (App A → App B): App B verifies Duar's RS256 signature over JWKS, plus `aud == duar:m2m`, `svc == effective_scope` (a cross-realm replay fails), and a short expiry.
 
 | Threat | Defense |
 |---|---|
@@ -134,7 +134,7 @@ Two independent, Duar-rooted checks — apps never trust each other directly:
 | Stolen token in transit | short TTL + TLS + `svc` binding |
 | Malicious member | v1 is full in-realm trust by design; the reserved `actions` field is the future least-privilege lever |
 
-The m2m audience (`sentinel:m2m`) is deliberately separate from the user audiences (`sentinel:access`, `sentinel:authz`, `sentinel:admin`) so a user-token validator can never accept an m2m token as a user.
+The m2m audience (`duar:m2m`) is deliberately separate from the user audiences (`duar:access`, `duar:authz`, `duar:admin`) so a user-token validator can never accept an m2m token as a user.
 
 For the hard **network isolation** that puts the entire service-key surface (including `/realm/*`) on an unpublished internal listener, see [Deployment → Network Split](../deployment/index.md#network-split-public--internal-listeners).
 
@@ -309,7 +309,7 @@ curl -X POST http://duar-internal:9010/realm/m2m-token \
 ```jsonc
 {
   "iss": "<base_url>",
-  "aud": "sentinel:m2m",     // separate from user audiences — never accepted as a user
+  "aud": "duar:m2m",     // separate from user audiences — never accepted as a user
   "type": "m2m",
   "svc": "acme-suite",        // realm slug = effective_scope
   "caller": "app-a",          // server-stamped: which member minted it (audit)
@@ -714,7 +714,7 @@ git commit -m "docs(realm): document the public/internal network split + TIER"
 
 **Placeholder scan:** none — every page's full markdown is inline; every edit shows the exact text. The only conditional is Task 4 Step 2 (table-vs-list-vs-missing-section in `nextjs.md`), which gives all three concrete forms because the current shape of that file's middleware-config section was not read at plan time.
 
-**Type/name consistency:** identifiers verified against shipped code — `effective_scope`, `m2m_ttl_s` (default 300, range 30–3600), slug pattern `^[a-z][a-z0-9-]*[a-z0-9]$`, audience `sentinel:m2m`, claims `{type, svc, caller, actions, aud_target, jti}`, Python `SystemAuth(caller, actions, svc)`/`can`, `verify_m2m_token`/`require_system`/`mint_m2m_token`/`fetch_whoami`/`effective_scope`/`realm`, JS `fetchWhoami`/`verifyM2mToken`/`M2mTokenClient.getToken`/`effectiveScope`, routers `PUBLIC_ROUTERS`/`INTERNAL_ROUTERS`, ports `:9003`/`:9010`, service names `duar`/`duar-internal`, response fields `RealmResponse {id,slug,name,m2m_ttl_s,is_active,created_at}` and `RealmMemberResponse {id,name,service_name,has_grants}`.
+**Type/name consistency:** identifiers verified against shipped code — `effective_scope`, `m2m_ttl_s` (default 300, range 30–3600), slug pattern `^[a-z][a-z0-9-]*[a-z0-9]$`, audience `duar:m2m`, claims `{type, svc, caller, actions, aud_target, jti}`, Python `SystemAuth(caller, actions, svc)`/`can`, `verify_m2m_token`/`require_system`/`mint_m2m_token`/`fetch_whoami`/`effective_scope`/`realm`, JS `fetchWhoami`/`verifyM2mToken`/`M2mTokenClient.getToken`/`effectiveScope`, routers `PUBLIC_ROUTERS`/`INTERNAL_ROUTERS`, ports `:9003`/`:9010`, service names `duar`/`duar-internal`, response fields `RealmResponse {id,slug,name,m2m_ttl_s,is_active,created_at}` and `RealmMemberResponse {id,name,service_name,has_grants}`.
 
 **Strict-build link discipline:** new pages link forward to each other; Tasks 1–2 carry two known forward-reference warnings that resolve once Task 3 lands. The strict gate is enforced at the end of Task 3 (all SDK/guide/api links resolve) and again at Task 5 (the deployment anchor resolves). The `#network-split-public--internal-listeners` anchor is produced verbatim by Task 5's heading and is the target of three earlier links — Task 5 must not rename that heading.
 

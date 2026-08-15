@@ -46,7 +46,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             at a non-Duar OIDC provider whose JWKS path differs from
             the standard ``/.well-known/jwks.json``.
         algorithm: JWT signing algorithm. Defaults to ``"RS256"``.
-        audience: Expected JWT audience claim. Defaults to ``"sentinel:access"``.
+        audience: Expected JWT audience claim. Defaults to ``"duar:access"``.
         exclude_paths: List of path prefixes to skip authentication for.
             Defaults to ``["/health", "/docs", "/openapi.json"]``.
         allowed_workspaces: Optional set of workspace IDs (as strings) that
@@ -77,7 +77,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         public_key: str | None = None,
         jwks_url: str | None = None,
         algorithm: str = "RS256",
-        audience: str = "sentinel:access",
+        audience: str = "duar:access",
         exclude_paths: list[str] | None = None,
         allowed_workspaces: set[str] | None = None,
     ):

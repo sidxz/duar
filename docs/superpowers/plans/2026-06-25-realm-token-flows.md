@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add the no-user realm token primitive and the two service-facing realm endpoints — `GET /realm/whoami` (SDK scope self-discovery) and `POST /realm/m2m-token` (mint a short-lived `sentinel:m2m` token) — so a realm member can credential a background, no-human app↔app call entirely through Duar.
+**Goal:** Add the no-user realm token primitive and the two service-facing realm endpoints — `GET /realm/whoami` (SDK scope self-discovery) and `POST /realm/m2m-token` (mint a short-lived `duar:m2m` token) — so a realm member can credential a background, no-human app↔app call entirely through Duar.
 
-**Architecture:** A new `sentinel:m2m` JWT audience + `create_m2m_token()` mints a token carrying **service identity only** (no `sub`/user claims). A new `/realm` router (service-key-only) exposes `whoami` (returns `service_name`, `effective_scope`, and the realm if any) and `m2m-token` (server-stamps `caller`/`svc` from the authenticated key, mints under the realm's `m2m_ttl_s`, rejects non-members and inactive realms). The token's `svc` is the realm slug (`effective_scope`), so any member accepts it; receiver-side acceptance lives in the SDK (Plan 5).
+**Architecture:** A new `duar:m2m` JWT audience + `create_m2m_token()` mints a token carrying **service identity only** (no `sub`/user claims). A new `/realm` router (service-key-only) exposes `whoami` (returns `service_name`, `effective_scope`, and the realm if any) and `m2m-token` (server-stamps `caller`/`svc` from the authenticated key, mints under the realm's `m2m_ttl_s`, rejects non-members and inactive realms). The token's `svc` is the realm slug (`effective_scope`), so any member accepts it; receiver-side acceptance lives in the SDK (Plan 5).
 
 **Tech Stack:** FastAPI, SQLAlchemy 2.0 async, PyJWT (RS256, `kid` headers), slowapi, pytest + pytest-asyncio (managed by `uv`).
 
@@ -34,7 +34,7 @@ After this plan: a service with a realm member key can call `GET /realm/whoami` 
 
 ---
 
-### Task 1: `sentinel:m2m` audience + `create_m2m_token()`
+### Task 1: `duar:m2m` audience + `create_m2m_token()`
 
 **Files:**
 - Modify: `service/src/auth/jwt.py` (add `_AUD_M2M` constant near `:23-26`; add `create_m2m_token()` after `create_authz_token`)
@@ -42,13 +42,13 @@ After this plan: a service with a realm member key can call `GET /realm/whoami` 
 
 **Interfaces:**
 - Consumes: `_sign`, `_ISSUER`, `decode_token` (existing in `jwt.py`).
-- Produces: `_AUD_M2M = "sentinel:m2m"`; `create_m2m_token(svc: str, caller: str, ttl_s: int, actions: list[str] | None = None, aud_target: str | None = None) -> str`. Token claims: `iss, aud=_AUD_M2M, type="m2m", svc, caller, actions (default ["*"]), aud_target, jti, iat, exp=iat+ttl_s`. **No** `sub`/`email`/`idp_sub`/user claims.
+- Produces: `_AUD_M2M = "duar:m2m"`; `create_m2m_token(svc: str, caller: str, ttl_s: int, actions: list[str] | None = None, aud_target: str | None = None) -> str`. Token claims: `iss, aud=_AUD_M2M, type="m2m", svc, caller, actions (default ["*"]), aud_target, jti, iat, exp=iat+ttl_s`. **No** `sub`/`email`/`idp_sub`/user claims.
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
 # service/tests/test_m2m_token.py
-"""The no-user realm m2m token: service identity only, sentinel:m2m audience."""
+"""The no-user realm m2m token: service identity only, duar:m2m audience."""
 
 import pytest
 
@@ -90,10 +90,10 @@ Expected: FAIL with `ImportError: cannot import name '_AUD_M2M'` / `create_m2m_t
 
 - [ ] **Step 3: Add the `_AUD_M2M` constant**
 
-In `service/src/auth/jwt.py`, add immediately after `_AUD_AUTHZ = "sentinel:authz"` (line 26):
+In `service/src/auth/jwt.py`, add immediately after `_AUD_AUTHZ = "duar:authz"` (line 26):
 
 ```python
-_AUD_M2M = "sentinel:m2m"
+_AUD_M2M = "duar:m2m"
 ```
 
 - [ ] **Step 4: Add `create_m2m_token()`**
@@ -144,7 +144,7 @@ Expected: PASS (3 passed).
 ```bash
 cd service && uv run ruff format $FILES && uv run ruff check --fix $FILES   # $FILES = ONLY this task's files; never 'ruff format .' / 'make fmt'
 git add service/src/auth/jwt.py service/tests/test_m2m_token.py
-git commit -m "feat(realm): sentinel:m2m audience + create_m2m_token (no-user token)"
+git commit -m "feat(realm): duar:m2m audience + create_m2m_token (no-user token)"
 ```
 
 ---
@@ -567,7 +567,7 @@ git commit -m "feat(realm): /realm/whoami + /realm/m2m-token (mint no-user token
 ## Self-review (done by plan author)
 
 **Spec coverage (Plan 2's slice):**
-- `_AUD_M2M = "sentinel:m2m"`, kept separate from access/authz/admin/refresh (token-type-confusion defense) → Task 1 (+ `test_m2m_token_audience_is_distinct_from_access`).
+- `_AUD_M2M = "duar:m2m"`, kept separate from access/authz/admin/refresh (token-type-confusion defense) → Task 1 (+ `test_m2m_token_audience_is_distinct_from_access`).
 - `create_m2m_token()` — service identity only, `actions=["*"]`, `aud_target` reserved-off, `exp = iat + ttl_s`, server-stampable `caller`/`svc` → Task 1.
 - `GET /realm/whoami` — `require_service_key`; returns `{service_name, effective_scope, realm | null}`; SDK caches it → Task 3.
 - `POST /realm/m2m-token` — `require_service_key`; rate-limited via `service_or_ip_key`; server-stamps `caller`+`svc`; mints under `realm.m2m_ttl_s`; rejects non-member + inactive realm → Task 3.

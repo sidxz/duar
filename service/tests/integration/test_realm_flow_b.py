@@ -134,8 +134,8 @@ def test_flow_b_expired_rejected():
 
 
 def test_flow_b_authz_token_rejected_as_m2m():
-    # Token-type-confusion defense: a real authz token (aud=sentinel:authz) must never
-    # validate through the m2m verifier (aud=sentinel:m2m).
+    # Token-type-confusion defense: a real authz token (aud=duar:authz) must never
+    # validate through the m2m verifier (aud=duar:m2m).
     import uuid
 
     token = create_authz_token(
@@ -186,7 +186,7 @@ def test_committed_fixtures_accepted_and_negatives_rejected():
     expected = {
         "m2m_expired": 401,  # expired signature → bad token
         "m2m_wrong_realm": 403,  # svc != effective_scope → scope mismatch
-        "authz_valid": 401,  # wrong audience (sentinel:authz) → bad token
+        "authz_valid": 401,  # wrong audience (duar:authz) → bad token
         "m2m_aud_target": 403,  # aud_target targets a different service
     }
     for label, code in expected.items():
@@ -203,17 +203,17 @@ def test_committed_m2m_claims_match_current_minter():
         _FIX["tokens"]["m2m_valid"],
         _FIX["public_pem"],
         algorithms=["RS256"],
-        audience="sentinel:m2m",
+        audience="duar:m2m",
     )
     fresh_token = create_m2m_token(svc="acme-suite", caller="app-a", ttl_s=300)
     fresh = pyjwt.decode(
         fresh_token,
         _pubpem_for(fresh_token),
         algorithms=["RS256"],
-        audience="sentinel:m2m",
+        audience="duar:m2m",
     )
     assert sorted(committed.keys()) == sorted(fresh.keys())
-    assert committed["aud"] == fresh["aud"] == "sentinel:m2m"
+    assert committed["aud"] == fresh["aud"] == "duar:m2m"
     assert committed["type"] == fresh["type"] == "m2m"
     # Value-shape too, not just claim names: a drift that retypes a claim the JS
     # vector relies on (e.g. actions list -> CSV string) without renaming it would

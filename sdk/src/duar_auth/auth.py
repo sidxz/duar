@@ -289,7 +289,7 @@ class SystemAuth:
     """Per-request context for a no-user (machine-to-machine) in-realm call.
 
     The no-user counterpart to :class:`RequestAuth`. It is produced by
-    ``Duar.verify_m2m_token`` after a ``type=m2m`` token (``aud=sentinel:m2m``)
+    ``Duar.verify_m2m_token`` after a ``type=m2m`` token (``aud=duar:m2m``)
     passes Duar's RS256 signature + realm-scope checks. It carries service
     identity only — never a user:
 
