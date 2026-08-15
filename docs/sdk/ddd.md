@@ -92,6 +92,7 @@ sentinel = Sentinel(
     service_key="sk_...",
     mode="authz",  # default
     idp_jwks_url="https://www.googleapis.com/oauth2/v3/certs",
+    idp_audience="123-abc.apps.googleusercontent.com",  # your OAuth client_id
     actions=[
         {"action": "documents:export", "description": "Export documents"},
         {"action": "documents:bulk-delete", "description": "Bulk delete documents"},

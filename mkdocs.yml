@@ -1,6 +1,6 @@
 site_name: Sentinel Auth
 site_description: Authentication, workspace management, and permissions microservice
-site_url: https://github.com/sidxz/Sentinel
+site_url: https://docs.sentinel-auth.com/
 
 repo_name: sentinel
 repo_url: https://github.com/sidxz/Sentinel

@@ -78,6 +78,7 @@ sentinel = Sentinel(
     service_key="sk_...",
     mode="authz",
     idp_jwks_url="https://www.googleapis.com/oauth2/v3/certs",
+    idp_audience="123-abc.apps.googleusercontent.com",  # your OAuth client_id
 )
 
 app = FastAPI(lifespan=sentinel.lifespan)
