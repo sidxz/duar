@@ -12,12 +12,6 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    # NPM_TOKEN: granular token with read/write on the @duar-auth scope. Needed
-    # because npm Trusted Publishing can only be configured on packages that
-    # already exist; once 1.0.0 is up, add sidxz/duar + this workflow as the
-    # trusted publisher on each package, delete the token, and drop this env.
-    env:
-      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -38,14 +32,25 @@ jobs:
         working-directory: sdks
         run: npm test
 
+      # NPM_TOKEN (granular, read/write on @duar-auth only) is scoped to the
+      # publish steps so install/build/test never see it. Needed because npm
+      # Trusted Publishing can only be configured on packages that already
+      # exist; once 1.0.0 is up, add sidxz/duar + this workflow as the trusted
+      # publisher on each package, delete the token, and drop these env lines.
       - name: Publish @duar-auth/js
         working-directory: sdks/js
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --provenance --access public
 
       - name: Publish @duar-auth/react
         working-directory: sdks/react
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --provenance --access public
 
       - name: Publish @duar-auth/nextjs
         working-directory: sdks/nextjs
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --provenance --access public
