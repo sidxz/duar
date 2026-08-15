@@ -107,7 +107,7 @@ marked *(alt)*.
 No dropdown, no drawer; on mobile the links wrap.
 
 **1. Hero** — eyebrow `OPEN SOURCE · SELF-HOSTED · BRING YOUR OWN IDP` (first
-two words `text-brand`). H1 (~72px, left): **"Auth for everything after login."**
+two words `text-brand`). H1 (~72px, left): **"Authorization for everything after login."** (changed from "Auth for…" 2026-08-15 — "Auth" reads as authentication)
 *(alt: "The authorization layer between your IdP and your app.")*
 Sub: "Keep Sign in with Google, GitHub, or Entra ID exactly as it is. Sentinel
 adds workspaces, roles, and per-resource permissions — issued as one RS256 JWT
