@@ -1,4 +1,4 @@
-"""JWKS (JSON Web Key Set) builder for Sentinel's RSA signing keys."""
+"""JWKS (JSON Web Key Set) builder for Duar's RSA signing keys."""
 
 import json
 import time

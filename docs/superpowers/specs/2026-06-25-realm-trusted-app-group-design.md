@@ -6,7 +6,7 @@
 **Task:** Let an admin define a **realm** — a named group of service apps that fully
 trust each other — so that (1) user sign-ins and permissions are shared across the
 group, and (2) the apps can call each other's APIs both with a signed-in user and
-with no user at all, all credentialed and validated through Sentinel.
+with no user at all, all credentialed and validated through Duar.
 
 ## Problem
 
@@ -20,13 +20,13 @@ In authz mode, every service is hard-isolated by its unique `service_name`:
   `svc` claim is the calling service's name; `get_user_for_service_call`
   (`dependencies.py:243-244`, and again at `:313-314`) rejects it if `token.svc !=
   caller.service_name`. A token App A holds is *deliberately* unusable on App B.
-- **No no-user m2m primitive.** Sentinel only issues credentials anchored to an
+- **No no-user m2m primitive.** Duar only issues credentials anchored to an
   IdP-authenticated user. There is no token an app can present to *another app* on a
   background/system call where no human is involved.
 
 We want a set of apps that behave as **one logical trust boundary**: shared sign-in,
 shared permissions, and trusted app↔app calls (with or without a user) — without the
-apps containing any auth logic of their own. Everything routes through Sentinel.
+apps containing any auth logic of their own. Everything routes through Duar.
 
 ## Model framing
 
@@ -40,10 +40,10 @@ Naming: we call it **Realm**, not "group", because the codebase already has a
 user-facing **Group** (`grantee_type='group'` ACL grantee). "Realm" = shared
 security/trust boundary, no collision.
 
-Guardrail check: Sentinel's prime rule is *"proxy human identity from IdPs, never be
+Guardrail check: Duar's prime rule is *"proxy human identity from IdPs, never be
 the auth authority for who a person is."* A no-user m2m token introduces **no human
 identity** — it is a short-lived, transportable form of the **service identity**
-Sentinel already issues and validates (`service_apps` keys). It carries service
+Duar already issues and validates (`service_apps` keys). It carries service
 identity only (never a synthesized user), so it is consistent with the guardrail's
 intent even though it superficially resembles an OAuth `client_credentials` grant.
 
@@ -56,20 +56,20 @@ intent even though it superficially resembles an OAuth `client_credentials` gran
 - **User-context m2m**: App A forwards the user's authz token to App B; B honors it.
 - **No-user m2m**: App A mints a short-lived realm m2m token (with its service key) and
   presents it to App B; B trusts it as an in-realm system caller.
-- **Anti-forgery rooted in Sentinel**, never app↔app trust: identity is
-  server-stamped, tokens are RS256-signed, apps verify Sentinel's signature.
+- **Anti-forgery rooted in Duar**, never app↔app trust: identity is
+  server-stamped, tokens are RS256-signed, apps verify Duar's signature.
 - **Hard network isolation**: the entire service-key surface lives on an unpublished
   internal listener the public internet cannot reach.
 - Apps carry **no auth logic and no realm config** — the SDK self-discovers scope from
-  Sentinel.
+  Duar.
 - **Non-breaking**: standalone services and existing data behave exactly as today.
 
 ## Non-Goals
 
 - Federated/cross-readable permissions (rejected: chose single shared realm).
 - Per-member least-privilege m2m in v1 (the `actions` field is *reserved* for it).
-- Sentinel as a data-path reverse proxy between apps (apps call each other directly,
-  carrying a Sentinel-issued credential).
+- Duar as a data-path reverse proxy between apps (apps call each other directly,
+  carrying a Duar-issued credential).
 - mTLS / service mesh between apps (overlay network + service keys suffice for now).
 - Auto-migration of a joining service's pre-existing permission rows (documented
   fast-follow).
@@ -87,7 +87,7 @@ intent even though it superficially resembles an OAuth `client_credentials` gran
    **server-stamped** identity, **full realm trust** in v1 with an `actions:["*"]`
    field that is enforceable later with **no migration**. Optional per-call
    `aud_target` reserved but **off by default**.
-4. **Anti-forgery** = Sentinel RS256 signature + server-stamped `caller`/`svc`. Apps
+4. **Anti-forgery** = Duar RS256 signature + server-stamped `caller`/`svc`. Apps
    never trust each other directly.
 5. **Hard network split** — two app instances (same image): a published **public**
    listener (humans) and an **unpublished internal** listener (all service-key
@@ -153,7 +153,7 @@ sends `service_name` today, so app code is unchanged.
 
 ```
 User → App A (login)
-App A backend → /authz/resolve (X-Service-Key + IdP token) → Sentinel
+App A backend → /authz/resolve (X-Service-Key + IdP token) → Duar
    mints authz token: svc = caller.effective_scope ("acme-suite")
 App A → forwards authz token → App B
    App B SDK: type=authz, svc == my effective_scope?  ✓  → user identity + actions apply
@@ -168,7 +168,7 @@ realm-scoped because permissions key on `effective_scope`.
 
 ```
 cron in App A (no human)
-App A backend → POST /realm/m2m-token (X-Service-Key only) → Sentinel
+App A backend → POST /realm/m2m-token (X-Service-Key only) → Duar
    ← JWT { type=m2m, svc="acme-suite", caller="docs", actions=["*"] }
 App A → forwards m2m token → App B
    App B SDK: type=m2m, aud=sentinel:m2m, svc == my effective_scope?  ✓
@@ -202,21 +202,21 @@ accept an m2m token as a user (token-type-confusion defense).
 
 ## Anti-forgery / trust model
 
-Two independent, Sentinel-rooted checks — never app↔app trust:
+Two independent, Duar-rooted checks — never app↔app trust:
 
-**Mint-time** (App A → Sentinel): `require_service_key` gates the endpoint. The token's
+**Mint-time** (App A → Duar): `require_service_key` gates the endpoint. The token's
 `caller`/`svc` are **server-stamped from the authenticated key**, never client-asserted
 — so a leaked key can only mint *that member's* token, not impersonate another member
 or jump realms. Mint rejects if the service is not an active member of an active realm.
 
-**Present-time** (App A → App B): App B verifies Sentinel's **RS256 signature** over
-JWKS (existing `kid`-based resolution from the key-rotation work) — only Sentinel can
+**Present-time** (App A → App B): App B verifies Duar's **RS256 signature** over
+JWKS (existing `kid`-based resolution from the key-rotation work) — only Duar can
 sign, so a fabricated token fails. Plus `aud==sentinel:m2m`, `svc==effective_scope`
 (cross-realm replay dies), and short `exp`.
 
 | Threat | Defense |
 |---|---|
-| Forged/fabricated token | RS256 signature — unforgeable without Sentinel's private key |
+| Forged/fabricated token | RS256 signature — unforgeable without Duar's private key |
 | Stolen service key | high-entropy, hashed, backend-only, rotatable; **server-stamped identity** blocks impersonation |
 | Stolen token in transit | short TTL + TLS + `svc` binding; optional `jti` denylist for hard revoke |
 | Malicious member | v1 = full trust by design; reserved `actions` field is the future least-privilege lever |
@@ -239,8 +239,8 @@ TIER=internal uvicorn :9010  (NOT published, overlay-only)
 
 - The internet has **no socket** to `:9010`; there is no proxy rule whose failure
   re-exposes internal routes — isolation is structural.
-- Docker Swarm: both services on the `sentinel` overlay; `:9010` is **never published**;
-  app services reach `http://sentinel-internal:9010` by name.
+- Docker Swarm: both services on the `duar` overlay; `:9010` is **never published**;
+  app services reach `http://duar-internal:9010` by name.
 - Internal app drops CORS + OAuth session middleware (no browsers); keeps
   SecurityHeaders, rate limiting, RequestContext, AccessLog (`main.py:198-230`).
 - `*`JWKS stays public by default (public keys are meant to be public); flip internal
@@ -278,8 +278,8 @@ New service `service/src/services/realm_service.py`; schemas
 
 | Package | Change |
 |---|---|
-| **Python** (`sentinel_auth`) | `whoami` scope discovery (cached); broaden authz `svc` check to `effective_scope`; `mint_m2m_token()` with auto-refresh at ~80% TTL; accept `type=m2m` → new `SystemAuth` context (no user; `caller`, `actions`) alongside `RequestAuth` |
-| **JS** (`@sentinel-auth/js`, `react`, `nextjs`) | user-context `svc` check broadened to scope (via whoami); m2m **mint + accept** added to the **server** entry only (`@sentinel-auth/js` server, nextjs server helpers) — never browser |
+| **Python** (`duar_auth`) | `whoami` scope discovery (cached); broaden authz `svc` check to `effective_scope`; `mint_m2m_token()` with auto-refresh at ~80% TTL; accept `type=m2m` → new `SystemAuth` context (no user; `caller`, `actions`) alongside `RequestAuth` |
+| **JS** (`@duar-auth/js`, `react`, `nextjs`) | user-context `svc` check broadened to scope (via whoami); m2m **mint + accept** added to the **server** entry only (`@duar-auth/js` server, nextjs server helpers) — never browser |
 
 m2m validation lives in the SDK (apps call each other directly). `["*"]` ⇒ full trust
 now; the same code path enforces a narrowed `actions` list later with no change.

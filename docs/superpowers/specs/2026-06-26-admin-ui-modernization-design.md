@@ -6,9 +6,9 @@
 
 ## Goal
 
-Modernize the Sentinel admin SPA so it reads as an intentional, professional
+Modernize the Duar admin SPA so it reads as an intentional, professional
 **security console** — not a templated dashboard. Adopt a real component
-foundation, add a light/dark theme system, and keep the Sentinel red as the
+foundation, add a light/dark theme system, and keep the Duar red as the
 constant brand. Convert all ~19 pages (full sweep).
 
 ## Decisions (from brainstorming)
@@ -29,7 +29,7 @@ constant brand. Convert all ~19 pages (full sweep).
 The distinctive look is **a constant red rail against a flipping (light/dark)
 canvas**. The library is just primitives; the identity comes from:
 
-- **Red rail** — Sentinel red, identical in both themes; the brand anchor.
+- **Red rail** — Duar red, identical in both themes; the brand anchor.
 - **Type** — IBM Plex Sans/Mono (enterprise/security signal, not Inter).
 - **Mono on every identifier** — IDs, slugs, `service_name`, `client_id`,
   JWTs/keys, with copy-to-clipboard on keys & IDs.

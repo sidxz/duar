@@ -1,41 +1,41 @@
 /**
- * Reverse proxy for private-network Sentinel deployments.
+ * Reverse proxy for private-network Duar deployments.
  *
- * When Sentinel has no browser-reachable address (ClusterIP-only), the JS SDK's
+ * When Duar has no browser-reachable address (ClusterIP-only), the JS SDK's
  * browser calls route through the app's own origin. Drop this into a catch-all
- * route handler and point the frontend's `sentinelUrl` at its mount path:
+ * route handler and point the frontend's `duarUrl` at its mount path:
  *
  * ```ts
- * // app/api/sentinel/[...path]/route.ts
- * import { createSentinelProxy } from '@sentinel-auth/nextjs/proxy'
+ * // app/api/duar/[...path]/route.ts
+ * import { createDuarProxy } from '@duar-auth/nextjs/proxy'
  *
- * export const { GET, POST } = createSentinelProxy({
- *   sentinelUrl: process.env.SENTINEL_URL!,        // internal URL
- *   serviceKey: process.env.SENTINEL_SERVICE_KEY!,
+ * export const { GET, POST } = createDuarProxy({
+ *   duarUrl: process.env.DUAR_URL!,        // internal URL
+ *   serviceKey: process.env.DUAR_SERVICE_KEY!,
  * })
  * ```
  *
- * Frontend config: `sentinelUrl: '/api/sentinel'`,
- * `mintEndpoint: '/api/sentinel/authz/resolve'`.
+ * Frontend config: `duarUrl: '/api/duar'`,
+ * `mintEndpoint: '/api/duar/authz/resolve'`.
  *
  * Only the browser-facing surface is forwarded:
  * - `POST authz/resolve` — discovery AND mint; the service key is injected
  *   here (and the caller's tokens dropped), so this route IS the mint endpoint.
  * - `GET workspaces/{id}/members|groups|groups/{id}/members`, `GET users/me` —
  *   the caller's `Authorization` + `X-Authz-Token` pass through untouched and
- *   the service key is deliberately NOT attached: Sentinel ignores
+ *   the service key is deliberately NOT attached: Duar ignores
  *   `X-Authz-Token` when a valid service key is present and would reject the
  *   IdP bearer with 401.
  *
- * `X-Forwarded-For` / `User-Agent` pass through so Sentinel's access logs and
+ * `X-Forwarded-For` / `User-Agent` pass through so Duar's access logs and
  * rate limits see real client IPs (set `BEHIND_PROXY` + `TRUSTED_PROXY_COUNT`
- * on Sentinel).
+ * on Duar).
  */
 
-export interface SentinelProxyConfig {
-  /** Internal Sentinel base URL (server-side reachable), e.g. "http://sentinel:9003". */
-  sentinelUrl: string
-  /** Service API key from the Sentinel admin panel. */
+export interface DuarProxyConfig {
+  /** Internal Duar base URL (server-side reachable), e.g. "http://duar:9003". */
+  duarUrl: string
+  /** Service API key from the Duar admin panel. */
   serviceKey: string
 }
 
@@ -64,8 +64,8 @@ function matchAllowlist(method: string, path: string[]): boolean {
   return ID.test(d) && e === 'members'
 }
 
-export function createSentinelProxy(config: SentinelProxyConfig): { GET: Handler; POST: Handler } {
-  const base = config.sentinelUrl.replace(/\/+$/, '')
+export function createDuarProxy(config: DuarProxyConfig): { GET: Handler; POST: Handler } {
+  const base = config.duarUrl.replace(/\/+$/, '')
 
   const handler: Handler = async (req, ctx) => {
     const { path } = await ctx.params
@@ -99,7 +99,7 @@ export function createSentinelProxy(config: SentinelProxyConfig): { GET: Handler
         body: isMint ? await req.text() : undefined,
       })
     } catch {
-      return Response.json({ detail: 'Sentinel is unreachable' }, { status: 502 })
+      return Response.json({ detail: 'Duar is unreachable' }, { status: 502 })
     }
 
     return new Response(await upstream.text(), {

@@ -9,8 +9,8 @@ from dataclasses import dataclass
 
 import httpx
 
-from sentinel_auth._utils import warn_if_insecure
-from sentinel_auth.types import SentinelError
+from duar_auth._utils import warn_if_insecure
+from duar_auth.types import DuarError
 
 
 class _TTLCache:
@@ -95,7 +95,7 @@ class PermissionClient:
     """Client for the identity service's permission API.
 
     Args:
-        base_url: Root URL of the Sentinel service.
+        base_url: Root URL of the Duar service.
         service_name: Registered service name.
         service_key: Service API key.
         cache_ttl: Seconds to cache ``accessible()`` and ``can()`` results.
@@ -136,12 +136,12 @@ class PermissionClient:
 
     @staticmethod
     def _check(response: httpx.Response) -> None:
-        """Raise SentinelError on non-2xx responses."""
+        """Raise DuarError on non-2xx responses."""
         try:
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
-            raise SentinelError(
-                f"Sentinel API error: {exc.response.status_code}",
+            raise DuarError(
+                f"Duar API error: {exc.response.status_code}",
                 status_code=exc.response.status_code,
             ) from exc
 

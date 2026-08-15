@@ -1,4 +1,4 @@
-import { useAuth } from "@sentinel-auth/react";
+import { useAuth } from "@duar-auth/react";
 
 export function Login() {
   const { login } = useAuth();
@@ -9,7 +9,7 @@ export function Login() {
         <div>
           <h1 className="text-2xl font-bold text-zinc-100">Team Notes</h1>
           <p className="mt-1 text-sm text-zinc-500">
-            Sentinel Auth SDK Demo
+            Duar SDK Demo
           </p>
         </div>
 
@@ -29,7 +29,7 @@ export function Login() {
 
         <div className="space-y-2 text-xs text-zinc-600">
             <p>
-            Powered by <a href="https://docs.sentinel-auth.com/" target="_blank" rel="noopener noreferrer" className="text-zinc-500 hover:text-zinc-400 underline">Sentinel Auth</a>
+            Powered by <a href="https://docs.duar.io/" target="_blank" rel="noopener noreferrer" className="text-zinc-500 hover:text-zinc-400 underline">Duar</a>
             </p>
           <div className="flex justify-center gap-4">
             

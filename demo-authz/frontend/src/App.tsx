@@ -1,4 +1,4 @@
-import { AuthzGuard } from "@sentinel-auth/react";
+import { AuthzGuard } from "@duar-auth/react";
 import { Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { AuthCallback } from "./pages/AuthCallback";

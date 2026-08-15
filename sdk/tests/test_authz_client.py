@@ -6,7 +6,7 @@ import pytest
 import respx
 from httpx import Response
 
-from sentinel_auth.authz import AuthzClient
+from duar_auth.authz import AuthzClient
 
 
 class TestAuthzClient:
@@ -22,8 +22,8 @@ class TestAuthzClient:
             "workspaces": None,
         }
         with respx.mock:
-            respx.post("http://sentinel:9003/authz/resolve").mock(return_value=Response(200, json=mock_response))
-            async with AuthzClient("http://sentinel:9003", service_key="sk_test") as client:
+            respx.post("http://duar:9003/authz/resolve").mock(return_value=Response(200, json=mock_response))
+            async with AuthzClient("http://duar:9003", service_key="sk_test") as client:
                 result = await client.resolve(
                     idp_token="fake-idp-token",
                     provider="google",
@@ -44,7 +44,7 @@ class TestAuthzClient:
             "expires_in": None,
         }
         with respx.mock:
-            respx.post("http://sentinel:9003/authz/resolve").mock(return_value=Response(200, json=mock_response))
-            async with AuthzClient("http://sentinel:9003", service_key="sk_test") as client:
+            respx.post("http://duar:9003/authz/resolve").mock(return_value=Response(200, json=mock_response))
+            async with AuthzClient("http://duar:9003", service_key="sk_test") as client:
                 result = await client.resolve(idp_token="fake", provider="google")
                 assert len(result["workspaces"]) == 1

@@ -2,7 +2,7 @@ import type { ActionDefinition } from './types'
 import { warnIfInsecure } from './warn-insecure'
 
 /**
- * Server-side client for the Sentinel RBAC role/action API.
+ * Server-side client for the Duar RBAC role/action API.
  * Mirrors the Python SDK's `RoleClient`.
  */
 export class RoleClient {

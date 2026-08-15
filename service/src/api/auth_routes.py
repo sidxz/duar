@@ -51,7 +51,7 @@ def _error_page(status_code: int, title: str, message: str) -> HTMLResponse:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{safe_title} — Sentinel Auth</title>
+<title>{safe_title} — Duar</title>
 <style>
   *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
   body {{ min-height: 100vh; display: flex; align-items: center; justify-content: center;
@@ -78,7 +78,7 @@ def _error_page(status_code: int, title: str, message: str) -> HTMLResponse:
         <rect x="10" y="9" width="4" height="5" rx="0.5" fill="white" opacity="0.9"/>
         <circle cx="12" cy="8.5" r="2" fill="none" stroke="white" stroke-width="1.5" opacity="0.9"/>
       </svg>
-      <div class="brand">Sentinel Auth</div>
+      <div class="brand">Duar</div>
     </div>
     <div class="body">
       <h1>{safe_title}</h1>
@@ -253,7 +253,7 @@ async def login(
     request.session["code_challenge"] = code_challenge
     request.session["code_challenge_method"] = code_challenge_method
     request.session["client_app_id"] = str(client_app.id)
-    # SPA-supplied CSRF state — opaque to Sentinel, echoed back verbatim on the
+    # SPA-supplied CSRF state — opaque to Duar, echoed back verbatim on the
     # final redirect so the SPA can verify its own round-trip.
     if state:
         request.session["spa_state"] = state

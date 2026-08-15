@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useAuthz, useAuthzUser } from "@sentinel-auth/nextjs";
+import { useAuthz, useAuthzUser } from "@duar-auth/nextjs";
 import { RoleBadge } from "./RoleBadge";
 
 const navLinks = [

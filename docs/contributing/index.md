@@ -7,7 +7,7 @@ Prerequisites: Python 3.12, [uv](https://docs.astral.sh/uv/), Node.js 18+, Docke
 ```bash
 git clone <repo-url> && cd identity-service
 make setup    # Generate keys, TLS certs, .env files, install deps, start DB containers
-make start    # Start Sentinel on :9003 (auto-migrates)
+make start    # Start Duar on :9003 (auto-migrates)
 make admin    # Start admin panel on :9004 (optional)
 ```
 
@@ -41,13 +41,13 @@ identity-service/
 │   │   └── schemas/      # Pydantic request/response schemas
 │   ├── migrations/       # Alembic migration scripts
 │   └── tests/            # Service tests
-├── sdk/                  # Python SDK (sentinel-auth-sdk)
-│   ├── src/sentinel_auth/
+├── sdk/                  # Python SDK (duar-auth)
+│   ├── src/duar_auth/
 │   └── tests/
 ├── sdks/                 # JS/TS SDKs
-│   ├── js/               # @sentinel-auth/js
-│   ├── react/            # @sentinel-auth/react
-│   └── nextjs/           # @sentinel-auth/nextjs
+│   ├── js/               # @duar-auth/js
+│   ├── react/            # @duar-auth/react
+│   └── nextjs/           # @duar-auth/nextjs
 ├── admin/                # React admin panel (Vite + Tailwind)
 ├── docs/                 # MkDocs Material documentation
 ├── keys/                 # JWT keys + TLS certs (gitignored)

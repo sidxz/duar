@@ -93,7 +93,7 @@ domain validation. Raises `ValueError` for guard violations (routes map to
 duplicate slug/domain → 409.
 
 `organization_service.py` (hot path) is untouched except possibly exposing a
-shared constant for the public-org sentinel.
+shared constant for the public-org duar.
 
 ### 4. Schemas — `service/src/schemas/admin.py` (extend)
 

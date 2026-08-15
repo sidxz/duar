@@ -1,9 +1,9 @@
 # FastAPI Dependencies
 
-All dependencies are in `sentinel_auth.dependencies`. They extract auth context set by the middleware and inject it into route handlers.
+All dependencies are in `duar_auth.dependencies`. They extract auth context set by the middleware and inject it into route handlers.
 
 ```python
-from sentinel_auth.dependencies import (
+from duar_auth.dependencies import (
     get_current_user,
     get_workspace_id,
     get_workspace_context,
@@ -45,20 +45,20 @@ async def delete_ws(user: AuthenticatedUser = Depends(require_role("owner"))):
 Dependency factory enforcing an RBAC action via `RoleClient`. Extracts the JWT from the `Authorization` header, calls `role_client.check_action()`, and raises 403 if denied.
 
 ```python
-from sentinel_auth.roles import RoleClient
+from duar_auth.roles import RoleClient
 
-roles = RoleClient(base_url="http://sentinel:9003", service_name="analytics", service_key="sk_...")
+roles = RoleClient(base_url="http://duar:9003", service_name="analytics", service_key="sk_...")
 
 @router.get("/reports/export")
 async def export(user: AuthenticatedUser = Depends(require_action(roles, "reports:export"))):
     return generate_report(user.workspace_id)
 ```
 
-If using the `Sentinel` class, use `sentinel.require_action()` instead:
+If using the `Duar` class, use `duar.require_action()` instead:
 
 ```python
 @router.get("/reports/export")
-async def export(user: AuthenticatedUser = Depends(sentinel.require_action("reports:export"))):
+async def export(user: AuthenticatedUser = Depends(duar.require_action("reports:export"))):
     ...
 ```
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { SentinelAuth } from '../client'
+import { DuarAuth } from '../client'
 import { MemoryStore } from '../storage'
 
 // Helper to create a fake JWT
@@ -20,20 +20,20 @@ const validPayload = {
   wrole: 'editor',
   groups: [],
   aud: 'sentinel:access',
-  iss: 'sentinel',
+  iss: 'duar',
   exp: Math.floor(Date.now() / 1000) + 3600,
   iat: Math.floor(Date.now() / 1000),
   jti: 'jti-1',
 }
 
-describe('SentinelAuth', () => {
+describe('DuarAuth', () => {
   let store: MemoryStore
-  let client: SentinelAuth
+  let client: DuarAuth
 
   beforeEach(() => {
     store = new MemoryStore()
-    client = new SentinelAuth({
-      sentinelUrl: 'http://localhost:9003',
+    client = new DuarAuth({
+      duarUrl: 'http://localhost:9003',
       clientId: '00000000-0000-0000-0000-000000000001',
       storage: store,
       autoRefresh: false,
@@ -59,7 +59,7 @@ describe('SentinelAuth', () => {
   })
 
   it('getWorkspaces POSTs the code with the PKCE verifier', async () => {
-    sessionStorage.setItem('sentinel_pkce_verifier', 'v'.repeat(43))
+    sessionStorage.setItem('duar_pkce_verifier', 'v'.repeat(43))
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response(
         JSON.stringify([{ id: 'ws-1', name: 'WS', slug: 'ws', role: 'editor' }]),
@@ -75,7 +75,7 @@ describe('SentinelAuth', () => {
         body: JSON.stringify({ code: 'code-123', code_verifier: 'v'.repeat(43) }),
       }),
     )
-    sessionStorage.removeItem('sentinel_pkce_verifier')
+    sessionStorage.removeItem('duar_pkce_verifier')
   })
 
   it('login constructs correct redirect URL', async () => {
@@ -86,9 +86,9 @@ describe('SentinelAuth', () => {
       origin: 'http://localhost:5173',
     })
 
-    // SentinelAuth reads window.location.origin in constructor for redirectUri
-    const authClient = new SentinelAuth({
-      sentinelUrl: 'http://localhost:9003',
+    // DuarAuth reads window.location.origin in constructor for redirectUri
+    const authClient = new DuarAuth({
+      duarUrl: 'http://localhost:9003',
       clientId: '00000000-0000-0000-0000-000000000001',
       redirectUri: 'http://localhost:5173/auth/callback',
       storage: store,
@@ -102,14 +102,14 @@ describe('SentinelAuth', () => {
     expect(mockLocation.href).toContain('redirect_uri=')
     expect(mockLocation.href).toContain('code_challenge=')
     expect(mockLocation.href).toContain('code_challenge_method=S256')
-    expect(sessionStorage.getItem('sentinel_pkce_verifier')).toBeTruthy()
+    expect(sessionStorage.getItem('duar_pkce_verifier')).toBeTruthy()
 
     authClient.destroy()
   })
 
   it('selectWorkspace sends correct body and stores tokens', async () => {
     const accessToken = makeJwt(validPayload)
-    sessionStorage.setItem('sentinel_pkce_verifier', 'test-verifier')
+    sessionStorage.setItem('duar_pkce_verifier', 'test-verifier')
 
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response(
@@ -137,7 +137,7 @@ describe('SentinelAuth', () => {
 
     expect(store.getAccessToken()).toBe(accessToken)
     expect(store.getRefreshToken()).toBe('refresh-1')
-    expect(sessionStorage.getItem('sentinel_pkce_verifier')).toBeNull()
+    expect(sessionStorage.getItem('duar_pkce_verifier')).toBeNull()
   })
 
   it('refresh updates stored tokens', async () => {

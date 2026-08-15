@@ -13,7 +13,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-from sentinel_auth.authz_middleware import AuthzMiddleware
+from duar_auth.authz_middleware import AuthzMiddleware
 
 
 @pytest.fixture(scope="module")
@@ -27,11 +27,11 @@ def keypairs():
         )
         return k, pub
 
-    return {"idp": _pair(), "sentinel": _pair()}
+    return {"idp": _pair(), "duar": _pair()}
 
 
 class _FakeInstance:
-    """Minimal stand-in for a Sentinel instance: only what the middleware reads."""
+    """Minimal stand-in for a Duar instance: only what the middleware reads."""
 
     idp_jwks_url = None
 
@@ -41,7 +41,7 @@ class _FakeInstance:
 
 def _tokens(keypairs, *, svc: str):
     idp_priv, _ = keypairs["idp"]
-    sentinel_priv, _ = keypairs["sentinel"]
+    duar_priv, _ = keypairs["duar"]
     now = datetime.datetime.now(datetime.UTC)
     idp_sub = "google|123"
     idp_token = pyjwt.encode(
@@ -69,7 +69,7 @@ def _tokens(keypairs, *, svc: str):
             "iat": now,
             "exp": now + datetime.timedelta(minutes=5),
         },
-        sentinel_priv,
+        duar_priv,
         algorithm="RS256",
     )
     return idp_token, authz_token
@@ -85,8 +85,8 @@ def _app(keypairs, *, effective_scope: str) -> Starlette:
         service_name="docs",  # the member's own name — NOT the realm slug
         idp_audience="client-id",
         idp_public_key=keypairs["idp"][1],
-        sentinel_public_key=keypairs["sentinel"][1],
-        sentinel_instance=_FakeInstance(effective_scope),
+        duar_public_key=keypairs["duar"][1],
+        duar_instance=_FakeInstance(effective_scope),
     )
     return app
 

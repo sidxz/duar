@@ -1,23 +1,23 @@
 # AuthZ Client
 
-`SentinelAuthz` is the browser auth client for authz mode. It manages dual tokens: an IdP token (identity, from Google/EntraID) and a Sentinel authz token (authorization).
+`DuarAuthz` is the browser auth client for authz mode. It manages dual tokens: an IdP token (identity, from Google/EntraID) and a Duar authz token (authorization).
 
 ## Setup
 
 ```typescript
-import { SentinelAuthz, IdpConfigs } from '@sentinel-auth/js'
+import { DuarAuthz, IdpConfigs } from '@duar-auth/js'
 
-const authz = new SentinelAuthz({
-  sentinelUrl: 'http://localhost:9003',
-  mintEndpoint: '/api/auth/mint', // YOUR backend route — must not be Sentinel
+const authz = new DuarAuthz({
+  duarUrl: 'http://localhost:9003',
+  mintEndpoint: '/api/auth/mint', // YOUR backend route — must not be Duar
   idps: { google: IdpConfigs.google('your-google-client-id') },
 })
 ```
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `sentinelUrl` | `string` | required | Base URL of the Sentinel service. Used only for **discovery** (listing workspaces for an IdP token). |
-| `mintEndpoint` | `string` | **required** | URL of your backend's mint route. The browser calls here (not Sentinel directly) to exchange IdP token + workspace_id for an authz token. Your backend forwards to Sentinel's `/authz/resolve` with `X-Service-Key`. See [AuthZ Mode Security](../security.md#authz-mode-security). |
+| `duarUrl` | `string` | required | Base URL of the Duar service. Used only for **discovery** (listing workspaces for an IdP token). |
+| `mintEndpoint` | `string` | **required** | URL of your backend's mint route. The browser calls here (not Duar directly) to exchange IdP token + workspace_id for an authz token. Your backend forwards to Duar's `/authz/resolve` with `X-Service-Key`. See [AuthZ Mode Security](../security.md#authz-mode-security). |
 | `idps` | `Record<string, IdpConfig>` | `{}` | IdP configs keyed by provider name |
 | `redirectUri` | `string` | `${origin}/auth/callback` | OAuth redirect URI |
 | `storage` | `AuthzTokenStore` | `AuthzMemoryStore` | Token storage backend |
@@ -26,13 +26,13 @@ const authz = new SentinelAuthz({
 
 ### Backend mint route
 
-The `mintEndpoint` must accept `{idp_token, provider, workspace_id, nonce?}` and return the same shape as Sentinel's `/authz/resolve`. FastAPI example:
+The `mintEndpoint` must accept `{idp_token, provider, workspace_id, nonce?}` and return the same shape as Duar's `/authz/resolve`. FastAPI example:
 
 ```python
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import uuid
-from your_app.sentinel_instance import sentinel  # your Sentinel SDK instance
+from your_app.duar_instance import duar  # your Duar SDK instance
 
 router = APIRouter()
 
@@ -45,7 +45,7 @@ class MintRequest(BaseModel):
 @router.post("/api/auth/mint")
 async def mint_authz_token(body: MintRequest):
     try:
-        return await sentinel.authz.resolve(
+        return await duar.authz.resolve(
             idp_token=body.idp_token,
             provider=body.provider,
             workspace_id=body.workspace_id,
@@ -55,7 +55,7 @@ async def mint_authz_token(body: MintRequest):
         raise HTTPException(status_code=400, detail=str(e))
 ```
 
-Add the route to `sentinel.protect(app, exclude_paths=[...])` — it's called before the user has an authz token.
+Add the route to `duar.protect(app, exclude_paths=[...])` — it's called before the user has an authz token.
 
 Next.js Route Handler:
 
@@ -65,11 +65,11 @@ import { NextResponse } from 'next/server'
 
 export async function POST(req: Request) {
   const body = await req.json()
-  const r = await fetch(`${process.env.SENTINEL_URL}/authz/resolve`, {
+  const r = await fetch(`${process.env.DUAR_URL}/authz/resolve`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Service-Key': process.env.SENTINEL_SERVICE_KEY!, // server-side only
+      'X-Service-Key': process.env.DUAR_SERVICE_KEY!, // server-side only
     },
     body: JSON.stringify(body),
   })
@@ -115,7 +115,7 @@ Throws on a genuine OAuth error or a nonce mismatch (possible replay). `returnTo
 
 ### resolve(idpToken, provider)
 
-Validate IdP token with Sentinel, discover workspaces.
+Validate IdP token with Duar, discover workspaces.
 
 ```typescript
 const result = await authz.resolve(idpToken, 'google')
@@ -125,7 +125,7 @@ const result = await authz.resolve(idpToken, 'google')
 
 ### selectWorkspace(idpToken, provider, workspaceId)
 
-Exchange IdP token for a Sentinel authz token scoped to a workspace. POSTs to the configured `mintEndpoint` on your backend (not Sentinel). Propagates `sessionStorage.sentinel_authz_nonce` automatically for replay protection.
+Exchange IdP token for a Duar authz token scoped to a workspace. POSTs to the configured `mintEndpoint` on your backend (not Duar). Propagates `sessionStorage.duar_authz_nonce` automatically for replay protection.
 
 ```typescript
 await authz.selectWorkspace(idpToken, 'google', 'ws-uuid')
@@ -188,9 +188,9 @@ authz.destroy()  // clean up timers
 | `AuthzLocalStorageStore` | Authz token + metadata persist; **IdP token stays in memory only** |
 
 ```typescript
-import { SentinelAuthz, AuthzLocalStorageStore } from '@sentinel-auth/js'
-const authz = new SentinelAuthz({
-  sentinelUrl: '...', storage: new AuthzLocalStorageStore(),
+import { DuarAuthz, AuthzLocalStorageStore } from '@duar-auth/js'
+const authz = new DuarAuthz({
+  duarUrl: '...', storage: new AuthzLocalStorageStore(),
 })
 ```
 
@@ -201,7 +201,7 @@ const authz = new SentinelAuthz({
 
 ## `handleCallback()` nonce enforcement
 
-`handleCallback()` requires that `sentinel_authz_nonce` exists in `sessionStorage`. If it doesn't (e.g. the callback was opened in a new tab that did not initiate the login), the SDK throws:
+`handleCallback()` requires that `duar_authz_nonce` exists in `sessionStorage`. If it doesn't (e.g. the callback was opened in a new tab that did not initiate the login), the SDK throws:
 
 ```
 Error: No login flow in progress — callback rejected. Start login from this tab.
@@ -212,10 +212,10 @@ This prevents a login-CSRF where an attacker links a victim to `.../auth/callbac
 ## Complete example
 
 ```typescript
-import { SentinelAuthz, IdpConfigs, AuthzLocalStorageStore } from '@sentinel-auth/js'
+import { DuarAuthz, IdpConfigs, AuthzLocalStorageStore } from '@duar-auth/js'
 
-const authz = new SentinelAuthz({
-  sentinelUrl: 'http://localhost:9003',
+const authz = new DuarAuthz({
+  duarUrl: 'http://localhost:9003',
   mintEndpoint: '/api/auth/mint',
   idps: { google: IdpConfigs.google('your-client-id') },
   storage: new AuthzLocalStorageStore(),
@@ -245,9 +245,9 @@ const notes = await authz.fetchJson<Note[]>('/api/notes')
 
 ## AuthZ vs Proxy mode
 
-| | AuthZ (`SentinelAuthz`) | Proxy (`SentinelAuth`) |
+| | AuthZ (`DuarAuthz`) | Proxy (`DuarAuth`) |
 |---|---|---|
-| IdP interaction | You configure IdPs, SDK redirects | Sentinel manages redirect flow |
+| IdP interaction | You configure IdPs, SDK redirects | Duar manages redirect flow |
 | Tokens stored | IdP token + authz token | Access + refresh token |
 | Headers sent | `Authorization` + `X-Authz-Token` | `Authorization` only |
 | PKCE | Not needed (implicit flow) | Generated by SDK |

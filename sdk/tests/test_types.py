@@ -2,7 +2,7 @@
 
 import uuid
 
-from sentinel_auth.types import AuthenticatedUser, WorkspaceContext
+from duar_auth.types import AuthenticatedUser, WorkspaceContext
 
 
 def _make_user(role: str = "editor") -> AuthenticatedUser:

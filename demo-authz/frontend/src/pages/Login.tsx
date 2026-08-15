@@ -1,4 +1,4 @@
-import { useAuthz } from "@sentinel-auth/react";
+import { useAuthz } from "@duar-auth/react";
 
 export function Login() {
   const { login } = useAuthz();
@@ -16,7 +16,7 @@ export function Login() {
         <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
           <p className="mb-4 text-sm text-zinc-400">
             Sign in to manage workspace notes. This app demonstrates
-            AuthZ mode: direct IdP login + Sentinel authorization tokens,
+            AuthZ mode: direct IdP login + Duar authorization tokens,
             workspace roles, RBAC actions, and entity-level permissions.
           </p>
           <button
@@ -36,8 +36,8 @@ export function Login() {
         <div className="space-y-2 text-xs text-zinc-600">
           <p>
             Powered by{" "}
-            <a href="https://docs.sentinel-auth.com/" target="_blank" rel="noopener noreferrer" className="text-zinc-500 hover:text-zinc-400 underline">
-              Sentinel Auth
+            <a href="https://docs.duar.io/" target="_blank" rel="noopener noreferrer" className="text-zinc-500 hover:text-zinc-400 underline">
+              Duar
             </a>
           </p>
         </div>

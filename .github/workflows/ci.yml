@@ -52,7 +52,7 @@ jobs:
         run: cd sdk && uv sync --extra dev
 
       - name: Run tests with coverage
-        run: cd sdk && uv run pytest -q --cov=sentinel_auth --cov-report=xml
+        run: cd sdk && uv run pytest -q --cov=duar_auth --cov-report=xml
 
   dependency-scan:
     name: Dependency Scan (Trivy)
@@ -87,12 +87,12 @@ jobs:
       - name: Build service image
         run: |
           cp uv.lock service/uv.lock
-          docker build -t daikon/sentinel-auth:ci service/
+          docker build -t daikon/duar:ci service/
 
       - name: Scan container image
         uses: aquasecurity/trivy-action@v0.35.0
         with:
-          image-ref: daikon/sentinel-auth:ci
+          image-ref: daikon/duar:ci
           format: table
           severity: CRITICAL,HIGH
           exit-code: 1
@@ -104,12 +104,12 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build admin image
-        run: docker build -t daikon/sentinel-admin:ci admin/
+        run: docker build -t daikon/duar-admin:ci admin/
 
       - name: Scan admin container image
         uses: aquasecurity/trivy-action@v0.35.0
         with:
-          image-ref: daikon/sentinel-admin:ci
+          image-ref: daikon/duar-admin:ci
           format: table
           severity: CRITICAL,HIGH
           exit-code: 1

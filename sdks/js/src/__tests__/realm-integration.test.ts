@@ -1,5 +1,5 @@
 // sdks/js/src/__tests__/realm-integration.test.ts
-// Cross-SDK: the SAME bytes a Python Sentinel minted, verified by REAL jose (no mock).
+// Cross-SDK: the SAME bytes a Python Duar minted, verified by REAL jose (no mock).
 // jose's createRemoteJWKSet fetches the JWKS URL — in the Node runtime jose uses
 // node:http (not globalThis.fetch), so we stub only the key *transport* by replacing
 // createRemoteJWKSet with one that returns createLocalJWKSet over the fixture JWKS.
@@ -30,10 +30,10 @@ const fixtures = fixturesRaw as {
   }
 }
 
-const JWKS_URL = 'http://sentinel-internal:9010/.well-known/jwks.json'
+const JWKS_URL = 'http://duar-internal:9010/.well-known/jwks.json'
 
 describe('cross-SDK m2m (real jose)', () => {
-  it('accepts a real Sentinel-minted m2m token', async () => {
+  it('accepts a real Duar-minted m2m token', async () => {
     const sys = await verifyM2mToken(fixtures.tokens.m2m_valid, {
       jwksUrl: JWKS_URL,
       effectiveScope: 'acme-suite',

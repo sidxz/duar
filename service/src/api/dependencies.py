@@ -454,10 +454,10 @@ async def get_current_user_flexible(
     Security: authz tokens presented as the Bearer are only accepted when
     X-Service-Key is present AND validated against the database, with the key's
     effective scope equal to the token's ``svc`` claim. Additionally, a browser
-    in authz mode (no service key — the SDK's SentinelAuthz helpers) may present
-    its Sentinel-minted authz token in ``X-Authz-Token``: that token is then the
-    credential (Sentinel-signed, short-TTL, carries sub/wid/wrole/groups). Its
-    ``svc`` claim binds it to a downstream service, not to Sentinel, so no scope
+    in authz mode (no service key — the SDK's DuarAuthz helpers) may present
+    its Duar-minted authz token in ``X-Authz-Token``: that token is then the
+    credential (Duar-signed, short-TTL, carries sub/wid/wrole/groups). Its
+    ``svc`` claim binds it to a downstream service, not to Duar, so no scope
     comparison applies — the caller is the token's own subject.
     """
     # Validate the service key against the database — not just check for presence
@@ -474,18 +474,18 @@ async def get_current_user_flexible(
 
     has_valid_service_key = service_key_service_name is not None
     # Browser authz-mode path: the Bearer slot carries the IdP token (which
-    # Sentinel cannot re-validate here without per-app IdP context), so the
+    # Duar cannot re-validate here without per-app IdP context), so the
     # authz token rides in its own header and is what we authenticate.
     #
     # ACCEPTED RISK: the authz token is minted bound to a downstream service (its
-    # `svc` claim); here we honor it as Sentinel-side identity without re-checking
+    # `svc` claim); here we honor it as Duar-side identity without re-checking
     # `svc` or re-binding to the IdP token. Deliberately scoped — this dependency
     # guards only READ-only, workspace-scoped share-dialog endpoints (own profile
     # + the token's OWN workspace members/groups), data the subject is already
     # entitled to and that proxy mode already exposes to the browser. It cannot
     # reach writes/sharing (service-key gated) or /admin (admin cookie). Residual:
     # a captured authz token can read the user's own workspace directory at
-    # Sentinel for its ~5-min TTL. Accepted over full IdP re-binding, which would
+    # Duar for its ~5-min TTL. Accepted over full IdP re-binding, which would
     # cost a per-request IdP re-verification (a GitHub API call per hit) for a
     # narrow, user-entitled surface. Still subject to the hygiene check below.
     browser_authz_token = (

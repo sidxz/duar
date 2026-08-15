@@ -2,7 +2,7 @@
 
 ## Supported IdPs
 
-Sentinel proxies authentication from three identity providers. Provider registration is conditional -- if the environment variables are not set, the provider is not available.
+Duar proxies authentication from three identity providers. Provider registration is conditional -- if the environment variables are not set, the provider is not available.
 
 | Provider | Protocol | PKCE | Scopes |
 |---|---|---|---|
@@ -18,23 +18,23 @@ Sentinel proxies authentication from three identity providers. Provider registra
 
 Entra's claims differ from the OIDC baseline in two ways that affect sign-in:
 
-- **No `email_verified` claim.** Entra never emits it; its analogue is the optional `xms_edov` ("email domain owner verified") claim. Sentinel pins the issuer to the single tenant in `ENTRA_TENANT_ID`, so a token bearing that `tid` is treated as carrying a tenant-verified address — unless `xms_edov` is explicitly `false`, which is a hard reject. Tokens from any other tenant, and from any other IdP, get no such treatment and must carry `email_verified: true`; the exemption is bound to the provider the signature was verified against, not to the presence of a `tid` claim.
+- **No `email_verified` claim.** Entra never emits it; its analogue is the optional `xms_edov` ("email domain owner verified") claim. Duar pins the issuer to the single tenant in `ENTRA_TENANT_ID`, so a token bearing that `tid` is treated as carrying a tenant-verified address — unless `xms_edov` is explicitly `false`, which is a hard reject. Tokens from any other tenant, and from any other IdP, get no such treatment and must carry `email_verified: true`; the exemption is bound to the provider the signature was verified against, not to the presence of a `tid` claim.
 
     !!! warning "Enable the `xms_edov` optional claim"
-        Without it, Sentinel is trusting your tenant directory rather than an explicit
+        Without it, Duar is trusting your tenant directory rather than an explicit
         per-address assertion. That is the normal trust model for a single-tenant
         deployment, but it means anyone who can influence the directory attribute
-        behind the `email` claim can influence which address Sentinel sees — and the
+        behind the `email` claim can influence which address Duar sees — and the
         email drives organization resolution and `ADMIN_EMAILS` auto-promotion. Adding
         `xms_edov` to the app registration's token configuration turns that into a
-        verified assertion Sentinel enforces.
-- **`email` is often absent.** Managed work accounts only receive it if the app registration adds `email` as an optional ID-token claim; `*.onmicrosoft.com` dev-tenant accounts typically have no mail attribute at all. Sentinel then falls back to `preferred_username` (the UPN) when it is address-shaped. Identity is always keyed on `sub`, never on either address.
+        verified assertion Duar enforces.
+- **`email` is often absent.** Managed work accounts only receive it if the app registration adds `email` as an optional ID-token claim; `*.onmicrosoft.com` dev-tenant accounts typically have no mail attribute at all. Duar then falls back to `preferred_username` (the UPN) when it is address-shaped. Identity is always keyed on `sub`, never on either address.
 
 Since the email domain drives organization resolution, register the org domain that matches the addresses your tenant actually issues (e.g. `tptdevelorg.onmicrosoft.com` for a dev tenant), or sign-in is refused as "not permitted for this email domain".
 
 For AuthZ mode, the browser goes to Entra directly with `response_type=id_token`, so the redirect URI must be registered under the **Web** platform with *ID tokens (used for implicit and hybrid flows)* enabled — a redirect URI registered under the *Single-page application* platform rejects implicit. Alternatively, acquire the ID token however you like (e.g. MSAL with auth code + PKCE) and hand it to `POST /authz/resolve` yourself.
 
-See [How Sentinel Works](how-it-works.md) for the full login flows in both AuthZ and Proxy modes.
+See [How Duar Works](how-it-works.md) for the full login flows in both AuthZ and Proxy modes.
 
 ## Token Types
 
@@ -53,7 +53,7 @@ All tokens are RS256-signed JWTs. The algorithm is hardcoded at both encode and 
 
 | Claim | Type | Example | Description |
 |---|---|---|---|
-| `iss` | string | `https://auth.example.com` | Issuer. Sentinel's `BASE_URL`. |
+| `iss` | string | `https://auth.example.com` | Issuer. Duar's `BASE_URL`. |
 | `sub` | string (UUID) | `"d4f5a..."` | User ID. |
 | `jti` | string (UUID) | `"8b3c1..."` | Unique token ID. Enables per-token revocation via Redis denylist. |
 | `aud` | string | `"sentinel:access"` | Audience. Always `sentinel:access`. |
@@ -71,7 +71,7 @@ All tokens are RS256-signed JWTs. The algorithm is hardcoded at both encode and 
 
 | Claim | Type | Example | Description |
 |---|---|---|---|
-| `iss` | string | `https://auth.example.com` | Issuer. Sentinel's `BASE_URL`. |
+| `iss` | string | `https://auth.example.com` | Issuer. Duar's `BASE_URL`. |
 | `sub` | string (UUID) | `"d4f5a..."` | User ID. |
 | `jti` | string (UUID) | `"8b3c1..."` | Unique token ID. Enables revocation via denylist. |
 | `aud` | string | `"sentinel:authz"` | Audience. Always `sentinel:authz`. |

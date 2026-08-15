@@ -125,7 +125,7 @@ def upgrade() -> None:
 
     # Seed the public org and backfill every existing user into it. Default
     # posture is public-ON, so deploying this change locks nobody out. The id is
-    # a fixed sentinel UUID so it is stable/referenceable. PostgreSQL casts the
+    # a fixed duar UUID so it is stable/referenceable. PostgreSQL casts the
     # string literals to uuid/boolean in context.
     op.execute(
         "INSERT INTO organizations (id, slug, name, is_public, enabled) "

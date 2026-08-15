@@ -1,6 +1,6 @@
 # Environment Variables
 
-Complete reference for all variables accepted by Sentinel. Loaded from `service/.env` (development) or the process environment / `.env.prod` (production).
+Complete reference for all variables accepted by Duar. Loaded from `service/.env` (development) or the process environment / `.env.prod` (production).
 
 ---
 
@@ -33,7 +33,7 @@ Must use `postgresql+asyncpg://` scheme. Append `?ssl=require` for encrypted con
 
 | Variable | Default | Required |
 |----------|---------|----------|
-| `REDIS_URL` | `rediss://:sentinel_dev@localhost:9002/0` | Yes |
+| `REDIS_URL` | `rediss://:duar_dev@localhost:9002/0` | Yes |
 | `REDIS_TLS_CA_CERT` | `""` | No |
 | `REDIS_TLS_VERIFY` | `none` | No |
 
@@ -90,7 +90,7 @@ Configure at least one provider to enable user login. Leave variables empty to d
 | `ENTRA_CLIENT_SECRET` | `""` | No |
 | `ENTRA_TENANT_ID` | `""` | No |
 
-`ENTRA_TENANT_ID` pins the accepted issuer to a single tenant — Sentinel does not
+`ENTRA_TENANT_ID` pins the accepted issuer to a single tenant — Duar does not
 accept multi-tenant (`organizations` / `common`) issuers. `ENTRA_CLIENT_ID` is the
 audience ID tokens must carry: for AuthZ mode that is the client ID the **browser**
 signs in with, not an `api://…` application ID URI. Per-app binding is set on each
@@ -110,7 +110,7 @@ service app's allowed IdP audiences. See
 | `BASE_URL` | `http://localhost:9003` | Yes |
 | `FRONTEND_URL` | `http://localhost:3000` | No |
 
-`BASE_URL` is used for OAuth callback URLs. Set to the public URL of your Sentinel instance.
+`BASE_URL` is used for OAuth callback URLs. Set to the public URL of your Duar instance.
 
 `TIER` selects which listener this process is: `all` (default — the full combined app), `public` (browser/human surface, `:9003`), or `internal` (the service-key surface — realm, permissions, authz, roles — on an unpublished `:9010`). See [Deployment → Network Split](index.md#network-split-public--internal-listeners). The internal listener also runs with `SESSION_SECRET_KEY=""` and `CORS_ORIGINS=""` since it drops the Session and CORS middleware.
 
@@ -148,8 +148,8 @@ These are used by `docker-compose.prod.yml` and `.env.prod`. They are not read b
 
 | Variable | Default | Required |
 |----------|---------|----------|
-| `POSTGRES_DB` | `sentinel` | Yes |
-| `POSTGRES_USER` | `sentinel` | Yes |
+| `POSTGRES_DB` | `duar` | Yes |
+| `POSTGRES_USER` | `duar` | Yes |
 | `POSTGRES_PASSWORD` | *(none)* | Yes |
 | `REDIS_PASSWORD` | *(none)* | Yes |
-| `SENTINEL_PORT` | `9003` | No |
+| `DUAR_PORT` | `9003` | No |

@@ -1,12 +1,12 @@
 {
-  "name": "@sentinel-auth/nextjs",
+  "name": "@duar-auth/nextjs",
   "version": "0.20.1",
   "type": "module",
-  "description": "Sentinel Auth Next.js SDK — Edge Middleware + server helpers",
+  "description": "Duar Next.js SDK — Edge Middleware + server helpers",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/sidxz/Sentinel",
+    "url": "https://github.com/sidxz/duar",
     "directory": "sdks/nextjs"
   },
   "exports": {
@@ -49,8 +49,8 @@
   "peerDependencies": {
     "next": "^14.0.0 || ^15.0.0 || ^16.0.0",
     "react": "^18.0.0 || ^19.0.0",
-    "@sentinel-auth/js": "^0.20.1",
-    "@sentinel-auth/react": "^0.20.1"
+    "@duar-auth/js": "^0.20.1",
+    "@duar-auth/react": "^0.20.1"
   },
   "devDependencies": {
     "tsup": "^8.0.0",
@@ -59,7 +59,7 @@
     "next": "^15.0.0",
     "react": "^19.0.0",
     "@types/react": "^19.0.0",
-    "@sentinel-auth/js": "file:../js",
-    "@sentinel-auth/react": "file:../react"
+    "@duar-auth/js": "file:../js",
+    "@duar-auth/react": "file:../react"
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuthz } from "@sentinel-auth/nextjs";
+import { useAuthz } from "@duar-auth/nextjs";
 
 export default function LoginPage() {
   const { login } = useAuthz();
@@ -51,12 +51,12 @@ export default function LoginPage() {
           <p>
             Powered by{" "}
             <a
-              href="https://docs.sentinel-auth.com/"
+              href="https://docs.duar.io/"
               target="_blank"
               rel="noopener noreferrer"
               className="text-zinc-500 underline hover:text-zinc-400"
             >
-              Sentinel Auth
+              Duar
             </a>
           </p>
         </div>

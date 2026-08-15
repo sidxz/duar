@@ -1,5 +1,5 @@
 {
-  "issuer": "https://sentinel.test",
+  "issuer": "https://duar.test",
   "public_pem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsMBog3gRdJ3Vip5MMyZH\nGdysO3UmQWUNKt90Qac3tNlj/QR8BJyNlm8ANIsHFSTbl9GzM9Ako6Pt+wa1G/Kj\nuY3435grZ5eoJspUHEXq25RFZvc+vlalY/rXhumbRwFDnskIb02Eo5AmoevjBtQp\nWaDPQg/+H5OkRPl4wL5ULsdQUseFFrjySWPXd+Mz8lSBxp0rjgcgwDtrxnJC1yiM\nnAn2LzG5Wd/ZRd36eRuxiAkjF40nHMpNMliG6gPouh0g91Fd0a5yRX1oCRjTRO9m\ntr7bWE9B+aO5exRnHCu6hc4EaZAP9nqzV2sc58+8dXxAtTRV6c13G2jKlbXqpY17\n8QIDAQAB\n-----END PUBLIC KEY-----\n",
   "jwks": {
     "keys": [

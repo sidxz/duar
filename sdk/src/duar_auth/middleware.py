@@ -16,8 +16,8 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp
 
-from sentinel_auth._utils import warn_if_insecure
-from sentinel_auth.types import AuthenticatedUser
+from duar_auth._utils import warn_if_insecure
+from duar_auth.types import AuthenticatedUser
 
 
 class JWTAuthMiddleware(BaseHTTPMiddleware):
@@ -35,7 +35,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
 
     Args:
         app: The ASGI application to wrap.
-        base_url: Root URL of the Sentinel identity service (e.g.
+        base_url: Root URL of the Duar identity service (e.g.
             ``"http://localhost:9003"``). The JWKS endpoint is derived
             automatically as ``{base_url}/.well-known/jwks.json``.
             This is the recommended option.
@@ -43,7 +43,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             Use this for air-gapped deployments where the service cannot
             reach the identity service at runtime.
         jwks_url: Explicit JWKS endpoint URL. Use this only when pointing
-            at a non-Sentinel OIDC provider whose JWKS path differs from
+            at a non-Duar OIDC provider whose JWKS path differs from
             the standard ``/.well-known/jwks.json``.
         algorithm: JWT signing algorithm. Defaults to ``"RS256"``.
         audience: Expected JWT audience claim. Defaults to ``"sentinel:access"``.

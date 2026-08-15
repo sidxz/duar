@@ -265,7 +265,7 @@ async def _validate_oidc_token(
 async def _validate_github_token(idp_token: str) -> dict[str, Any]:
     """Validate a GitHub OAuth token via the GitHub API."""
     # Fail closed if GitHub IdP isn't configured for this deployment — without
-    # client credentials we cannot verify the token was issued to Sentinel's
+    # client credentials we cannot verify the token was issued to Duar's
     # OAuth app, so we cannot trust the token at all.
     if not settings.github_client_id or not settings.github_client_secret:
         raise IdpValidationError("GitHub IdP not configured on this deployment")
@@ -280,7 +280,7 @@ async def _validate_github_token(idp_token: str) -> dict[str, Any]:
         # authenticates the underlying user regardless of which OAuth app
         # holds the token. Without this step, any token from an
         # attacker-registered OAuth app that the victim consented to can be
-        # replayed to impersonate the victim against Sentinel. The
+        # replayed to impersonate the victim against Duar. The
         # `/applications/{client_id}/token` endpoint authenticates as the
         # OAuth app (HTTP Basic with client_id:client_secret) and returns 200
         # only when the submitted token was issued to *that* app; 404

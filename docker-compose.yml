@@ -24,7 +24,7 @@ services:
       - identity_pg_data:/var/lib/postgresql/data
       - ./keys/tls:/tls:ro
     networks:
-      - sentinel-network
+      - duar-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U identity"]
       interval: 5s
@@ -35,7 +35,7 @@ services:
     image: redis:7-alpine
     command: >
       redis-server
-      --requirepass sentinel_dev
+      --requirepass duar_dev
       --tls-port 6379
       --port 0
       --tls-cert-file /tls/server.crt
@@ -47,14 +47,14 @@ services:
     volumes:
       - ./keys/tls:/tls:ro
     networks:
-      - sentinel-network
+      - duar-network
     healthcheck:
-      test: ["CMD", "redis-cli", "--tls", "--cacert", "/tls/ca.crt", "-a", "sentinel_dev", "ping"]
+      test: ["CMD", "redis-cli", "--tls", "--cacert", "/tls/ca.crt", "-a", "duar_dev", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  sentinel:
+  duar:
     build:
       context: service
     ports:
@@ -64,9 +64,9 @@ services:
     environment:
       DEBUG: "true"
       DATABASE_URL: "postgresql+asyncpg://identity:identity_dev@identity-postgres:5432/identity?ssl=require"
-      REDIS_URL: "rediss://:sentinel_dev@identity-redis:6379/0"
+      REDIS_URL: "rediss://:duar_dev@identity-redis:6379/0"
       REDIS_TLS_CA_CERT: "/keys/tls/ca.crt"
-      ALLOWED_HOSTS: "localhost,sentinel"
+      ALLOWED_HOSTS: "localhost,duar"
       # RATE_LIMIT_RPM removed (GlobalRateLimitMiddleware deleted). Defaults are fine
       # for dev; to disable rate limiting entirely for load testing, set RATE_LIMIT_ENABLED: "false".
     volumes:
@@ -77,11 +77,11 @@ services:
       identity-redis:
         condition: service_healthy
     networks:
-      - sentinel-network
+      - duar-network
 
 volumes:
   identity_pg_data:
 
 networks:
-  sentinel-network:
+  duar-network:
     driver: bridge

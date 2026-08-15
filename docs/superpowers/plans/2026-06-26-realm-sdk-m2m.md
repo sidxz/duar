@@ -4,9 +4,9 @@
 
 **Goal:** Make realm Flow A (shared user-context) and Flow B (no-user m2m) work end-to-end **from the SDK side** — the receiver-side acceptance and sender-side minting the service endpoints (Plan 2) already expose but nothing consumes yet.
 
-**Architecture:** The SDK self-discovers its shared scope from Sentinel via `GET /realm/whoami` (cached, no app-side realm config). That `effective_scope` (realm slug for a member, else the service's own name) is then substituted in three places: (1) the authz-token `svc` check broadens from `service_name` to `effective_scope` so a realm-shared user token validates on any member; (2) the `PermissionClient`/`RoleClient` send `effective_scope` so a member's permission/RBAC rows land in the shared namespace (the server's `verify_service_scope` rejects anything else); (3) a new no-user `SystemAuth` context accepts `type=m2m` tokens (`aud=sentinel:m2m`), and a `mint_m2m_token()` helper mints+caches them for outbound system calls. All trust is rooted in Sentinel's RS256 signature — never app↔app.
+**Architecture:** The SDK self-discovers its shared scope from Duar via `GET /realm/whoami` (cached, no app-side realm config). That `effective_scope` (realm slug for a member, else the service's own name) is then substituted in three places: (1) the authz-token `svc` check broadens from `service_name` to `effective_scope` so a realm-shared user token validates on any member; (2) the `PermissionClient`/`RoleClient` send `effective_scope` so a member's permission/RBAC rows land in the shared namespace (the server's `verify_service_scope` rejects anything else); (3) a new no-user `SystemAuth` context accepts `type=m2m` tokens (`aud=sentinel:m2m`), and a `mint_m2m_token()` helper mints+caches them for outbound system calls. All trust is rooted in Duar's RS256 signature — never app↔app.
 
-**Tech Stack:** Python SDK (`sdk/`, `sentinel_auth`): PyJWT, httpx, FastAPI/Starlette, pytest + pytest-asyncio + respx. JS SDKs (`sdks/js`, `sdks/nextjs`): TypeScript, `jose`, vitest, tsup.
+**Tech Stack:** Python SDK (`sdk/`, `duar_auth`): PyJWT, httpx, FastAPI/Starlette, pytest + pytest-asyncio + respx. JS SDKs (`sdks/js`, `sdks/nextjs`): TypeScript, `jose`, vitest, tsup.
 
 ## Scope boundary (this is Plan 5 of 6)
 
@@ -14,7 +14,7 @@
 2. Token flows — **DONE** (`_AUD_M2M`, `create_m2m_token`, `GET /realm/whoami`, `POST /realm/m2m-token`, server side).
 3. Network split — **DONE** (`create_app(tier)`, unpublished internal listener mounts `/realm`).
 4. Admin — **DONE** (`/admin/realms` CRUD + membership, React Realms UI).
-5. **SDKs ← this plan.** Python `sentinel_auth`: whoami discovery (cached); broaden authz `svc` check to `effective_scope`; **`PermissionClient`/`RoleClient` send `effective_scope`** (required — server rejects otherwise); `mint_m2m_token()` with ~80%-TTL auto-refresh; accept `type=m2m` → new `SystemAuth`. JS (`@sentinel-auth/js` server entry + `@sentinel-auth/nextjs`): whoami helper; broaden the nextjs middleware `svc` check to scope; m2m **mint + accept** in the **server entry only** — never browser.
+5. **SDKs ← this plan.** Python `duar_auth`: whoami discovery (cached); broaden authz `svc` check to `effective_scope`; **`PermissionClient`/`RoleClient` send `effective_scope`** (required — server rejects otherwise); `mint_m2m_token()` with ~80%-TTL auto-refresh; accept `type=m2m` → new `SystemAuth`. JS (`@duar-auth/js` server entry + `@duar-auth/nextjs`): whoami helper; broaden the nextjs middleware `svc` check to scope; m2m **mint + accept** in the **server entry only** — never browser.
 6. Docs + integration tests — **next plan.**
 
 After this plan: a Python or JS realm member can (a) accept a realm-shared user authz token, (b) read/write shared permissions + RBAC, (c) mint a no-user m2m token for an outbound system call, and (d) accept an inbound m2m token as a `SystemAuth`. End-to-end Flow B is real on both SDK sides.
@@ -22,23 +22,23 @@ After this plan: a Python or JS realm member can (a) accept a realm-shared user 
 ## Global Constraints
 
 - **Python:** 3.12; run via `uv` **from the SDK dir**: `cd sdk && uv run pytest`. Tests use the existing `sdk/tests/conftest.py` fixtures (`rsa_keypair → (private_pem, public_pem)`, `make_token`) + **respx** for httpx mocking + **pytest-asyncio** (auto mode — no marker needed for async tests in this package, but other SDK tests omit it, so omit it). Lint **changed files only**: `cd sdk && uv run ruff format <files> && uv run ruff check --fix <files>`. NEVER `ruff format .` / whole-tree `--fix` / `make fmt`.
-- **JS:** run from each package dir. `@sentinel-auth/js`: `cd sdks/js && npm test` (vitest) + `npm run build` (tsup, typechecks). `@sentinel-auth/nextjs`: `cd sdks/nextjs && npm run build` (`npm test` is `--passWithNoTests`; the package has no unit harness — gate nextjs changes on `build`). If `node_modules` is missing, `npm install` first. Match existing JS style: **2-space indent, single quotes, no semicolons** (no formatter script exists).
+- **JS:** run from each package dir. `@duar-auth/js`: `cd sdks/js && npm test` (vitest) + `npm run build` (tsup, typechecks). `@duar-auth/nextjs`: `cd sdks/nextjs && npm run build` (`npm test` is `--passWithNoTests`; the package has no unit harness — gate nextjs changes on `build`). If `node_modules` is missing, `npm install` first. Match existing JS style: **2-space indent, single quotes, no semicolons** (no formatter script exists).
 - **Stage only the files each task lists** (`git add <those paths>`); never `git add -A` / `git add .`. Commit after every task.
 - **Never modify** `service/src/services/role_service.py` or `service/tests/test_register_actions.py` (the user's uncommitted work). This plan touches **only** `sdk/` and `sdks/` — it never goes near `service/`, so this is naturally satisfied; do not stray.
-- **Non-breaking invariant:** a standalone service (`/realm/whoami` returns `realm: null` → `effective_scope == service_name`) behaves exactly as today: authz `svc` check unchanged, `PermissionClient`/`RoleClient` send `service_name`, no m2m minting. A pre-realm Sentinel (no `/realm` endpoint → 404) must degrade gracefully to standalone, never crash.
+- **Non-breaking invariant:** a standalone service (`/realm/whoami` returns `realm: null` → `effective_scope == service_name`) behaves exactly as today: authz `svc` check unchanged, `PermissionClient`/`RoleClient` send `service_name`, no m2m minting. A pre-realm Duar (no `/realm` endpoint → 404) must degrade gracefully to standalone, never crash.
 - **React (`sdks/react`) is intentionally untouched** — it is browser-only with no server entry; m2m mint/accept must never reach a browser (spec). Do not add m2m to it.
 - Branch: `realm-trusted-app-group` (already checked out).
 - **SDD housekeeping (before dispatching Task A1):** archive the current `.superpowers/sdd/progress.md` (→ `progress-plan4backend-archive.md`), start a fresh ledger, and **regenerate each `task-N-brief` from THIS plan file** — the brief slots hold stale Plan-4 content otherwise. One implementer at a time.
 
 ---
 
-## Part A — Python SDK (`sdk/`, `sentinel_auth`)
+## Part A — Python SDK (`sdk/`, `duar_auth`)
 
 ### Task A1: `SystemAuth` no-user context
 
 **Files:**
-- Modify: `sdk/src/sentinel_auth/auth.py` (add `SystemAuth` after `RequestAuth`)
-- Modify: `sdk/src/sentinel_auth/__init__.py` (export `SystemAuth`)
+- Modify: `sdk/src/duar_auth/auth.py` (add `SystemAuth` after `RequestAuth`)
+- Modify: `sdk/src/duar_auth/__init__.py` (export `SystemAuth`)
 - Test: `sdk/tests/test_system_auth.py`
 
 **Interfaces:**
@@ -51,7 +51,7 @@ After this plan: a Python or JS realm member can (a) accept a realm-shared user 
 # sdk/tests/test_system_auth.py
 """SystemAuth — the no-user (m2m) in-realm caller context."""
 
-from sentinel_auth import SystemAuth
+from duar_auth import SystemAuth
 
 
 def test_full_trust_actions_star_allows_anything():
@@ -77,11 +77,11 @@ def test_carries_caller_and_svc_no_user():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `cd sdk && uv run pytest tests/test_system_auth.py -v`
-Expected: FAIL — `ImportError: cannot import name 'SystemAuth' from 'sentinel_auth'`.
+Expected: FAIL — `ImportError: cannot import name 'SystemAuth' from 'duar_auth'`.
 
 - [ ] **Step 3: Add `SystemAuth` to `auth.py`**
 
-Append to `sdk/src/sentinel_auth/auth.py` (after the `RequestAuth` class):
+Append to `sdk/src/duar_auth/auth.py` (after the `RequestAuth` class):
 
 ```python
 @dataclass(frozen=True)
@@ -89,8 +89,8 @@ class SystemAuth:
     """Per-request context for a no-user (machine-to-machine) in-realm call.
 
     The no-user counterpart to :class:`RequestAuth`. It is produced by
-    ``Sentinel.verify_m2m_token`` after a ``type=m2m`` token (``aud=sentinel:m2m``)
-    passes Sentinel's RS256 signature + realm-scope checks. It carries service
+    ``Duar.verify_m2m_token`` after a ``type=m2m`` token (``aud=sentinel:m2m``)
+    passes Duar's RS256 signature + realm-scope checks. It carries service
     identity only — never a user:
 
     - ``caller``: the realm member that minted the token (server-stamped, for audit).
@@ -110,16 +110,16 @@ class SystemAuth:
 
 - [ ] **Step 4: Export it from the package**
 
-In `sdk/src/sentinel_auth/__init__.py`, change the import line:
+In `sdk/src/duar_auth/__init__.py`, change the import line:
 
 ```python
-from sentinel_auth.auth import RequestAuth, SystemAuth
+from duar_auth.auth import RequestAuth, SystemAuth
 ```
 
-and add `"SystemAuth",` to `__all__` (keep alphabetical — after `"SentinelError",`):
+and add `"SystemAuth",` to `__all__` (keep alphabetical — after `"DuarError",`):
 
 ```python
-    "SentinelError",
+    "DuarError",
     "SystemAuth",
     "WorkspaceContext",
 ```
@@ -132,8 +132,8 @@ Expected: PASS (3 passed).
 - [ ] **Step 6: Lint + commit**
 
 ```bash
-cd sdk && uv run ruff format src/sentinel_auth/auth.py src/sentinel_auth/__init__.py tests/test_system_auth.py && uv run ruff check --fix src/sentinel_auth/auth.py src/sentinel_auth/__init__.py tests/test_system_auth.py
-git add sdk/src/sentinel_auth/auth.py sdk/src/sentinel_auth/__init__.py sdk/tests/test_system_auth.py
+cd sdk && uv run ruff format src/duar_auth/auth.py src/duar_auth/__init__.py tests/test_system_auth.py && uv run ruff check --fix src/duar_auth/auth.py src/duar_auth/__init__.py tests/test_system_auth.py
+git add sdk/src/duar_auth/auth.py sdk/src/duar_auth/__init__.py sdk/tests/test_system_auth.py
 git commit -m "feat(sdk): SystemAuth no-user (m2m) context"
 ```
 
@@ -142,12 +142,12 @@ git commit -m "feat(sdk): SystemAuth no-user (m2m) context"
 ### Task A2: whoami discovery + `effective_scope` + permission/role scope substitution
 
 **Files:**
-- Modify: `sdk/src/sentinel_auth/sentinel.py`
-- Test: `sdk/tests/test_sentinel_whoami.py`
+- Modify: `sdk/src/duar_auth/duar.py`
+- Test: `sdk/tests/test_duar_whoami.py`
 
 **Interfaces:**
-- Consumes: `httpx` (already imported), `SentinelError` (from `sentinel_auth.types`).
-- Produces on `Sentinel`:
+- Consumes: `httpx` (already imported), `DuarError` (from `duar_auth.types`).
+- Produces on `Duar`:
   - `effective_scope: str` property → `self._effective_scope or self.service_name`.
   - `realm: dict | None` property → the `{slug, name}` dict from whoami, or `None`.
   - `async fetch_whoami() -> dict | None` → GET `/realm/whoami` with `X-Service-Key`; sets `_effective_scope`/`_realm`; mutates already-created `permissions`/`roles` clients' `service_name`; tolerant of 404 / transport error (returns `None`, stays standalone).
@@ -157,19 +157,19 @@ git commit -m "feat(sdk): SystemAuth no-user (m2m) context"
 - [ ] **Step 1: Write the failing test**
 
 ```python
-# sdk/tests/test_sentinel_whoami.py
-"""Sentinel.whoami: self-discovers effective_scope and routes clients under it."""
+# sdk/tests/test_duar_whoami.py
+"""Duar.whoami: self-discovers effective_scope and routes clients under it."""
 
 import httpx
 import pytest
 import respx
 
-from sentinel_auth import Sentinel
+from duar_auth import Duar
 
 
-def _sentinel() -> Sentinel:
-    return Sentinel(
-        base_url="https://sentinel.test",
+def _duar() -> Duar:
+    return Duar(
+        base_url="https://duar.test",
         service_name="docs",
         service_key="svc-key",
         idp_public_key="-----BEGIN PUBLIC KEY-----\nx\n-----END PUBLIC KEY-----",
@@ -179,7 +179,7 @@ def _sentinel() -> Sentinel:
 
 @respx.mock
 async def test_member_resolves_realm_scope_and_rewires_clients():
-    respx.get("https://sentinel.test/realm/whoami").mock(
+    respx.get("https://duar.test/realm/whoami").mock(
         return_value=httpx.Response(
             200,
             json={
@@ -189,7 +189,7 @@ async def test_member_resolves_realm_scope_and_rewires_clients():
             },
         )
     )
-    s = _sentinel()
+    s = _duar()
     # Touch the clients BEFORE whoami so they are created with the bare name —
     # whoami must then mutate them in place (the get_auth factory captures them).
     assert s.permissions.service_name == "docs"
@@ -206,13 +206,13 @@ async def test_member_resolves_realm_scope_and_rewires_clients():
 
 @respx.mock
 async def test_standalone_stays_on_service_name():
-    respx.get("https://sentinel.test/realm/whoami").mock(
+    respx.get("https://duar.test/realm/whoami").mock(
         return_value=httpx.Response(
             200,
             json={"service_name": "docs", "effective_scope": "docs", "realm": None},
         )
     )
-    s = _sentinel()
+    s = _duar()
     await s.fetch_whoami()
     assert s.effective_scope == "docs"
     assert s.realm is None
@@ -220,11 +220,11 @@ async def test_standalone_stays_on_service_name():
 
 
 @respx.mock
-async def test_pre_realm_sentinel_404_degrades_to_standalone():
-    respx.get("https://sentinel.test/realm/whoami").mock(
+async def test_pre_realm_duar_404_degrades_to_standalone():
+    respx.get("https://duar.test/realm/whoami").mock(
         return_value=httpx.Response(404, json={"detail": "Not Found"})
     )
-    s = _sentinel()
+    s = _duar()
     data = await s.fetch_whoami()
     assert data is None
     assert s.effective_scope == "docs"  # falls back to service_name, no crash
@@ -233,13 +233,13 @@ async def test_pre_realm_sentinel_404_degrades_to_standalone():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd sdk && uv run pytest tests/test_sentinel_whoami.py -v`
-Expected: FAIL — `AttributeError: 'Sentinel' object has no attribute 'fetch_whoami'` (and `effective_scope`).
+Run: `cd sdk && uv run pytest tests/test_duar_whoami.py -v`
+Expected: FAIL — `AttributeError: 'Duar' object has no attribute 'fetch_whoami'` (and `effective_scope`).
 
-- [ ] **Step 3: Add scope state to `Sentinel.__init__`**
+- [ ] **Step 3: Add scope state to `Duar.__init__`**
 
-In `sdk/src/sentinel_auth/sentinel.py`, in `__init__`, after the existing
-`self._sentinel_public_key: str | None = None` line, add:
+In `sdk/src/duar_auth/duar.py`, in `__init__`, after the existing
+`self._duar_public_key: str | None = None` line, add:
 
 ```python
         self._effective_scope: str | None = None
@@ -248,7 +248,7 @@ In `sdk/src/sentinel_auth/sentinel.py`, in `__init__`, after the existing
 
 - [ ] **Step 4: Add the `effective_scope` / `realm` properties**
 
-In `sentinel.py`, right after the `sentinel_public_key` property (before `# -- Lazy clients --`):
+In `duar.py`, right after the `duar_public_key` property (before `# -- Lazy clients --`):
 
 ```python
     @property
@@ -265,7 +265,7 @@ In `sentinel.py`, right after the `sentinel_public_key` property (before `# -- L
 
 - [ ] **Step 5: Route the lazy clients under `effective_scope`**
 
-In `sentinel.py`, in the `permissions` property, change `service_name=self.service_name` to `service_name=self.effective_scope`. Do the same in the `roles` property. (Both currently read `self.service_name`.)
+In `duar.py`, in the `permissions` property, change `service_name=self.service_name` to `service_name=self.effective_scope`. Do the same in the `roles` property. (Both currently read `self.service_name`.)
 
 ```python
     @property
@@ -294,14 +294,14 @@ In `sentinel.py`, in the `permissions` property, change `service_name=self.servi
 
 - [ ] **Step 6: Add `fetch_whoami()`**
 
-In `sentinel.py`, add right after `fetch_sentinel_public_key`:
+In `duar.py`, add right after `fetch_duar_public_key`:
 
 ```python
     async def fetch_whoami(self) -> dict | None:
-        """Self-discover the shared realm scope from Sentinel — no app-side config.
+        """Self-discover the shared realm scope from Duar — no app-side config.
 
         Sets ``effective_scope`` to the realm slug when this service is a realm
-        member, else leaves it as ``service_name``. Tolerant of a pre-realm Sentinel
+        member, else leaves it as ``service_name``. Tolerant of a pre-realm Duar
         (``/realm`` absent → 404) or an unreachable internal listener: returns
         ``None`` and stays standalone, so older/partial deployments keep working.
         """
@@ -331,14 +331,14 @@ In `sentinel.py`, add right after `fetch_sentinel_public_key`:
 
 - [ ] **Step 7: Call `fetch_whoami()` from `lifespan`**
 
-In `sentinel.py`, in the `_lifespan` async generator, add the whoami call after the
+In `duar.py`, in the `_lifespan` async generator, add the whoami call after the
 authz-mode key fetch and before the actions registration:
 
 ```python
         @asynccontextmanager
         async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
             if self.mode == "authz":
-                await self.fetch_sentinel_public_key()
+                await self.fetch_duar_public_key()
             await self.fetch_whoami()
             if self.actions:
                 await self.roles.register_actions(self.actions)
@@ -350,14 +350,14 @@ authz-mode key fetch and before the actions registration:
 
 - [ ] **Step 8: Run test to verify it passes**
 
-Run: `cd sdk && uv run pytest tests/test_sentinel_whoami.py -v`
+Run: `cd sdk && uv run pytest tests/test_duar_whoami.py -v`
 Expected: PASS (3 passed).
 
 - [ ] **Step 9: Lint + commit**
 
 ```bash
-cd sdk && uv run ruff format src/sentinel_auth/sentinel.py tests/test_sentinel_whoami.py && uv run ruff check --fix src/sentinel_auth/sentinel.py tests/test_sentinel_whoami.py
-git add sdk/src/sentinel_auth/sentinel.py sdk/tests/test_sentinel_whoami.py
+cd sdk && uv run ruff format src/duar_auth/duar.py tests/test_duar_whoami.py && uv run ruff check --fix src/duar_auth/duar.py tests/test_duar_whoami.py
+git add sdk/src/duar_auth/duar.py sdk/tests/test_duar_whoami.py
 git commit -m "feat(sdk): whoami scope discovery + route permission/role clients under effective_scope"
 ```
 
@@ -366,11 +366,11 @@ git commit -m "feat(sdk): whoami scope discovery + route permission/role clients
 ### Task A3: Broaden the authz `svc` check to `effective_scope`
 
 **Files:**
-- Modify: `sdk/src/sentinel_auth/authz_middleware.py`
+- Modify: `sdk/src/duar_auth/authz_middleware.py`
 - Test: `sdk/tests/test_authz_effective_scope.py`
 
 **Interfaces:**
-- Consumes: the `Sentinel.effective_scope` property (Task A2) via `self._sentinel_instance`.
+- Consumes: the `Duar.effective_scope` property (Task A2) via `self._duar_instance`.
 - Produces on `AuthzMiddleware`: an `effective_scope: str` property; the step-6 `svc` check compares `token_svc` against `self.effective_scope` instead of `self.service_name`.
 
 - [ ] **Step 1: Write the failing test**
@@ -392,7 +392,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-from sentinel_auth.authz_middleware import AuthzMiddleware
+from duar_auth.authz_middleware import AuthzMiddleware
 
 
 @pytest.fixture(scope="module")
@@ -404,11 +404,11 @@ def keypairs():
         ).decode()
         return k, pub
 
-    return {"idp": _pair(), "sentinel": _pair()}
+    return {"idp": _pair(), "duar": _pair()}
 
 
 class _FakeInstance:
-    """Minimal stand-in for a Sentinel instance: only what the middleware reads."""
+    """Minimal stand-in for a Duar instance: only what the middleware reads."""
 
     idp_jwks_url = None
 
@@ -418,7 +418,7 @@ class _FakeInstance:
 
 def _tokens(keypairs, *, svc: str):
     idp_priv, _ = keypairs["idp"]
-    sentinel_priv, _ = keypairs["sentinel"]
+    duar_priv, _ = keypairs["duar"]
     now = datetime.datetime.now(datetime.UTC)
     idp_sub = "google|123"
     idp_token = pyjwt.encode(
@@ -431,7 +431,7 @@ def _tokens(keypairs, *, svc: str):
          "wid": str(uuid.uuid4()), "wslug": "acme", "wrole": "editor",
          "actions": ["read"], "aud": "sentinel:authz",
          "iat": now, "exp": now + datetime.timedelta(minutes=5)},
-        sentinel_priv, algorithm="RS256",
+        duar_priv, algorithm="RS256",
     )
     return idp_token, authz_token
 
@@ -446,8 +446,8 @@ def _app(keypairs, *, effective_scope: str) -> Starlette:
         service_name="docs",  # the member's own name — NOT the realm slug
         idp_audience="client-id",
         idp_public_key=keypairs["idp"][1],
-        sentinel_public_key=keypairs["sentinel"][1],
-        sentinel_instance=_FakeInstance(effective_scope),
+        duar_public_key=keypairs["duar"][1],
+        duar_instance=_FakeInstance(effective_scope),
     )
     return app
 
@@ -484,19 +484,19 @@ Expected: FAIL — `test_member_accepts_token_minted_for_realm_slug` gets 403 (t
 
 - [ ] **Step 3: Add the `effective_scope` property to `AuthzMiddleware`**
 
-In `sdk/src/sentinel_auth/authz_middleware.py`, add after the `sentinel_public_key` property (around line 131):
+In `sdk/src/duar_auth/authz_middleware.py`, add after the `duar_public_key` property (around line 131):
 
 ```python
     @property
     def effective_scope(self) -> str:
         """The shared scope an incoming authz token's ``svc`` must match.
 
-        A realm member resolves this from its Sentinel instance (discovered via
+        A realm member resolves this from its Duar instance (discovered via
         ``whoami`` at startup); standalone services and static-key (air-gapped) mode
         fall back to ``service_name`` — today's behavior, unchanged.
         """
-        if self._sentinel_instance is not None:
-            return self._sentinel_instance.effective_scope
+        if self._duar_instance is not None:
+            return self._duar_instance.effective_scope
         return self.service_name
 ```
 
@@ -524,8 +524,8 @@ Expected: PASS. The existing `test_authz_middleware.py` uses static-key mode (no
 - [ ] **Step 6: Lint + commit**
 
 ```bash
-cd sdk && uv run ruff format src/sentinel_auth/authz_middleware.py tests/test_authz_effective_scope.py && uv run ruff check --fix src/sentinel_auth/authz_middleware.py tests/test_authz_effective_scope.py
-git add sdk/src/sentinel_auth/authz_middleware.py sdk/tests/test_authz_effective_scope.py
+cd sdk && uv run ruff format src/duar_auth/authz_middleware.py tests/test_authz_effective_scope.py && uv run ruff check --fix src/duar_auth/authz_middleware.py tests/test_authz_effective_scope.py
+git add sdk/src/duar_auth/authz_middleware.py sdk/tests/test_authz_effective_scope.py
 git commit -m "feat(sdk): broaden authz svc check to effective_scope (realm-shared tokens)"
 ```
 
@@ -534,21 +534,21 @@ git commit -m "feat(sdk): broaden authz svc check to effective_scope (realm-shar
 ### Task A4: `verify_m2m_token()` → `SystemAuth` + `require_system` dependency
 
 **Files:**
-- Modify: `sdk/src/sentinel_auth/sentinel.py`
+- Modify: `sdk/src/duar_auth/duar.py`
 - Test: `sdk/tests/test_m2m_verify.py`
 
 **Interfaces:**
-- Consumes: `SystemAuth` (Task A1), `effective_scope` (Task A2), `self.sentinel_public_key`, `jwt`, `SentinelError`, FastAPI `Request`/`HTTPException`.
-- Produces on `Sentinel`:
+- Consumes: `SystemAuth` (Task A1), `effective_scope` (Task A2), `self.duar_public_key`, `jwt`, `DuarError`, FastAPI `Request`/`HTTPException`.
+- Produces on `Duar`:
   - module constant `_AUD_M2M = "sentinel:m2m"`.
-  - `verify_m2m_token(token: str) -> SystemAuth` — RS256-verify against the lifespan-fetched Sentinel public key, `aud=_AUD_M2M`; assert `type=="m2m"`, `svc==effective_scope`, optional `aud_target==service_name`; returns `SystemAuth(caller, actions, svc)`. Raises `SentinelError` (with `status_code` 401/403) on failure.
+  - `verify_m2m_token(token: str) -> SystemAuth` — RS256-verify against the lifespan-fetched Duar public key, `aud=_AUD_M2M`; assert `type=="m2m"`, `svc==effective_scope`, optional `aud_target==service_name`; returns `SystemAuth(caller, actions, svc)`. Raises `DuarError` (with `status_code` 401/403) on failure.
   - `require_system` property → a FastAPI dependency returning `SystemAuth` from the `Authorization: Bearer` header.
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
 # sdk/tests/test_m2m_verify.py
-"""Sentinel.verify_m2m_token: accept a no-user realm token -> SystemAuth."""
+"""Duar.verify_m2m_token: accept a no-user realm token -> SystemAuth."""
 
 import datetime
 import uuid
@@ -556,19 +556,19 @@ import uuid
 import jwt as pyjwt
 import pytest
 
-from sentinel_auth import Sentinel, SystemAuth
-from sentinel_auth.types import SentinelError
+from duar_auth import Duar, SystemAuth
+from duar_auth.types import DuarError
 
 
-def _sentinel(public_pem: str, *, effective_scope: str = "acme-suite", service_name: str = "reports") -> Sentinel:
-    s = Sentinel(
-        base_url="https://sentinel.test",
+def _duar(public_pem: str, *, effective_scope: str = "acme-suite", service_name: str = "reports") -> Duar:
+    s = Duar(
+        base_url="https://duar.test",
         service_name=service_name,
         service_key="svc-key",
         idp_public_key="-----BEGIN PUBLIC KEY-----\nx\n-----END PUBLIC KEY-----",
         idp_audience="my-client-id",
     )
-    s._sentinel_public_key = public_pem  # normally set by lifespan
+    s._duar_public_key = public_pem  # normally set by lifespan
     s._effective_scope = effective_scope
     return s
 
@@ -577,7 +577,7 @@ def _m2m(private_pem: str, *, svc="acme-suite", caller="docs", actions=None,
          aud="sentinel:m2m", typ="m2m", aud_target=None, ttl=300) -> str:
     now = datetime.datetime.now(datetime.UTC)
     return pyjwt.encode(
-        {"iss": "https://sentinel.test", "aud": aud, "type": typ, "svc": svc,
+        {"iss": "https://duar.test", "aud": aud, "type": typ, "svc": svc,
          "caller": caller, "actions": actions if actions is not None else ["*"],
          "aud_target": aud_target, "jti": str(uuid.uuid4()),
          "iat": now, "exp": now + datetime.timedelta(seconds=ttl)},
@@ -587,7 +587,7 @@ def _m2m(private_pem: str, *, svc="acme-suite", caller="docs", actions=None,
 
 def test_accepts_valid_m2m_token(rsa_keypair):
     private_pem, public_pem = rsa_keypair
-    s = _sentinel(public_pem)
+    s = _duar(public_pem)
     sys_auth = s.verify_m2m_token(_m2m(private_pem))
     assert isinstance(sys_auth, SystemAuth)
     assert sys_auth.caller == "docs"
@@ -597,32 +597,32 @@ def test_accepts_valid_m2m_token(rsa_keypair):
 
 def test_rejects_cross_realm_svc(rsa_keypair):
     private_pem, public_pem = rsa_keypair
-    s = _sentinel(public_pem, effective_scope="acme-suite")
-    with pytest.raises(SentinelError) as exc:
+    s = _duar(public_pem, effective_scope="acme-suite")
+    with pytest.raises(DuarError) as exc:
         s.verify_m2m_token(_m2m(private_pem, svc="other-realm"))
     assert exc.value.status_code == 403
 
 
 def test_rejects_wrong_audience(rsa_keypair):
     private_pem, public_pem = rsa_keypair
-    s = _sentinel(public_pem)
+    s = _duar(public_pem)
     # A user authz token (aud=sentinel:authz) must never validate as m2m.
-    with pytest.raises(SentinelError):
+    with pytest.raises(DuarError):
         s.verify_m2m_token(_m2m(private_pem, aud="sentinel:authz", typ="authz"))
 
 
 def test_rejects_expired(rsa_keypair):
     private_pem, public_pem = rsa_keypair
-    s = _sentinel(public_pem)
-    with pytest.raises(SentinelError):
+    s = _duar(public_pem)
+    with pytest.raises(DuarError):
         s.verify_m2m_token(_m2m(private_pem, ttl=-10))
 
 
 def test_aud_target_must_match_when_set(rsa_keypair):
     private_pem, public_pem = rsa_keypair
-    s = _sentinel(public_pem, service_name="reports")
+    s = _duar(public_pem, service_name="reports")
     # aud_target narrows the token to one service; reports != billing -> reject.
-    with pytest.raises(SentinelError) as exc:
+    with pytest.raises(DuarError) as exc:
         s.verify_m2m_token(_m2m(private_pem, aud_target="billing"))
     assert exc.value.status_code == 403
     # ...and is accepted when it matches this service.
@@ -632,20 +632,20 @@ def test_aud_target_must_match_when_set(rsa_keypair):
 
 def test_raises_when_public_key_missing(rsa_keypair):
     private_pem, _ = rsa_keypair
-    s = Sentinel(base_url="https://sentinel.test", service_name="reports",
+    s = Duar(base_url="https://duar.test", service_name="reports",
                  service_key="k", idp_public_key="x", idp_audience="a")
-    with pytest.raises(SentinelError):
+    with pytest.raises(DuarError):
         s.verify_m2m_token(_m2m(private_pem))
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `cd sdk && uv run pytest tests/test_m2m_verify.py -v`
-Expected: FAIL — `AttributeError: 'Sentinel' object has no attribute 'verify_m2m_token'`.
+Expected: FAIL — `AttributeError: 'Duar' object has no attribute 'verify_m2m_token'`.
 
 - [ ] **Step 3: Add imports + the `_AUD_M2M` constant**
 
-In `sdk/src/sentinel_auth/sentinel.py`, extend the imports:
+In `sdk/src/duar_auth/duar.py`, extend the imports:
 
 ```python
 import jwt
@@ -660,25 +660,25 @@ from fastapi import FastAPI, HTTPException, Request
 Change the auth import to also bring in `SystemAuth`:
 
 ```python
-from sentinel_auth.auth import SystemAuth
+from duar_auth.auth import SystemAuth
 ```
 
 (`RequestAuth` is not imported here today; only add `SystemAuth`.) Then add the
-module-level constant just below the imports, before `class Sentinel`:
+module-level constant just below the imports, before `class Duar`:
 
 ```python
 _AUD_M2M = "sentinel:m2m"
 ```
 
-Also ensure `SentinelError` is importable — add:
+Also ensure `DuarError` is importable — add:
 
 ```python
-from sentinel_auth.types import SentinelError
+from duar_auth.types import DuarError
 ```
 
 - [ ] **Step 4: Add `verify_m2m_token`**
 
-In `sentinel.py`, add after the `require_action` method (end of the class):
+In `duar.py`, add after the `require_action` method (end of the class):
 
 ```python
     # -- No-user (m2m) tokens -------------------------------------------------
@@ -687,8 +687,8 @@ In `sentinel.py`, add after the `require_action` method (end of the class):
         """Verify an inbound no-user realm token and return its ``SystemAuth``.
 
         Receiver side of Flow B: App B calls this on a token App A minted via
-        ``mint_m2m_token``. Trust is rooted entirely in Sentinel's RS256 signature
-        (only Sentinel holds the private key) plus aud/type/svc binding — never
+        ``mint_m2m_token``. Trust is rooted entirely in Duar's RS256 signature
+        (only Duar holds the private key) plus aud/type/svc binding — never
         app↔app trust. The token's ``svc`` must equal this service's
         ``effective_scope``, so a token minted for another realm cannot be replayed.
 
@@ -696,14 +696,14 @@ In `sentinel.py`, add after the `require_action` method (end of the class):
         ``exclude_paths``): an m2m call carries no IdP token, so the dual-token
         middleware would 401 it. Gate it with ``require_system`` instead.
 
-        Raises ``SentinelError`` (``status_code`` 401 for bad/expired/wrong-type,
+        Raises ``DuarError`` (``status_code`` 401 for bad/expired/wrong-type,
         403 for wrong realm / wrong target).
         """
-        key = self._sentinel_public_key
+        key = self._duar_public_key
         if not key:
-            raise SentinelError(
-                "Sentinel public key not available; run the app under "
-                "sentinel.lifespan so it is fetched at startup.",
+            raise DuarError(
+                "Duar public key not available; run the app under "
+                "duar.lifespan so it is fetched at startup.",
                 503,
             )
         try:
@@ -714,16 +714,16 @@ In `sentinel.py`, add after the `require_action` method (end of the class):
             # rotation must not interrupt m2m acceptance.
             payload = jwt.decode(token, key, algorithms=["RS256"], audience=_AUD_M2M)
         except jwt.ExpiredSignatureError as exc:
-            raise SentinelError("m2m token expired", 401) from exc
+            raise DuarError("m2m token expired", 401) from exc
         except jwt.InvalidTokenError as exc:
-            raise SentinelError("Invalid m2m token", 401) from exc
+            raise DuarError("Invalid m2m token", 401) from exc
         if payload.get("type") != "m2m":
-            raise SentinelError("Not an m2m token", 401)
+            raise DuarError("Not an m2m token", 401)
         if payload.get("svc") != self.effective_scope:
-            raise SentinelError("m2m token was issued for a different realm", 403)
+            raise DuarError("m2m token was issued for a different realm", 403)
         aud_target = payload.get("aud_target")
         if aud_target is not None and aud_target != self.service_name:
-            raise SentinelError("m2m token targets a different service", 403)
+            raise DuarError("m2m token targets a different service", 403)
         return SystemAuth(
             caller=payload.get("caller", ""),
             actions=list(payload.get("actions") or []),
@@ -744,7 +744,7 @@ In `sentinel.py`, add after the `require_action` method (end of the class):
                 raise HTTPException(status_code=401, detail="Missing m2m token")
             try:
                 return self.verify_m2m_token(auth.removeprefix("Bearer "))
-            except SentinelError as exc:
+            except DuarError as exc:
                 raise HTTPException(status_code=exc.status_code or 401, detail=str(exc))
 
         return dependency
@@ -758,8 +758,8 @@ Expected: PASS (6 passed).
 - [ ] **Step 5: Commit**
 
 ```bash
-cd sdk && uv run ruff format src/sentinel_auth/sentinel.py tests/test_m2m_verify.py && uv run ruff check --fix src/sentinel_auth/sentinel.py tests/test_m2m_verify.py
-git add sdk/src/sentinel_auth/sentinel.py sdk/tests/test_m2m_verify.py
+cd sdk && uv run ruff format src/duar_auth/duar.py tests/test_m2m_verify.py && uv run ruff check --fix src/duar_auth/duar.py tests/test_m2m_verify.py
+git add sdk/src/duar_auth/duar.py sdk/tests/test_m2m_verify.py
 git commit -m "feat(sdk): verify_m2m_token + require_system (accept no-user realm tokens)"
 ```
 
@@ -768,30 +768,30 @@ git commit -m "feat(sdk): verify_m2m_token + require_system (accept no-user real
 ### Task A5: `mint_m2m_token()` with ~80%-TTL auto-refresh
 
 **Files:**
-- Modify: `sdk/src/sentinel_auth/sentinel.py`
+- Modify: `sdk/src/duar_auth/duar.py`
 - Test: `sdk/tests/test_mint_m2m.py`
 
 **Interfaces:**
-- Consumes: `httpx`, `time`, `SentinelError`, `self.base_url`, `self.service_key`.
-- Produces on `Sentinel`: `async mint_m2m_token() -> str` — returns a cached token while within ~80% of its TTL, else POSTs `/realm/m2m-token` (`X-Service-Key`, empty body), caches `{token, expires_in}`, and returns the fresh token. Adds `_m2m_token`/`_m2m_refresh_at` state.
+- Consumes: `httpx`, `time`, `DuarError`, `self.base_url`, `self.service_key`.
+- Produces on `Duar`: `async mint_m2m_token() -> str` — returns a cached token while within ~80% of its TTL, else POSTs `/realm/m2m-token` (`X-Service-Key`, empty body), caches `{token, expires_in}`, and returns the fresh token. Adds `_m2m_token`/`_m2m_refresh_at` state.
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
 # sdk/tests/test_mint_m2m.py
-"""Sentinel.mint_m2m_token: mints, caches within TTL, re-mints after ~80%."""
+"""Duar.mint_m2m_token: mints, caches within TTL, re-mints after ~80%."""
 
 import httpx
 import pytest
 import respx
 
-from sentinel_auth import Sentinel
-from sentinel_auth.types import SentinelError
+from duar_auth import Duar
+from duar_auth.types import DuarError
 
 
-def _sentinel() -> Sentinel:
-    return Sentinel(
-        base_url="https://sentinel.test",
+def _duar() -> Duar:
+    return Duar(
+        base_url="https://duar.test",
         service_name="docs",
         service_key="svc-key",
         idp_public_key="x",
@@ -801,10 +801,10 @@ def _sentinel() -> Sentinel:
 
 @respx.mock
 async def test_mints_then_serves_from_cache():
-    route = respx.post("https://sentinel.test/realm/m2m-token").mock(
+    route = respx.post("https://duar.test/realm/m2m-token").mock(
         return_value=httpx.Response(200, json={"token": "tok-1", "expires_in": 300})
     )
-    s = _sentinel()
+    s = _duar()
     assert await s.mint_m2m_token() == "tok-1"
     # Second call is within the 80%-TTL window: cached, no second HTTP call.
     assert await s.mint_m2m_token() == "tok-1"
@@ -815,14 +815,14 @@ async def test_mints_then_serves_from_cache():
 
 @respx.mock
 async def test_remints_after_refresh_window():
-    respx.post("https://sentinel.test/realm/m2m-token").mock(
+    respx.post("https://duar.test/realm/m2m-token").mock(
         return_value=httpx.Response(200, json={"token": "tok-1", "expires_in": 300})
     )
-    s = _sentinel()
+    s = _duar()
     await s.mint_m2m_token()
     # Force the refresh deadline into the past → next call re-mints.
     s._m2m_refresh_at = 0.0
-    respx.post("https://sentinel.test/realm/m2m-token").mock(
+    respx.post("https://duar.test/realm/m2m-token").mock(
         return_value=httpx.Response(200, json={"token": "tok-2", "expires_in": 300})
     )
     assert await s.mint_m2m_token() == "tok-2"
@@ -830,11 +830,11 @@ async def test_remints_after_refresh_window():
 
 @respx.mock
 async def test_mint_rejection_raises():
-    respx.post("https://sentinel.test/realm/m2m-token").mock(
+    respx.post("https://duar.test/realm/m2m-token").mock(
         return_value=httpx.Response(403, json={"detail": "not a realm member"})
     )
-    s = _sentinel()
-    with pytest.raises(SentinelError) as exc:
+    s = _duar()
+    with pytest.raises(DuarError) as exc:
         await s.mint_m2m_token()
     assert exc.value.status_code == 403
 ```
@@ -842,11 +842,11 @@ async def test_mint_rejection_raises():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `cd sdk && uv run pytest tests/test_mint_m2m.py -v`
-Expected: FAIL — `AttributeError: 'Sentinel' object has no attribute 'mint_m2m_token'`.
+Expected: FAIL — `AttributeError: 'Duar' object has no attribute 'mint_m2m_token'`.
 
 - [ ] **Step 3: Add `import time` + cache state**
 
-In `sentinel.py`, add `import time` with the other stdlib imports. In `__init__`,
+In `duar.py`, add `import time` with the other stdlib imports. In `__init__`,
 after the `self._realm` line added in Task A2, add:
 
 ```python
@@ -856,7 +856,7 @@ after the `self._realm` line added in Task A2, add:
 
 - [ ] **Step 4: Add `mint_m2m_token`**
 
-In `sentinel.py`, add after `verify_m2m_token` (in the m2m section):
+In `duar.py`, add after `verify_m2m_token` (in the m2m section):
 
 ```python
     async def mint_m2m_token(self) -> str:
@@ -865,8 +865,8 @@ In `sentinel.py`, add after `verify_m2m_token` (in the m2m section):
         Sender side of Flow B: App A calls this, then forwards the token in
         ``Authorization: Bearer`` on its call to App B. The token is cached and only
         re-minted once it passes ~80% of its TTL, so a tight background loop doesn't
-        hammer Sentinel. Requires this service to be an active member of an active
-        realm (Sentinel rejects a standalone caller with 403).
+        hammer Duar. Requires this service to be an active member of an active
+        realm (Duar rejects a standalone caller with 403).
         """
         if self._m2m_token is not None and time.monotonic() < self._m2m_refresh_at:
             return self._m2m_token
@@ -877,7 +877,7 @@ In `sentinel.py`, add after `verify_m2m_token` (in the m2m section):
                 headers={"X-Service-Key": self.service_key},
             )
         if resp.status_code != 200:
-            raise SentinelError(f"m2m mint failed: {resp.status_code}", resp.status_code)
+            raise DuarError(f"m2m mint failed: {resp.status_code}", resp.status_code)
         data = resp.json()
         self._m2m_token = data["token"]
         self._m2m_refresh_at = time.monotonic() + data["expires_in"] * 0.8
@@ -897,8 +897,8 @@ Expected: PASS (all green — this package's tests are pure-unit/respx with no n
 - [ ] **Step 7: Commit**
 
 ```bash
-cd sdk && uv run ruff format src/sentinel_auth/sentinel.py tests/test_mint_m2m.py && uv run ruff check --fix src/sentinel_auth/sentinel.py tests/test_mint_m2m.py
-git add sdk/src/sentinel_auth/sentinel.py sdk/tests/test_mint_m2m.py
+cd sdk && uv run ruff format src/duar_auth/duar.py tests/test_mint_m2m.py && uv run ruff check --fix src/duar_auth/duar.py tests/test_mint_m2m.py
+git add sdk/src/duar_auth/duar.py sdk/tests/test_mint_m2m.py
 git commit -m "feat(sdk): mint_m2m_token with ~80%-TTL auto-refresh"
 ```
 
@@ -906,7 +906,7 @@ git commit -m "feat(sdk): mint_m2m_token with ~80%-TTL auto-refresh"
 
 ## Part B — JS SDKs (`sdks/js`, `sdks/nextjs`)
 
-### Task B1: m2m/whoami types + `verifyM2mToken` (accept) in `@sentinel-auth/js/server`
+### Task B1: m2m/whoami types + `verifyM2mToken` (accept) in `@duar-auth/js/server`
 
 **Files:**
 - Modify: `sdks/js/src/types.ts` (add m2m/whoami types)
@@ -919,7 +919,7 @@ git commit -m "feat(sdk): mint_m2m_token with ~80%-TTL auto-refresh"
 - Produces:
   - Types: `M2mJWTPayload`, `WhoamiResponse`, `M2mVerifyOptions`, `SystemAuth`.
   - `verifyM2mToken(token, options) -> Promise<SystemAuth>` — verifies `aud=sentinel:m2m`, `type=m2m`, `svc===options.effectiveScope`, optional `aud_target===options.serviceName`; returns `{ caller, actions, svc, can(action) }`.
-  - `fetchWhoami({ sentinelUrl, serviceKey }) -> Promise<WhoamiResponse>`.
+  - `fetchWhoami({ duarUrl, serviceKey }) -> Promise<WhoamiResponse>`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1011,7 +1011,7 @@ describe('fetchWhoami', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(
       new Response(JSON.stringify({ service_name: 'docs', effective_scope: 'acme-suite', realm: { slug: 'acme-suite', name: 'Acme' } }), { status: 200 }),
     ))
-    const who = await fetchWhoami({ sentinelUrl: 'http://localhost:9010', serviceKey: 'k' })
+    const who = await fetchWhoami({ duarUrl: 'http://localhost:9010', serviceKey: 'k' })
     expect(who.effective_scope).toBe('acme-suite')
     const [url, init] = vi.mocked(fetch).mock.calls[0]
     expect(url).toBe('http://localhost:9010/realm/whoami')
@@ -1053,7 +1053,7 @@ export interface WhoamiResponse {
 }
 
 export interface M2mVerifyOptions {
-  /** JWKS URL of the Sentinel that signs m2m tokens. */
+  /** JWKS URL of the Duar that signs m2m tokens. */
   jwksUrl: string
   /** This service's shared scope (realm slug). The token's `svc` must equal it. */
   effectiveScope: string
@@ -1063,7 +1063,7 @@ export interface M2mVerifyOptions {
   issuer?: string
 }
 
-/** No-user in-realm caller context — the counterpart to a SentinelUser. */
+/** No-user in-realm caller context — the counterpart to a DuarUser. */
 export interface SystemAuth {
   caller: string
   actions: string[]
@@ -1095,7 +1095,7 @@ function getJWKS(url: string) {
 /**
  * Verify an inbound no-user realm token (server entry only — never the browser).
  *
- * Receiver side of Flow B. Trust is rooted in Sentinel's RS256 signature plus
+ * Receiver side of Flow B. Trust is rooted in Duar's RS256 signature plus
  * aud/type/svc binding — never app↔app trust. The token's `svc` must equal this
  * service's `effectiveScope`, so a token minted for another realm cannot be
  * replayed here. Throws on any failure.
@@ -1132,14 +1132,14 @@ export async function verifyM2mToken(
 }
 
 /**
- * Self-discover this service's shared scope from Sentinel (server entry only).
+ * Self-discover this service's shared scope from Duar (server entry only).
  * Standalone services get `effective_scope === service_name` and `realm: null`.
  */
 export async function fetchWhoami(opts: {
-  sentinelUrl: string
+  duarUrl: string
   serviceKey: string
 }): Promise<WhoamiResponse> {
-  const base = opts.sentinelUrl.replace(/\/+$/, '')
+  const base = opts.duarUrl.replace(/\/+$/, '')
   const res = await fetch(`${base}/realm/whoami`, {
     headers: { 'X-Service-Key': opts.serviceKey },
   })
@@ -1173,7 +1173,7 @@ git commit -m "feat(js-sdk): verifyM2mToken + fetchWhoami in server entry"
 
 ---
 
-### Task B2: `M2mTokenClient` mint + ~80%-TTL refresh in `@sentinel-auth/js/server`
+### Task B2: `M2mTokenClient` mint + ~80%-TTL refresh in `@duar-auth/js/server`
 
 **Files:**
 - Modify: `sdks/js/src/m2m.ts` (add `M2mTokenClient`)
@@ -1181,7 +1181,7 @@ git commit -m "feat(js-sdk): verifyM2mToken + fetchWhoami in server entry"
 - Test: extend `sdks/js/src/__tests__/m2m.test.ts`
 
 **Interfaces:**
-- Produces: `class M2mTokenClient { constructor(sentinelUrl: string, serviceKey: string); getToken(): Promise<string> }` — caches the minted token and only re-mints once past ~80% of `expires_in`. Server entry only.
+- Produces: `class M2mTokenClient { constructor(duarUrl: string, serviceKey: string); getToken(): Promise<string> }` — caches the minted token and only re-mints once past ~80% of `expires_in`. Server entry only.
 
 - [ ] **Step 1: Add the failing test (append to `m2m.test.ts`)**
 
@@ -1207,7 +1207,7 @@ describe('M2mTokenClient', () => {
     vi.restoreAllMocks()
   })
 
-  it('throws when Sentinel rejects the mint', async () => {
+  it('throws when Duar rejects the mint', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ detail: 'not a realm member' }), { status: 403 }),
     ))
@@ -1239,8 +1239,8 @@ export class M2mTokenClient {
   private token: string | null = null
   private refreshAt = 0
 
-  constructor(sentinelUrl: string, serviceKey: string) {
-    this.base = sentinelUrl.replace(/\/+$/, '')
+  constructor(duarUrl: string, serviceKey: string) {
+    this.base = duarUrl.replace(/\/+$/, '')
     this.serviceKey = serviceKey
   }
 
@@ -1289,32 +1289,32 @@ git commit -m "feat(js-sdk): M2mTokenClient mint+refresh in server entry"
 - Modify: `sdks/nextjs/src/authz-middleware.ts`
 
 **Interfaces:**
-- Adds an optional `effectiveScope?: string` to `SentinelAuthzMiddlewareConfig`. The svc-binding check accepts a token whose `svc` equals **either** `serviceName` (standalone — unchanged) **or** `effectiveScope` (realm slug). A realm member sets `effectiveScope` to its realm slug (resolved once at startup via `fetchWhoami`, or from an env var); a standalone app omits it and behaves exactly as today.
+- Adds an optional `effectiveScope?: string` to `DuarAuthzMiddlewareConfig`. The svc-binding check accepts a token whose `svc` equals **either** `serviceName` (standalone — unchanged) **or** `effectiveScope` (realm slug). A realm member sets `effectiveScope` to its realm slug (resolved once at startup via `fetchWhoami`, or from an env var); a standalone app omits it and behaves exactly as today.
 
 > **Why config, not auto-whoami:** the middleware runs on the Edge per-request; an async whoami call there adds cold-start latency and needs a service key in the edge bundle. Passing the already-known slug in is the lazy, non-magic choice. `fetchWhoami` (Task B1) is available for apps that want to resolve it at startup.
 
 - [ ] **Step 1: Add `effectiveScope` to the config interface**
 
-In `sdks/nextjs/src/authz-middleware.ts`, add to `SentinelAuthzMiddlewareConfig`
+In `sdks/nextjs/src/authz-middleware.ts`, add to `DuarAuthzMiddlewareConfig`
 (after the `serviceName` field):
 
 ```typescript
   /**
    * Realm slug (this service's shared scope). When set, the authz token's `svc`
    * may equal either `serviceName` or this. Realm members resolve it once at
-   * startup via `fetchWhoami` from `@sentinel-auth/js/server`. Omit for standalone.
+   * startup via `fetchWhoami` from `@duar-auth/js/server`. Omit for standalone.
    */
   effectiveScope?: string
 ```
 
 - [ ] **Step 2: Destructure it and broaden the check**
 
-In `createSentinelAuthzMiddleware`, add `effectiveScope` to the destructured
+In `createDuarAuthzMiddleware`, add `effectiveScope` to the destructured
 `config` (alongside `serviceName`):
 
 ```typescript
   const {
-    sentinelUrl,
+    duarUrl,
     idpJwksUrl,
     idpAudience,
     idpIssuer,
@@ -1350,13 +1350,13 @@ git commit -m "feat(nextjs-sdk): broaden authz svc check to realm effectiveScope
 
 ---
 
-### Task B4: Re-export m2m from `@sentinel-auth/nextjs/server`
+### Task B4: Re-export m2m from `@duar-auth/nextjs/server`
 
 **Files:**
 - Modify: `sdks/nextjs/src/server.ts`
 
 **Interfaces:**
-- Re-exports `verifyM2mToken`, `fetchWhoami`, `M2mTokenClient` (and the `SystemAuth`/`WhoamiResponse`/`M2mVerifyOptions` types) from `@sentinel-auth/js/server` so Next.js apps can mint/accept m2m in Route Handlers without a second import path. These are server-only — `nextjs/src/server.ts` is already the server entry (`getUser`, `requireUser`, etc.).
+- Re-exports `verifyM2mToken`, `fetchWhoami`, `M2mTokenClient` (and the `SystemAuth`/`WhoamiResponse`/`M2mVerifyOptions` types) from `@duar-auth/js/server` so Next.js apps can mint/accept m2m in Route Handlers without a second import path. These are server-only — `nextjs/src/server.ts` is already the server entry (`getUser`, `requireUser`, etc.).
 
 - [ ] **Step 1: Add the re-exports**
 
@@ -1364,17 +1364,17 @@ At the bottom of `sdks/nextjs/src/server.ts`:
 
 ```typescript
 // Realm no-user (m2m) — server only. Mint for outbound system calls, verify inbound.
-export { verifyM2mToken, fetchWhoami, M2mTokenClient } from '@sentinel-auth/js/server'
-export type { SystemAuth, WhoamiResponse, M2mVerifyOptions } from '@sentinel-auth/js/server'
+export { verifyM2mToken, fetchWhoami, M2mTokenClient } from '@duar-auth/js/server'
+export type { SystemAuth, WhoamiResponse, M2mVerifyOptions } from '@duar-auth/js/server'
 ```
-(The m2m types live in the `@sentinel-auth/js` **server** subpath — Task B1 adds them to `server.ts`, not the browser `index.ts` — so re-export them from `/server`, not the package root.)
+(The m2m types live in the `@duar-auth/js` **server** subpath — Task B1 adds them to `server.ts`, not the browser `index.ts` — so re-export them from `/server`, not the package root.)
 
 - [ ] **Step 2: Build (typecheck)**
 
 Run: `cd sdks/nextjs && npm run build`
 Expected: build succeeds.
 
-> If the build fails because `@sentinel-auth/js` is an unbuilt workspace dependency,
+> If the build fails because `@duar-auth/js` is an unbuilt workspace dependency,
 > run `cd sdks/js && npm run build` first (its `dist/` must exist for nextjs to
 > resolve the types), then retry. Do **not** add new dependencies.
 

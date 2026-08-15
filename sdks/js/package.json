@@ -1,12 +1,12 @@
 {
-  "name": "@sentinel-auth/js",
+  "name": "@duar-auth/js",
   "version": "0.20.1",
   "type": "module",
-  "description": "Sentinel Auth SDK for JavaScript/TypeScript — browser auth client & server utilities",
+  "description": "Duar SDK for JavaScript/TypeScript — browser auth client & server utilities",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/sidxz/Sentinel",
+    "url": "https://github.com/sidxz/duar",
     "directory": "sdks/js"
   },
   "exports": {

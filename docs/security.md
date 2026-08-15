@@ -1,6 +1,6 @@
 # Security
 
-Sentinel is production-hardened with defense-in-depth across transport, authentication, token lifecycle, and input validation. This page documents the full security architecture.
+Duar is production-hardened with defense-in-depth across transport, authentication, token lifecycle, and input validation. This page documents the full security architecture.
 
 ---
 
@@ -88,7 +88,7 @@ Service keys are database-managed (`service_apps` table), not environment variab
 
 ### RS256 Signing
 
-All tokens use RS256 (RSA + SHA-256). The private key signs tokens; any service with the public key can verify without contacting Sentinel.
+All tokens use RS256 (RSA + SHA-256). The private key signs tokens; any service with the public key can verify without contacting Duar.
 
 ```bash
 openssl genrsa -out keys/private.pem 2048
@@ -166,7 +166,7 @@ Redis keys:
 
 ### Authorization Codes
 
-After OAuth callback, Sentinel issues a short-lived authorization code (not raw user IDs in redirects):
+After OAuth callback, Duar issues a short-lived authorization code (not raw user IDs in redirects):
 
 1. Frontend sends `code_challenge` + `code_challenge_method=S256` on `GET /auth/login/{provider}`
 2. Callback stores the code in Redis with a 5-minute TTL alongside the `code_challenge`
@@ -244,7 +244,7 @@ Keys are per IP address. When `BEHIND_PROXY=true`, the client IP is read from `X
 
 If Redis is unreachable the limiter **fails open** (requests are not blocked). This is intentional for availability; edge rate limiting should be the backstop for volumetric attacks.
 
-> **Volumetric DoS protection requires edge rate limiting.** The app-layer aggregate (`RATE_LIMIT_AGGREGATE`) only covers routes without a per-route limit; decorated routes (`/authz/resolve`, `/auth/token`, admin POSTs) enforce their own tier but are **not** in the aggregate and are **not** throttled before authentication. Put nginx/Cloudflare/ALB rate limiting in front of Sentinel for volumetric/bad-auth defense.
+> **Volumetric DoS protection requires edge rate limiting.** The app-layer aggregate (`RATE_LIMIT_AGGREGATE`) only covers routes without a per-route limit; decorated routes (`/authz/resolve`, `/auth/token`, admin POSTs) enforce their own tier but are **not** in the aggregate and are **not** throttled before authentication. Put nginx/Cloudflare/ALB rate limiting in front of Duar for volumetric/bad-auth defense.
 
 To disable rate limiting entirely (e.g. in a dedicated load-test environment), set `RATE_LIMIT_ENABLED=false`.
 
@@ -254,7 +254,7 @@ To disable rate limiting entirely (e.g. in a dedicated load-test environment), s
 
 ### PKCE (S256)
 
-PKCE prevents authorization code interception. Sentinel uses S256 where supported:
+PKCE prevents authorization code interception. Duar uses S256 where supported:
 
 | Provider | PKCE | Notes |
 |----------|------|-------|
@@ -266,7 +266,7 @@ PKCE is configured at the Authlib client registration level. Authlib generates `
 
 ### Client App Allowlist + `client_id` Binding
 
-Applications must be registered as client apps before using Sentinel. `GET /auth/login/{provider}` requires a `client_id` query parameter naming the ClientApp initiating the flow. Sentinel validates that the supplied `redirect_uri` is listed on **that specific** app's `redirect_uris` — not any active app. The `client_id` is stored in the session and re-verified on callback before an auth code is issued.
+Applications must be registered as client apps before using Duar. `GET /auth/login/{provider}` requires a `client_id` query parameter naming the ClientApp initiating the flow. Duar validates that the supplied `redirect_uri` is listed on **that specific** app's `redirect_uris` — not any active app. The `client_id` is stored in the session and re-verified on callback before an auth code is issued.
 
 This prevents authorization-code interception where an attacker crafted a login URL with their own `code_challenge` and another app's `redirect_uri`, then redeemed the resulting code against their own verifier. Without `client_id` binding, a single compromised or attacker-controllable redirect URI anywhere in the allowlist would have been enough; with it, the `(client_id, redirect_uri)` pair must match.
 
@@ -298,7 +298,7 @@ Policy: credentials enabled, methods `GET/POST/PUT/PATCH/DELETE/OPTIONS`, header
 
 ## AuthZ Mode Security
 
-AuthZ mode lets client apps authenticate users directly with their IdP and hand the resulting token to Sentinel, which issues a short-lived authorization JWT. Several defences ensure the IdP remains the sole authentication authority.
+AuthZ mode lets client apps authenticate users directly with their IdP and hand the resulting token to Duar, which issues a short-lived authorization JWT. Several defences ensure the IdP remains the sole authentication authority.
 
 ### IdP Audience + Issuer Enforcement
 
@@ -307,7 +307,7 @@ Both the Python and Next.js AuthZ middlewares require you to configure:
 - `idp_audience` — the OAuth client_id this app is registered as. The IdP token's `aud` must match.
 - `idp_issuer` — optional but strongly recommended; the IdP token's `iss` must match.
 
-Without `aud` validation, any token signed by the IdP for any OAuth client would authenticate — including one minted for an attacker's app. Sentinel's server-side `/authz/resolve` has always enforced audience; the middleware change brings client verification to parity.
+Without `aud` validation, any token signed by the IdP for any OAuth client would authenticate — including one minted for an attacker's app. Duar's server-side `/authz/resolve` has always enforced audience; the middleware change brings client verification to parity.
 
 ### Authz Token Bindings
 
@@ -327,7 +327,7 @@ Server-side dependencies (`get_user_for_service_call`, `get_current_user_flexibl
 
 ### AuthZ-mode Redirect Allowlist
 
-`GET /authz/idp/github/login` takes a caller-supplied `redirect_uri`. Sentinel validates the URI's origin (scheme + host + port) against `ServiceApp.allowed_origins` — attackers cannot point the GitHub proxy at their own domain to exfiltrate the access token. The allowlist is re-checked on callback.
+`GET /authz/idp/github/login` takes a caller-supplied `redirect_uri`. Duar validates the URI's origin (scheme + host + port) against `ServiceApp.allowed_origins` — attackers cannot point the GitHub proxy at their own domain to exfiltrate the access token. The allowlist is re-checked on callback.
 
 ### Cross-Provider Email Linking — Disabled
 
@@ -335,27 +335,27 @@ Server-side dependencies (`get_user_for_service_call`, `get_current_user_flexibl
 
 ### Revocation for Authz Tokens
 
-Authz tokens carry `jti` and `sub`. **On Sentinel's own endpoints** — the
+Authz tokens carry `jti` and `sub`. **On Duar's own endpoints** — the
 `get_user_for_service_call` and `get_current_user_flexible` dependencies — they go
 through the same revocation checks as access tokens on every request:
 
 - `jti` on the denylist → 401
 - `sub` marked deactivated → 401
 
-So admin-driven deactivation takes effect immediately for any request that reaches Sentinel.
+So admin-driven deactivation takes effect immediately for any request that reaches Duar.
 
 **SDK edge (important).** The `AuthzMiddleware` shipped in the SDK and installed via
-`sentinel.protect(app)` validates tokens **offline** — signature, audience, expiry,
-and the `idp_sub`/`svc` bindings — and deliberately does **not** call back to Sentinel
+`duar.protect(app)` validates tokens **offline** — signature, audience, expiry,
+and the `idp_sub`/`svc` bindings — and deliberately does **not** call back to Duar
 to consult the denylist or deactivation flag (no network round-trip per request).
 The consequence: at an SDK-protected downstream service, a deactivated user's
 already-issued authz token stays accepted until it **expires naturally**.
 
 Authz tokens are not enrolled in a refresh family, so the deactivation flag is their
-only revocation lever — and it is consulted only on Sentinel's own endpoints. Bound
+only revocation lever — and it is consulted only on Duar's own endpoints. Bound
 the exposure by keeping `AUTHZ_TOKEN_EXPIRE_MINUTES` short (default 5). For
 revocation-sensitive operations at a downstream service, route the decision through
-Sentinel (e.g. a `PermissionClient` / `RoleClient` check) rather than relying on the
+Duar (e.g. a `PermissionClient` / `RoleClient` check) rather than relying on the
 offline middleware alone. (A future opt-in revocation check in the middleware could
 close this at the cost of a per-request network call.)
 
@@ -365,7 +365,7 @@ The JS SDK's persistent store keeps the short-lived authz token in `localStorage
 
 ### Nonce on the Callback
 
-`SentinelAuthz.handleCallback()` fails closed if `sessionStorage` does not contain a nonce from a login this tab initiated. This blocks login-CSRF where an attacker links a victim to `/auth/callback#id_token=<attacker_token>` to hijack the session.
+`DuarAuthz.handleCallback()` fails closed if `sessionStorage` does not contain a nonce from a login this tab initiated. This blocks login-CSRF where an attacker links a victim to `/auth/callback#id_token=<attacker_token>` to hijack the session.
 
 ### Admin Stale-Privilege Protection
 
@@ -378,7 +378,7 @@ The JS SDK's persistent store keeps the short-lived authz token in `localStorage
 - **Discovery** (no `workspace_id`, returns the user's workspace list) — accepts either `X-Service-Key` or a registered `Origin` header. No credential issued, low sensitivity.
 - **Minting** (with `workspace_id`, returns a signed authz JWT) — **requires `X-Service-Key`**. Origin-authenticated callers are rejected with `403`. Credential issuance is a server-to-server trust step.
 
-Browsers therefore cannot call `/authz/resolve` to mint tokens. The `SentinelAuthz` SDK routes minting through a `mintEndpoint` on the downstream app's backend, which holds the service key. This closes the "XSS-window extension" attack where an attacker with a fleeting XSS could keep re-minting authz tokens for the IdP token's full TTL (~1 hour for Google). Post-fix, an XSS is bounded to replaying the one authz token already in memory (5-min TTL).
+Browsers therefore cannot call `/authz/resolve` to mint tokens. The `DuarAuthz` SDK routes minting through a `mintEndpoint` on the downstream app's backend, which holds the service key. This closes the "XSS-window extension" attack where an attacker with a fleeting XSS could keep re-minting authz tokens for the IdP token's full TTL (~1 hour for Google). Post-fix, an XSS is bounded to replaying the one authz token already in memory (5-min TTL).
 
 ---
 
@@ -431,9 +431,9 @@ All SDK clients (Python and JavaScript) log a warning when initialized with a pl
 
 | SDK | Warning |
 |-----|---------|
-| Python (`sentinel-auth-sdk`) | `logging.warning()` via `sentinel_auth` logger |
-| JS (`@sentinel-auth/js`) | `console.warn()` |
-| Next.js (`@sentinel-auth/nextjs`) | `console.warn()` in `createSentinelMiddleware` |
+| Python (`duar-auth`) | `logging.warning()` via `duar_auth` logger |
+| JS (`@duar-auth/js`) | `console.warn()` |
+| Next.js (`@duar-auth/nextjs`) | `console.warn()` in `createDuarMiddleware` |
 
 ---
 
@@ -444,7 +444,7 @@ All SDK clients (Python and JavaScript) log a warning when initialized with a pl
 - [ ] `DEBUG=false`
 - [ ] `BEHIND_PROXY=true` if behind a reverse proxy
 - [ ] `TRUSTED_PROXY_COUNT` matches actual proxy hop count (default `1`; verify per deploy)
-- [ ] Edge rate limiting (nginx/Cloudflare/ALB) configured in front of Sentinel for volumetric/bad-auth defense
+- [ ] Edge rate limiting (nginx/Cloudflare/ALB) configured in front of Duar for volumetric/bad-auth defense
 - [ ] `ALLOWED_HOSTS` set to actual domain(s)
 - [ ] `CORS_ORIGINS` lists only your frontend origin(s)
 - [ ] RS256 key pair generated, private key `chmod 600`

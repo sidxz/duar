@@ -2,21 +2,21 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add integration tests that exercise the **real** Sentinel token minters against the **real** SDK verifiers — Python and JS — proving realm Flow A (shared user-context) and Flow B (no-user m2m) hold end-to-end across a Python app and a JS app in one realm.
+**Goal:** Add integration tests that exercise the **real** Duar token minters against the **real** SDK verifiers — Python and JS — proving realm Flow A (shared user-context) and Flow B (no-user m2m) hold end-to-end across a Python app and a JS app in one realm.
 
-**Architecture:** A standalone `gen_fixtures.py` mints a committed `fixtures.json` (JWKS + labelled tokens) using the service's real `create_authz_token`/`create_m2m_token` and an ephemeral keypair. A Python in-process test (`service/tests/integration/`) mints live through the real `/realm/m2m-token` endpoint + real `create_authz_token`, then verifies with the real `Sentinel.verify_m2m_token` and real `AuthzMiddleware` (no ports, no DB/Redis — TestClient + `dependency_overrides`). A JS test (`sdks/js`) un-mocks `jose` and verifies the same committed token bytes.
+**Architecture:** A standalone `gen_fixtures.py` mints a committed `fixtures.json` (JWKS + labelled tokens) using the service's real `create_authz_token`/`create_m2m_token` and an ephemeral keypair. A Python in-process test (`service/tests/integration/`) mints live through the real `/realm/m2m-token` endpoint + real `create_authz_token`, then verifies with the real `Duar.verify_m2m_token` and real `AuthzMiddleware` (no ports, no DB/Redis — TestClient + `dependency_overrides`). A JS test (`sdks/js`) un-mocks `jose` and verifies the same committed token bytes.
 
-**Tech Stack:** Python 3.12, pytest, FastAPI `TestClient`, PyJWT, `sentinel_auth` SDK. JS: vitest, real `jose`. Both packages live in one uv workspace sharing a venv.
+**Tech Stack:** Python 3.12, pytest, FastAPI `TestClient`, PyJWT, `duar_auth` SDK. JS: vitest, real `jose`. Both packages live in one uv workspace sharing a venv.
 
 ## Global Constraints
 
 - **Touch ONLY** new test/fixture files, `gen_fixtures.py`, the new JS test, and `Makefile`. **NEVER** modify, stage, format, or discard `service/src/services/role_service.py` or `service/tests/test_register_actions.py` (the user's uncommitted work).
 - **Stage only the files each task lists** (`git add <those paths>`); never `git add -A` / `git add .`. Commit after every task.
-- **No new dependencies, no `pyproject.toml` edits.** Verified: the shared workspace venv already imports both `sentinel_auth` and `src.*` in the service test run (`cd service && uv run python -c "import sentinel_auth, src.auth.jwt"` succeeds).
+- **No new dependencies, no `pyproject.toml` edits.** Verified: the shared workspace venv already imports both `duar_auth` and `src.*` in the service test run (`cd service && uv run python -c "import duar_auth, src.auth.jwt"` succeeds).
 - **No committed private key.** `gen_fixtures.py` uses an **ephemeral in-memory RSA keypair** (temp files, discarded). Only `fixtures.json` (public PEM + JWKS + tokens) is committed.
 - **Python run/format:** tests run `cd service && uv run pytest tests/integration/`. Format **changed files only**: `cd service && uv run ruff format <files> && uv run ruff check --fix <files>`. **NEVER** `ruff format .` / whole-tree `--fix` / `make fmt` (they would reformat the user's uncommitted `role_service.py`).
 - **JS run/style:** `cd sdks/js && npm test` (vitest). Match existing JS style — **2-space indent, single quotes, no semicolons**. The new test file must **NOT** `vi.mock('jose')` (real crypto is the point); per-file mocking keeps it isolated from the existing mocked `m2m.test.ts`.
-- **Frozen identifiers** (from shipped code): minters `create_m2m_token(svc, caller, ttl_s, actions=None, aud_target=None)` and `create_authz_token(user_id, idp_sub, workspace_id, workspace_slug, workspace_role, actions, service_name, org_id, org_slug, org_is_public)`; audiences `sentinel:m2m` / `sentinel:authz`; SDK `Sentinel(base_url, service_name, service_key, idp_public_key=…, idp_audience=…)` with attrs `_sentinel_public_key` / `_effective_scope`, method `verify_m2m_token(token) -> SystemAuth` (raises `sentinel_auth.types.SentinelError`, `.status_code` 401/403); `AuthzMiddleware(service_name=…, idp_audience=…, idp_public_key=…, sentinel_public_key=…, sentinel_instance=…)`, headers `Authorization: Bearer <idp>` + `X-Authz-Token: <authz>`; JS `verifyM2mToken(token, { jwksUrl, effectiveScope, serviceName?, issuer? }) -> SystemAuth` (`{caller, actions, svc, can}`).
+- **Frozen identifiers** (from shipped code): minters `create_m2m_token(svc, caller, ttl_s, actions=None, aud_target=None)` and `create_authz_token(user_id, idp_sub, workspace_id, workspace_slug, workspace_role, actions, service_name, org_id, org_slug, org_is_public)`; audiences `sentinel:m2m` / `sentinel:authz`; SDK `Duar(base_url, service_name, service_key, idp_public_key=…, idp_audience=…)` with attrs `_duar_public_key` / `_effective_scope`, method `verify_m2m_token(token) -> SystemAuth` (raises `duar_auth.types.DuarError`, `.status_code` 401/403); `AuthzMiddleware(service_name=…, idp_audience=…, idp_public_key=…, duar_public_key=…, duar_instance=…)`, headers `Authorization: Bearer <idp>` + `X-Authz-Token: <authz>`; JS `verifyM2mToken(token, { jwksUrl, effectiveScope, serviceName?, issuer? }) -> SystemAuth` (`{caller, actions, svc, can}`).
 - Branch: `realm-trusted-app-group` (already checked out).
 - **SDD housekeeping (before Task 1):** archive `.superpowers/sdd/progress.md` → `progress-plan6-archive.md`; start a fresh ledger; regenerate each `task-N-brief` from THIS plan. One implementer at a time.
 
@@ -70,7 +70,7 @@ from pathlib import Path
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-_ISSUER = "https://sentinel.test"
+_ISSUER = "https://duar.test"
 
 # 1. Ephemeral keypair → temp PEM files (discarded at process exit).
 _key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -231,7 +231,7 @@ git commit -m "test(realm): cross-SDK fixture generator + committed token vector
 - Create: `service/tests/integration/test_realm_flow_b.py`
 
 **Interfaces:**
-- Consumes: `src.api.realm_routes` (router + `realm_service`), `src.api.dependencies.{ServiceKeyContext, require_service_key}`, `src.database.get_db`, `src.middleware.rate_limit.{limiter, rate_limit_exceeded_handler}`, `src.auth.jwt.{create_m2m_token, create_authz_token}`, `src.auth.key_provider`, `sentinel_auth.{Sentinel, SystemAuth}`, `sentinel_auth.types.SentinelError`, and `fixtures.json` from Task 1.
+- Consumes: `src.api.realm_routes` (router + `realm_service`), `src.api.dependencies.{ServiceKeyContext, require_service_key}`, `src.database.get_db`, `src.middleware.rate_limit.{limiter, rate_limit_exceeded_handler}`, `src.auth.jwt.{create_m2m_token, create_authz_token}`, `src.auth.key_provider`, `duar_auth.{Duar, SystemAuth}`, `duar_auth.types.DuarError`, and `fixtures.json` from Task 1.
 - Produces: nothing for later tasks (terminal test).
 
 - [ ] **Step 1: Write the Flow B test file (valid path first)**
@@ -254,8 +254,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from slowapi.errors import RateLimitExceeded
 
-from sentinel_auth import Sentinel, SystemAuth
-from sentinel_auth.types import SentinelError
+from duar_auth import Duar, SystemAuth
+from duar_auth.types import DuarError
 from src.api import realm_routes
 from src.api.dependencies import ServiceKeyContext, require_service_key
 from src.api.realm_routes import router as realm_router
@@ -307,15 +307,15 @@ def _pubpem_for(token: str) -> str:
     return key_provider.verification_keys()[kid]
 
 
-def _sdk(*, effective_scope: str, public_pem: str, service_name: str = "app-b") -> Sentinel:
-    s = Sentinel(
-        base_url="https://sentinel.test",
+def _sdk(*, effective_scope: str, public_pem: str, service_name: str = "app-b") -> Duar:
+    s = Duar(
+        base_url="https://duar.test",
         service_name=service_name,
         service_key="svc-key",
         idp_public_key="-----BEGIN PUBLIC KEY-----\nx\n-----END PUBLIC KEY-----",
         idp_audience="client-id",
     )
-    s._sentinel_public_key = public_pem
+    s._duar_public_key = public_pem
     s._effective_scope = effective_scope
     return s
 
@@ -357,7 +357,7 @@ def test_flow_b_wrong_realm_rejected(monkeypatch):
     token = resp.json()["token"]
     # Receiver's effective_scope is a DIFFERENT realm → cross-realm replay must fail.
     sdk = _sdk(effective_scope="other-realm", public_pem=_pubpem_for(token))
-    with pytest.raises(SentinelError) as exc:
+    with pytest.raises(DuarError) as exc:
         sdk.verify_m2m_token(token)
     assert exc.value.status_code == 403
 
@@ -371,7 +371,7 @@ def test_flow_b_non_member_cannot_mint(monkeypatch):
 def test_flow_b_expired_rejected():
     token = create_m2m_token(svc="acme-suite", caller="app-a", ttl_s=-10)
     sdk = _sdk(effective_scope="acme-suite", public_pem=_pubpem_for(token))
-    with pytest.raises(SentinelError) as exc:
+    with pytest.raises(DuarError) as exc:
         sdk.verify_m2m_token(token)
     assert exc.value.status_code == 401
 
@@ -394,7 +394,7 @@ def test_flow_b_authz_token_rejected_as_m2m():
         org_is_public=False,
     )
     sdk = _sdk(effective_scope="acme-suite", public_pem=_pubpem_for(token))
-    with pytest.raises(SentinelError):
+    with pytest.raises(DuarError):
         sdk.verify_m2m_token(token)
 
 
@@ -402,7 +402,7 @@ def test_flow_b_aud_target_mismatch_rejected():
     token = create_m2m_token(svc="acme-suite", caller="app-a", ttl_s=300, aud_target="billing")
     # Receiver is "reports", token targets "billing" → reject.
     sdk = _sdk(effective_scope="acme-suite", public_pem=_pubpem_for(token), service_name="reports")
-    with pytest.raises(SentinelError) as exc:
+    with pytest.raises(DuarError) as exc:
         sdk.verify_m2m_token(token)
     assert exc.value.status_code == 403
 ```
@@ -419,7 +419,7 @@ def test_committed_fixtures_accepted_and_negatives_rejected():
     assert ok.svc == "acme-suite"
     assert ok.caller == "app-a"
     for label in ("m2m_expired", "m2m_wrong_realm", "authz_valid", "m2m_aud_target"):
-        with pytest.raises(SentinelError):
+        with pytest.raises(DuarError):
             sdk.verify_m2m_token(_FIX["tokens"][label])
 
 
@@ -461,7 +461,7 @@ git commit -m "test(realm): Flow B integration — real m2m mint accepted by rea
 - Create: `service/tests/integration/test_realm_flow_a.py`
 
 **Interfaces:**
-- Consumes: `src.auth.jwt.create_authz_token`, `src.auth.key_provider`, `sentinel_auth.authz_middleware.AuthzMiddleware`, plus `cryptography` + `jwt` for an in-test IdP keypair. Mirrors the two-keypair `TestClient` pattern of `sdk/tests/test_authz_effective_scope.py` but feeds a REAL service-minted authz token.
+- Consumes: `src.auth.jwt.create_authz_token`, `src.auth.key_provider`, `duar_auth.authz_middleware.AuthzMiddleware`, plus `cryptography` + `jwt` for an in-test IdP keypair. Mirrors the two-keypair `TestClient` pattern of `sdk/tests/test_authz_effective_scope.py` but feeds a REAL service-minted authz token.
 - Produces: nothing for later tasks (terminal test).
 
 - [ ] **Step 1: Write the Flow A test**
@@ -474,7 +474,7 @@ rejected when the token was minted for a different scope.
 
 The authz token comes from the real create_authz_token minter (signed by the ambient
 key_provider). The IdP token is minted with an in-test keypair — AuthzMiddleware is a
-dual-token gate (IdP identity + Sentinel authz), so both are required.
+dual-token gate (IdP identity + Duar authz), so both are required.
 """
 
 import datetime
@@ -489,7 +489,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-from sentinel_auth.authz_middleware import AuthzMiddleware
+from duar_auth.authz_middleware import AuthzMiddleware
 from src.auth import key_provider
 from src.auth.jwt import create_authz_token
 
@@ -529,7 +529,7 @@ def _idp_token(idp_priv: str) -> str:
 
 
 def _real_authz_token(*, service_name: str) -> str:
-    """A REAL Sentinel authz token, svc=service_name, bound to the IdP identity."""
+    """A REAL Duar authz token, svc=service_name, bound to the IdP identity."""
     return create_authz_token(
         user_id=uuid.UUID(int=1),
         idp_sub=_IDP_SUB,
@@ -544,13 +544,13 @@ def _real_authz_token(*, service_name: str) -> str:
     )
 
 
-def _sentinel_pubpem(token: str) -> str:
+def _duar_pubpem(token: str) -> str:
     kid = pyjwt.get_unverified_header(token)["kid"]
     return key_provider.verification_keys()[kid]
 
 
 class _FakeInstance:
-    """Minimal Sentinel stand-in: supplies effective_scope; no JWKS (static-key mode)."""
+    """Minimal Duar stand-in: supplies effective_scope; no JWKS (static-key mode)."""
 
     idp_jwks_url = None
 
@@ -558,7 +558,7 @@ class _FakeInstance:
         self.effective_scope = effective_scope
 
 
-def _app(*, effective_scope: str, idp_pub: str, sentinel_pub: str) -> Starlette:
+def _app(*, effective_scope: str, idp_pub: str, duar_pub: str) -> Starlette:
     async def protected(request: Request) -> JSONResponse:
         return JSONResponse({"role": request.state.user.workspace_role})
 
@@ -568,8 +568,8 @@ def _app(*, effective_scope: str, idp_pub: str, sentinel_pub: str) -> Starlette:
         service_name="app-b",  # the member's own name — NOT the realm slug
         idp_audience=_IDP_AUD,
         idp_public_key=idp_pub,
-        sentinel_public_key=sentinel_pub,
-        sentinel_instance=_FakeInstance(effective_scope),
+        duar_public_key=duar_pub,
+        duar_instance=_FakeInstance(effective_scope),
     )
     return app
 
@@ -578,7 +578,7 @@ def test_flow_a_realm_member_accepts_realm_scoped_token():
     idp_priv, idp_pub = _idp_keypair()
     authz = _real_authz_token(service_name="acme-suite")  # minted for the realm slug
     client = TestClient(
-        _app(effective_scope="acme-suite", idp_pub=idp_pub, sentinel_pub=_sentinel_pubpem(authz))
+        _app(effective_scope="acme-suite", idp_pub=idp_pub, duar_pub=_duar_pubpem(authz))
     )
     resp = client.get(
         "/protected",
@@ -592,7 +592,7 @@ def test_flow_a_member_rejects_token_minted_for_other_scope():
     idp_priv, idp_pub = _idp_keypair()
     authz = _real_authz_token(service_name="other-realm")  # wrong scope
     client = TestClient(
-        _app(effective_scope="acme-suite", idp_pub=idp_pub, sentinel_pub=_sentinel_pubpem(authz))
+        _app(effective_scope="acme-suite", idp_pub=idp_pub, duar_pub=_duar_pubpem(authz))
     )
     resp = client.get(
         "/protected",
@@ -630,7 +630,7 @@ git commit -m "test(realm): Flow A integration — real authz token accepted by 
 
 ```typescript
 // sdks/js/src/__tests__/realm-integration.test.ts
-// Cross-SDK: the SAME bytes a Python Sentinel minted, verified by REAL jose (no mock).
+// Cross-SDK: the SAME bytes a Python Duar minted, verified by REAL jose (no mock).
 // jose's createRemoteJWKSet fetches the JWKS URL — we stub global.fetch to serve the
 // committed fixture JWKS, so the crypto path (RS256 + kid resolution) is fully real;
 // only the key *transport* is stubbed.
@@ -638,7 +638,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { verifyM2mToken } from '../m2m'
 import fixtures from '../../../../service/tests/integration/fixtures/fixtures.json'
 
-const JWKS_URL = 'http://sentinel-internal:9010/.well-known/jwks.json'
+const JWKS_URL = 'http://duar-internal:9010/.well-known/jwks.json'
 
 beforeEach(() => {
   vi.stubGlobal(
@@ -657,7 +657,7 @@ afterEach(() => {
 })
 
 describe('cross-SDK m2m (real jose)', () => {
-  it('accepts a real Sentinel-minted m2m token', async () => {
+  it('accepts a real Duar-minted m2m token', async () => {
     const sys = await verifyM2mToken(fixtures.tokens.m2m_valid, {
       jwksUrl: JWKS_URL,
       effectiveScope: 'acme-suite',
@@ -736,11 +736,11 @@ git commit -m "test(js-sdk): cross-SDK realm integration — real jose verifies 
 - Claim-drift catch: Task 2 mints live via the real minter (`test_flow_b_real_mint_accepted_by_sdk`) and the freshness guard (`test_committed_m2m_claims_match_current_minter`) compares the committed vector's claim set against a freshly-minted one.
 - JS real-crypto gap: Task 4 un-mocks `jose`.
 - `gen_fixtures.py` + committed `fixtures.json` (5 labelled tokens, JWKS, public PEM) → Task 1.
-- No committed private key (ephemeral keypair) → Task 1 Step 1. No dep change → Global Constraints. `nextjs` excluded (re-exports `@sentinel-auth/js`, covered) → matches spec Non-Goals.
+- No committed private key (ephemeral keypair) → Task 1 Step 1. No dep change → Global Constraints. `nextjs` excluded (re-exports `@duar-auth/js`, covered) → matches spec Non-Goals.
 
 **Placeholder scan:** none — every code/command step carries full content. The one conditional (Task 4 Step 3 JSON-import fallback) names the concrete alternative (`fs` read in Node) rather than deferring.
 
-**Type/name consistency:** `create_m2m_token(svc, caller, ttl_s, …, aud_target=)` and `create_authz_token(…, service_name, …)` match `jwt.py`; `ServiceKeyContext(service_name, realm_slug)` and the override + `_Realm` + `realm_service.get_realm_by_slug` monkeypatch match `tests/test_realm_routes.py`; `Sentinel(base_url, service_name, service_key, idp_public_key, idp_audience)` + `_sentinel_public_key`/`_effective_scope` + `verify_m2m_token`→`SentinelError(.status_code)` match `sentinel.py`; `AuthzMiddleware(service_name, idp_audience, idp_public_key, sentinel_public_key, sentinel_instance)` + `_FakeInstance(effective_scope)` + headers `Authorization`/`X-Authz-Token` + `request.state.user.workspace_role` match `authz_middleware.py` and `test_authz_effective_scope.py`; JS `verifyM2mToken(token, {jwksUrl, effectiveScope, serviceName})` + `{caller, svc, can}` match `m2m.ts`. The `kid → key_provider.verification_keys()[kid]` lookup matches `key_provider.py`; `build_jwks()` shape `{"keys":[…]}` matches `jwks.py`.
+**Type/name consistency:** `create_m2m_token(svc, caller, ttl_s, …, aud_target=)` and `create_authz_token(…, service_name, …)` match `jwt.py`; `ServiceKeyContext(service_name, realm_slug)` and the override + `_Realm` + `realm_service.get_realm_by_slug` monkeypatch match `tests/test_realm_routes.py`; `Duar(base_url, service_name, service_key, idp_public_key, idp_audience)` + `_duar_public_key`/`_effective_scope` + `verify_m2m_token`→`DuarError(.status_code)` match `duar.py`; `AuthzMiddleware(service_name, idp_audience, idp_public_key, duar_public_key, duar_instance)` + `_FakeInstance(effective_scope)` + headers `Authorization`/`X-Authz-Token` + `request.state.user.workspace_role` match `authz_middleware.py` and `test_authz_effective_scope.py`; JS `verifyM2mToken(token, {jwksUrl, effectiveScope, serviceName})` + `{caller, svc, can}` match `m2m.ts`. The `kid → key_provider.verification_keys()[kid]` lookup matches `key_provider.py`; `build_jwks()` shape `{"keys":[…]}` matches `jwks.py`.
 
 **Reused-not-added:** reuses the `tests/test_realm_routes.py` override/`_Realm` pattern, the `test_authz_effective_scope.py` two-keypair `_FakeInstance` pattern, the existing `vi.stubGlobal('fetch', …)` style from `m2m.test.ts`, and the shared workspace venv. No new dependencies, no `pyproject` edits, no committed secrets.
 

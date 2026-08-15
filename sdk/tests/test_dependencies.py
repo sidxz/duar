@@ -7,8 +7,8 @@ from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 from starlette.requests import Request
 
-from sentinel_auth.auth import RequestAuth
-from sentinel_auth.dependencies import (
+from duar_auth.auth import RequestAuth
+from duar_auth.dependencies import (
     get_current_user,
     get_request_auth_factory,
     get_token,
@@ -17,7 +17,7 @@ from sentinel_auth.dependencies import (
     require_action,
     require_role,
 )
-from sentinel_auth.types import AuthenticatedUser
+from duar_auth.types import AuthenticatedUser
 
 FAKE_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.fake"
 
@@ -124,7 +124,7 @@ class TestRequireRole:
 class TestGetToken:
     def test_prefers_state_token_over_header(self, editor_user):
         """Authz mode: Authorization carries the IdP token; request.state.token
-        holds the Sentinel authz token and must win."""
+        holds the Duar authz token and must win."""
         app = FastAPI()
         _inject_user(app, editor_user, with_token=True)
 
@@ -182,8 +182,8 @@ class TestRequireAction:
         return app
 
     def test_sends_state_token_not_idp_header(self, editor_user):
-        """Authz mode: must forward request.state.token (Sentinel authz token),
-        never the Authorization header's IdP token — Sentinel can't decode that."""
+        """Authz mode: must forward request.state.token (Duar authz token),
+        never the Authorization header's IdP token — Duar can't decode that."""
         rc = _RecordingRoleClient()
         app = self._app(editor_user, rc, with_token=True)
 
@@ -258,8 +258,8 @@ class TestGetRequestAuth:
 
     def test_wires_permission_and_role_clients(self, editor_user):
         """Clients passed to factory are available on the resulting RequestAuth."""
-        from sentinel_auth.permissions import PermissionClient
-        from sentinel_auth.roles import RoleClient
+        from duar_auth.permissions import PermissionClient
+        from duar_auth.roles import RoleClient
 
         pc = PermissionClient("https://auth.test", "svc", service_key="sk")
         rc = RoleClient("https://auth.test", "svc", service_key="sk")

@@ -1,9 +1,9 @@
-# Sentinel Auth — Production Docker Compose
+# Duar — Production Docker Compose
 #
 # Quick start:
 #   make setup               # generates keys, certs, env files (one-time)
 #   vim .env.prod            # set BASE_URL, OAuth creds, ADMIN_EMAILS
-#   docker stack deploy -c docker-compose.prod.yml sentinel
+#   docker stack deploy -c docker-compose.prod.yml duar
 #
 # What setup-prod generates:
 #   keys/private.pem, keys/public.pem  — RS256 JWT signing keys
@@ -15,7 +15,7 @@
 #   - Postgres: SSL-encrypted connections (self-signed internal CA)
 #   - Redis: TLS + password auth, plain port disabled
 #   - All certs/keys mounted as Docker secrets (immutable, in-memory)
-#   - External TLS: use a reverse proxy (HAProxy/nginx/Caddy) in front of sentinel
+#   - External TLS: use a reverse proxy (HAProxy/nginx/Caddy) in front of duar
 
 services:
   postgres:
@@ -43,7 +43,7 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql/data
     networks:
-      - sentinel
+      - duar
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
@@ -76,7 +76,7 @@ services:
     volumes:
       - redis_data:/data
     networks:
-      - sentinel
+      - duar
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "--tls", "--cacert", "/run/secrets/tls_ca", "-a", "${REDIS_PASSWORD}", "ping"]
@@ -89,9 +89,9 @@ services:
           memory: 256M
           cpus: "0.5"
 
-  sentinel:
-    image: ghcr.io/sidxz/sentinel:latest
-    environment: &sentinel_env
+  duar:
+    image: ghcr.io/sidxz/duar:latest
+    environment: &duar_env
       TIER: public
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?ssl=require
       REDIS_URL: rediss://:${REDIS_PASSWORD}@redis:6379/0
@@ -104,7 +104,7 @@ services:
       COOKIE_SECURE: "true"
       DEBUG: "false"
       BEHIND_PROXY: "true"
-      # Number of trusted proxy hops in front of Sentinel (CDN/LB + nginx = 2, etc.).
+      # Number of trusted proxy hops in front of Duar (CDN/LB + nginx = 2, etc.).
       # MUST match reality or all clients collapse into one IP bucket. Verify per deploy.
       TRUSTED_PROXY_COUNT: ${TRUSTED_PROXY_COUNT:-1}
       # Rate-limit tiers (tunable without an image rebuild). Aggregate is the per-IP
@@ -138,14 +138,14 @@ services:
       - jwt_public_key
       - tls_ca
     ports:
-      - "${SENTINEL_PORT:-9003}:9003"
+      - "${DUAR_PORT:-9003}:9003"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     networks:
-      - sentinel
+      - duar
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:9003/health"]
@@ -160,14 +160,14 @@ services:
           cpus: "1.0"
 
   # Internal listener — the service-key-only surface (realm, permissions, authz,
-  # roles). NOT published: reachable only on the `sentinel` overlay as
-  # http://sentinel-internal:9010. Apps that hold a Sentinel service key point their
-  # SDK base URL here. depends_on sentinel (public) so the schema is migrated first.
-  sentinel-internal:
-    image: ghcr.io/sidxz/sentinel:latest
+  # roles). NOT published: reachable only on the `duar` overlay as
+  # http://duar-internal:9010. Apps that hold a Duar service key point their
+  # SDK base URL here. depends_on duar (public) so the schema is migrated first.
+  duar-internal:
+    image: ghcr.io/sidxz/duar:latest
     command: [".venv/bin/uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "9010", "--no-server-header"]
     environment:
-      <<: *sentinel_env
+      <<: *duar_env
       TIER: internal
       SESSION_SECRET_KEY: ""   # internal drops Session middleware — keep the signing secret off this container
       CORS_ORIGINS: ""         # internal drops CORS middleware
@@ -181,10 +181,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      sentinel:
+      duar:
         condition: service_healthy
     networks:
-      - sentinel
+      - duar
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:9010/health"]
@@ -198,17 +198,17 @@ services:
           memory: 512M
           cpus: "1.0"
 
-  sentinel-admin:
-    image: ghcr.io/sidxz/sentinel-admin:latest
+  duar-admin:
+    image: ghcr.io/sidxz/duar-admin:latest
     environment:
-      SENTINEL_BACKEND: sentinel:9003
+      DUAR_BACKEND: duar:9003
     ports:
       - "${ADMIN_PORT:-9004}:80"
     depends_on:
-      sentinel:
+      duar:
         condition: service_healthy
     networks:
-      - sentinel
+      - duar
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
@@ -239,5 +239,5 @@ volumes:
   redis_data:
 
 networks:
-  sentinel:
+  duar:
     driver: overlay

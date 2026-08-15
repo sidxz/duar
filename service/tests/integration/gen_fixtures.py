@@ -15,7 +15,7 @@ from pathlib import Path
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-_ISSUER = "https://sentinel.test"
+_ISSUER = "https://duar.test"
 
 # 1. Ephemeral keypair → temp PEM files (discarded at process exit).
 _key = rsa.generate_private_key(public_exponent=65537, key_size=2048)

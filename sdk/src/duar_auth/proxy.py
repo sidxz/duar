@@ -1,6 +1,6 @@
-"""Reverse-proxy router for private-network Sentinel deployments.
+"""Reverse-proxy router for private-network Duar deployments.
 
-When Sentinel is not reachable from browsers (ClusterIP-only / internal overlay
+When Duar is not reachable from browsers (ClusterIP-only / internal overlay
 network), the SDK's browser calls must route through the app backend. This
 router forwards exactly the browser-facing surface and nothing else:
 
@@ -12,27 +12,27 @@ router forwards exactly the browser-facing surface and nothing else:
 - ``GET /users/me``
 
 The directory reads forward the caller's ``Authorization`` and ``X-Authz-Token``
-headers untouched and deliberately do NOT attach the service key: Sentinel's
+headers untouched and deliberately do NOT attach the service key: Duar's
 flexible auth ignores ``X-Authz-Token`` when a valid service key is present and
-would try to decode the IdP bearer as a Sentinel token, failing with 401.
+would try to decode the IdP bearer as a Duar token, failing with 401.
 
 ``X-Forwarded-For`` and ``User-Agent`` are passed through unchanged so
-Sentinel's access logs and rate limiting still see real client IPs — set
+Duar's access logs and rate limiting still see real client IPs — set
 ``BEHIND_PROXY=true`` and ``TRUSTED_PROXY_COUNT`` to the number of
 internet-facing proxies that append to XFF (typically 1: your ingress) on the
-Sentinel deployment.
+Duar deployment.
 
 Usage::
 
-    from sentinel_auth import Sentinel
+    from duar_auth import Duar
 
-    sentinel = Sentinel(...)
-    app.include_router(sentinel.proxy_router(), prefix="/api/sentinel")
+    duar = Duar(...)
+    app.include_router(duar.proxy_router(), prefix="/api/duar")
 
 Frontend config then becomes::
 
-    sentinelUrl: "/api/sentinel"
-    mintEndpoint: "/api/sentinel/authz/resolve"
+    duarUrl: "/api/duar"
+    mintEndpoint: "/api/duar/authz/resolve"
 """
 
 from __future__ import annotations
@@ -46,12 +46,12 @@ _FORWARDED_HEADERS = ("authorization", "x-authz-token", "user-agent", "x-forward
 
 
 def create_proxy_router(base_url: str, service_key: str, timeout: float = 10.0) -> APIRouter:
-    """Build an ``APIRouter`` that forwards the browser-facing Sentinel surface.
+    """Build an ``APIRouter`` that forwards the browser-facing Duar surface.
 
-    Mount it under the same prefix the frontend uses as ``sentinelUrl``
-    (e.g. ``app.include_router(router, prefix="/api/sentinel")``).
+    Mount it under the same prefix the frontend uses as ``duarUrl``
+    (e.g. ``app.include_router(router, prefix="/api/duar")``).
     """
-    router = APIRouter(tags=["sentinel-proxy"])
+    router = APIRouter(tags=["duar-proxy"])
     client = httpx.AsyncClient(base_url=base_url.rstrip("/"), timeout=timeout)
 
     def _headers(request: Request, *, with_service_key: bool) -> dict[str, str]:
@@ -78,7 +78,7 @@ def create_proxy_router(base_url: str, service_key: str, timeout: float = 10.0) 
             )
         except httpx.HTTPError:
             return Response(
-                content=b'{"detail": "Sentinel is unreachable"}',
+                content=b'{"detail": "Duar is unreachable"}',
                 status_code=502,
                 media_type="application/json",
             )

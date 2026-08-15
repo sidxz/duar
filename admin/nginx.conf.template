@@ -26,7 +26,7 @@ server {
     # Reverse proxy: /api/* → backend (strip /api prefix)
     # Use Docker DNS + variable so nginx re-resolves after container restarts
     resolver 127.0.0.11 valid=10s;
-    set $backend http://${SENTINEL_BACKEND};
+    set $backend http://${DUAR_BACKEND};
 
     location /api/ {
         rewrite ^/api/(.*) /$1 break;

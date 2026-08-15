@@ -36,7 +36,7 @@ def test_all_tiers_exist_and_parse():
     for name in TIERS:
         value = getattr(settings, name)
         assert isinstance(value, str), name
-        if value:  # "" is the explicit "disable this tier" sentinel
+        if value:  # "" is the explicit "disable this tier" duar
             parse(value)  # raises ValueError on a malformed limit string
 
 

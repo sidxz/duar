@@ -16,7 +16,7 @@
 - **Every new `.md` page MUST be added to the `nav:` tree in `mkdocs.yml` in the same task that creates it** — otherwise strict build fails with "page exists but not in nav".
 - **Internal links use source filenames** (MkDocs `use_directory_urls` default): same-dir `[x](authorization.md)`, cross-dir `[x](../sdk/realms.md)`. Anchors are the auto-slug of a heading (`## Flow B` → `#flow-b`). Only link to headings that exist.
 - **Match the existing terse house style:** short prose, tables, fenced code blocks, occasional mermaid. No marketing voice. US spelling. Reuse the exact identifiers from the code — do not invent field names.
-- **Facts are frozen from the shipped code** (verified against `service/src/main.py`, `service/src/api/realm_routes.py`, `service/src/schemas/realm.py`, `service/src/auth/jwt.py`, `sdk/src/sentinel_auth/`, `sdks/js/src/`, `docker-compose.prod.yml`). The verbatim content blocks below are the deliverable — transcribe them, adjust only to fix a strict-build link/anchor error. Do not re-derive the API from scratch.
+- **Facts are frozen from the shipped code** (verified against `service/src/main.py`, `service/src/api/realm_routes.py`, `service/src/schemas/realm.py`, `service/src/auth/jwt.py`, `sdk/src/duar_auth/`, `sdks/js/src/`, `docker-compose.prod.yml`). The verbatim content blocks below are the deliverable — transcribe them, adjust only to fix a strict-build link/anchor error. Do not re-derive the API from scratch.
 - Branch: `realm-trusted-app-group` (already checked out).
 - **SDD housekeeping (before dispatching Task 1):** archive the current `.superpowers/sdd/progress.md` → `progress-plan5-archive.md`, start a fresh ledger, and **regenerate each `task-N-brief` from THIS plan file** (the brief slots hold stale Plan-5 content otherwise). One implementer at a time.
 
@@ -58,9 +58,9 @@ A **realm** is a named group of service apps that fully trust each other. Member
 
 - **Shared sign-in** — a user's authz token works on every member app.
 - **Shared permissions** — all members read and write entity ACLs and RBAC actions under one shared scope.
-- **Trusted app-to-app calls** — members call each other's APIs both *with* a signed-in user and *with no user at all*, every call credentialed and validated by Sentinel.
+- **Trusted app-to-app calls** — members call each other's APIs both *with* a signed-in user and *with no user at all*, every call credentialed and validated by Duar.
 
-Apps in a realm carry **no auth logic and no realm config** — the SDK self-discovers the realm from Sentinel. Standalone service apps are unaffected: a realm is opt-in and non-breaking.
+Apps in a realm carry **no auth logic and no realm config** — the SDK self-discovers the realm from Duar. Standalone service apps are unaffected: a realm is opt-in and non-breaking.
 
 !!! note "Realm vs Group"
     A **realm** is a trust boundary over *service apps*. A [Group](groups.md) is a collection of *users* within a workspace (a Tier-3 ACL grantee). Different concepts, no overlap.
@@ -82,7 +82,7 @@ A service app belongs to **at most one realm** (an ambiguous scope otherwise).
 
 ## Token flows
 
-A realm enables two app-to-app call patterns. In both, trust is rooted in Sentinel's RS256 signature — never in app-to-app trust.
+A realm enables two app-to-app call patterns. In both, trust is rooted in Duar's RS256 signature — never in app-to-app trust.
 
 ### Flow A — user-context
 
@@ -92,7 +92,7 @@ A human is behind the call. App A forwards the user's authz token to App B; beca
 sequenceDiagram
     participant U as User
     participant A as App A
-    participant S as Sentinel
+    participant S as Duar
     participant B as App B
     U->>A: signed-in request
     A->>S: POST /authz/resolve (X-Service-Key + IdP token)
@@ -109,7 +109,7 @@ A background/system call with no human (a cron job, a queue worker). App A mints
 ```mermaid
 sequenceDiagram
     participant A as App A (cron)
-    participant S as Sentinel
+    participant S as Duar
     participant B as App B
     A->>S: POST /realm/m2m-token (X-Service-Key)
     S-->>A: m2m token { type=m2m, svc="acme-suite", caller="app-a", actions=["*"] }
@@ -122,14 +122,14 @@ The m2m token carries **no user claims** — it is an honest "no human" credenti
 
 ## Trust model
 
-Two independent, Sentinel-rooted checks — apps never trust each other directly:
+Two independent, Duar-rooted checks — apps never trust each other directly:
 
-- **Mint-time** (App A → Sentinel): the m2m endpoint is gated by the service key. The token's `caller` and `svc` are **server-stamped from the authenticated key**, never client-asserted — so a leaked key can only mint *that member's* token, and cannot impersonate another member or jump realms. Minting is rejected unless the service is an active member of an active realm.
-- **Present-time** (App A → App B): App B verifies Sentinel's RS256 signature over JWKS, plus `aud == sentinel:m2m`, `svc == effective_scope` (a cross-realm replay fails), and a short expiry.
+- **Mint-time** (App A → Duar): the m2m endpoint is gated by the service key. The token's `caller` and `svc` are **server-stamped from the authenticated key**, never client-asserted — so a leaked key can only mint *that member's* token, and cannot impersonate another member or jump realms. Minting is rejected unless the service is an active member of an active realm.
+- **Present-time** (App A → App B): App B verifies Duar's RS256 signature over JWKS, plus `aud == sentinel:m2m`, `svc == effective_scope` (a cross-realm replay fails), and a short expiry.
 
 | Threat | Defense |
 |---|---|
-| Forged / fabricated token | RS256 signature — unforgeable without Sentinel's private key |
+| Forged / fabricated token | RS256 signature — unforgeable without Duar's private key |
 | Stolen service key | high-entropy, hashed, backend-only, rotatable; server-stamped identity blocks impersonation |
 | Stolen token in transit | short TTL + TLS + `svc` binding |
 | Malicious member | v1 is full in-realm trust by design; the reserved `actions` field is the future least-privilege lever |
@@ -271,7 +271,7 @@ A standalone service:
 ```
 
 ```bash
-curl http://sentinel-internal:9010/realm/whoami \
+curl http://duar-internal:9010/realm/whoami \
   -H "X-Service-Key: sk_your_key"
 ```
 
@@ -300,7 +300,7 @@ Mints a short-lived no-user m2m token (sender side of [Flow B](../guide/realms.m
 **Errors:** `403` — caller is standalone, or its realm is inactive.
 
 ```bash
-curl -X POST http://sentinel-internal:9010/realm/m2m-token \
+curl -X POST http://duar-internal:9010/realm/m2m-token \
   -H "X-Service-Key: sk_your_key" -H "Content-Type: application/json" -d '{}'
 ```
 
@@ -414,39 +414,39 @@ git commit -m "docs(realm): API reference for /realm and /admin/realms"
 
 When a service app is a [realm](../guide/realms.md) member, the SDK self-discovers the shared scope and transparently substitutes it — your application code does not change. The SDK also adds the no-user m2m primitives for [Flow B](../guide/realms.md#flow-b-no-user).
 
-Everything here is **non-breaking for standalone services**: with no realm, `effective_scope == service_name`, and a pre-realm Sentinel (no `/realm` endpoint) degrades gracefully — the SDK stays standalone, it never crashes.
+Everything here is **non-breaking for standalone services**: with no realm, `effective_scope == service_name`, and a pre-realm Duar (no `/realm` endpoint) degrades gracefully — the SDK stays standalone, it never crashes.
 
 ## Scope self-discovery
 
-At startup (inside `sentinel.lifespan`) the SDK calls `GET /realm/whoami` and caches the result. Two read-only properties expose it:
+At startup (inside `duar.lifespan`) the SDK calls `GET /realm/whoami` and caches the result. Two read-only properties expose it:
 
 ```python
-sentinel.effective_scope   # "acme-suite" for a member, else the service_name
-sentinel.realm             # {"slug": "acme-suite", "name": "Acme Suite"} or None
+duar.effective_scope   # "acme-suite" for a member, else the service_name
+duar.realm             # {"slug": "acme-suite", "name": "Acme Suite"} or None
 ```
 
-You rarely call these directly — the `PermissionClient` and `RoleClient` owned by the `Sentinel` instance are automatically pointed at `effective_scope`, and `AuthzMiddleware` accepts an authz token whose `svc` is the realm slug (Flow A). To resolve scope manually (e.g. outside the lifespan):
+You rarely call these directly — the `PermissionClient` and `RoleClient` owned by the `Duar` instance are automatically pointed at `effective_scope`, and `AuthzMiddleware` accepts an authz token whose `svc` is the realm slug (Flow A). To resolve scope manually (e.g. outside the lifespan):
 
 ```python
-data = await sentinel.fetch_whoami()
-# {"service_name": ..., "effective_scope": ..., "realm": {...} | None} or None on a pre-realm Sentinel
+data = await duar.fetch_whoami()
+# {"service_name": ..., "effective_scope": ..., "realm": {...} | None} or None on a pre-realm Duar
 ```
 
 ## Accepting an m2m token (receiver — Flow B)
 
-`verify_m2m_token` verifies an inbound no-user token and returns a `SystemAuth`. Trust is rooted in Sentinel's RS256 signature plus `aud`/`type`/`svc` binding — never app-to-app trust.
+`verify_m2m_token` verifies an inbound no-user token and returns a `SystemAuth`. Trust is rooted in Duar's RS256 signature plus `aud`/`type`/`svc` binding — never app-to-app trust.
 
 ```python
-from sentinel_auth import SystemAuth   # exported from the package root
+from duar_auth import SystemAuth   # exported from the package root
 
-sys_auth: SystemAuth = sentinel.verify_m2m_token(token)
+sys_auth: SystemAuth = duar.verify_m2m_token(token)
 sys_auth.caller        # the realm member that minted it (server-stamped)
 sys_auth.svc           # the realm slug
 sys_auth.actions       # ["*"] = full in-realm trust in v1
 sys_auth.can("reports:export")   # True if "*" in actions or the action is listed
 ```
 
-`SystemAuth` is the no-user counterpart to `RequestAuth` — it carries service identity only, never a user. `verify_m2m_token` raises `SentinelError` (`status_code` 401 for a bad/expired/wrong-type token, 403 for the wrong realm or wrong target).
+`SystemAuth` is the no-user counterpart to `RequestAuth` — it carries service identity only, never a user. `verify_m2m_token` raises `DuarError` (`status_code` 401 for a bad/expired/wrong-type token, 403 for the wrong realm or wrong target).
 
 ### `require_system` dependency
 
@@ -454,10 +454,10 @@ Gate a system-only route with the `require_system` FastAPI dependency, which rea
 
 ```python
 from fastapi import Depends
-from sentinel_auth import SystemAuth
+from duar_auth import SystemAuth
 
 @app.post("/internal/reindex")
-async def reindex(sys: SystemAuth = Depends(sentinel.require_system)):
+async def reindex(sys: SystemAuth = Depends(duar.require_system)):
     if not sys.can("search:reindex"):
         raise HTTPException(403)
     ...
@@ -468,10 +468,10 @@ async def reindex(sys: SystemAuth = Depends(sentinel.require_system)):
 
 ## Minting an m2m token (sender — Flow B)
 
-`mint_m2m_token` mints (or returns a cached) token for an outbound system call. It caches the token and only re-mints once it passes ~80% of its TTL, so a tight background loop does not hammer Sentinel. Requires this service to be an active realm member (Sentinel rejects a standalone caller with 403).
+`mint_m2m_token` mints (or returns a cached) token for an outbound system call. It caches the token and only re-mints once it passes ~80% of its TTL, so a tight background loop does not hammer Duar. Requires this service to be an active realm member (Duar rejects a standalone caller with 403).
 
 ```python
-token = await sentinel.mint_m2m_token()
+token = await duar.mint_m2m_token()
 async with httpx.AsyncClient() as client:
     await client.post(
         "http://app-b.internal/internal/reindex",
@@ -483,10 +483,10 @@ async with httpx.AsyncClient() as client:
 
 | Side | Call | Used for |
 |---|---|---|
-| Sender | `await sentinel.mint_m2m_token()` | get a token for an outbound system call |
-| Receiver | `sentinel.verify_m2m_token(token)` → `SystemAuth` | accept an inbound system call |
-| Receiver (FastAPI) | `Depends(sentinel.require_system)` | gate a route to in-realm system callers |
-| Either | `sentinel.effective_scope` / `sentinel.realm` | inspect the discovered scope |
+| Sender | `await duar.mint_m2m_token()` | get a token for an outbound system call |
+| Receiver | `duar.verify_m2m_token(token)` → `SystemAuth` | accept an inbound system call |
+| Receiver (FastAPI) | `Depends(duar.require_system)` | gate a route to in-realm system callers |
+| Either | `duar.effective_scope` / `duar.realm` | inspect the discovered scope |
 
 For the equivalent JS calls (`M2mTokenClient`, `verifyM2mToken`, `fetchWhoami`) see [JS Server Utilities](../js-sdk/server.md). For the wire format see [API → Realms](../api/realms.md#m2m-token-claims).
 ````
@@ -542,10 +542,10 @@ At the end of `docs/js-sdk/server.md` (after the Express example), append:
 ````markdown
 ## Realm m2m (server only)
 
-For [realm](../guide/realms.md) members, `@sentinel-auth/js/server` adds the no-user m2m primitives for [Flow B](../guide/realms.md#flow-b-no-user). These are **server-entry only** — they hold the service key and must never reach a browser. (`@sentinel-auth/react` deliberately has no m2m surface.)
+For [realm](../guide/realms.md) members, `@duar-auth/js/server` adds the no-user m2m primitives for [Flow B](../guide/realms.md#flow-b-no-user). These are **server-entry only** — they hold the service key and must never reach a browser. (`@duar-auth/react` deliberately has no m2m surface.)
 
 ```typescript
-import { fetchWhoami, verifyM2mToken, M2mTokenClient } from '@sentinel-auth/js/server'
+import { fetchWhoami, verifyM2mToken, M2mTokenClient } from '@duar-auth/js/server'
 ```
 
 ### fetchWhoami
@@ -553,7 +553,7 @@ import { fetchWhoami, verifyM2mToken, M2mTokenClient } from '@sentinel-auth/js/s
 Self-discover this service's shared scope (standalone → `effective_scope === service_name`, `realm: null`).
 
 ```typescript
-const who = await fetchWhoami({ sentinelUrl: 'http://sentinel-internal:9010', serviceKey: process.env.SERVICE_KEY })
+const who = await fetchWhoami({ duarUrl: 'http://duar-internal:9010', serviceKey: process.env.SERVICE_KEY })
 // { service_name, effective_scope, realm: { slug, name } | null }
 ```
 
@@ -562,7 +562,7 @@ const who = await fetchWhoami({ sentinelUrl: 'http://sentinel-internal:9010', se
 Mints and caches m2m tokens for outbound system calls; re-mints only past ~80% of the TTL.
 
 ```typescript
-const m2m = new M2mTokenClient('http://sentinel-internal:9010', process.env.SERVICE_KEY)
+const m2m = new M2mTokenClient('http://duar-internal:9010', process.env.SERVICE_KEY)
 const token = await m2m.getToken()
 await fetch('http://app-b.internal/internal/reindex', {
   headers: { Authorization: `Bearer ${token}` },
@@ -575,7 +575,7 @@ Verifies an inbound m2m token and returns a `SystemAuth`. Throws on any failure 
 
 ```typescript
 const sys = await verifyM2mToken(token, {
-  jwksUrl: 'http://sentinel-internal:9010/.well-known/jwks.json',
+  jwksUrl: 'http://duar-internal:9010/.well-known/jwks.json',
   effectiveScope: 'acme-suite',   // the token's svc must equal this
   serviceName: 'reports',         // optional — checked against aud_target when set
 })
@@ -586,12 +586,12 @@ sys.can('search:reindex')   // true if actions includes "*" or the action
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `jwksUrl` | `string` | JWKS endpoint of the Sentinel that signs m2m tokens |
+| `jwksUrl` | `string` | JWKS endpoint of the Duar that signs m2m tokens |
 | `effectiveScope` | `string` | this service's realm slug; the token's `svc` must equal it |
 | `serviceName` | `string?` | checked against the token's `aud_target` when set |
 | `issuer` | `string?` | expected `iss` claim |
 
-Next.js apps get the same three helpers re-exported from `@sentinel-auth/nextjs/server`. See [Realms](../guide/realms.md) for the trust model and [API → Realms](../api/realms.md) for the wire format.
+Next.js apps get the same three helpers re-exported from `@duar-auth/nextjs/server`. See [Realms](../guide/realms.md) for the trust model and [API → Realms](../api/realms.md) for the wire format.
 ````
 
 - [ ] **Step 2: Add the `effectiveScope` option to `docs/js-sdk/nextjs.md`**
@@ -599,8 +599,8 @@ Next.js apps get the same three helpers re-exported from `@sentinel-auth/nextjs/
 The `## AuthZ Middleware` section has a config-options table; the `serviceName` row is at `docs/js-sdk/nextjs.md:34`. Add an `effectiveScope` row immediately after it:
 
 ```markdown
-| `serviceName` | `string` | **required** | Your service's name (as registered in Sentinel). Authz token's `svc` claim must equal this — stops cross-service token replay. |
-| `effectiveScope` | `string` | `undefined` | Realm slug (this service's shared scope). When set, the authz token's `svc` may equal either `serviceName` or this — so a [realm](../guide/realms.md) member accepts a realm-shared user token (Flow A). Resolve it once at startup with `fetchWhoami` from `@sentinel-auth/js/server`. Omit for standalone apps. |
+| `serviceName` | `string` | **required** | Your service's name (as registered in Duar). Authz token's `svc` claim must equal this — stops cross-service token replay. |
+| `effectiveScope` | `string` | `undefined` | Realm slug (this service's shared scope). When set, the authz token's `svc` may equal either `serviceName` or this — so a [realm](../guide/realms.md) member accepts a realm-shared user token (Flow A). Resolve it once at startup with `fetchWhoami` from `@duar-auth/js/server`. Omit for standalone apps. |
 ```
 
 - [ ] **Step 3: Build strict to verify**
@@ -650,25 +650,25 @@ The internal listener drops the Session and CORS middleware (it has no browser c
 
 ### Swarm topology
 
-`docker-compose.prod.yml` defines both services on the `sentinel` overlay:
+`docker-compose.prod.yml` defines both services on the `duar` overlay:
 
-- **`sentinel`** — `TIER=public`, published on `:9003`, serves humans and the admin panel.
-- **`sentinel-internal`** — `TIER=internal`, command runs uvicorn on `:9010`, **no `ports:` mapping** (unpublished by design), reachable only as `http://sentinel-internal:9010` on the overlay. It sets `SESSION_SECRET_KEY=""` and `CORS_ORIGINS=""` (the dropped middleware needs neither) and `depends_on` the public service so the schema is migrated first.
+- **`duar`** — `TIER=public`, published on `:9003`, serves humans and the admin panel.
+- **`duar-internal`** — `TIER=internal`, command runs uvicorn on `:9010`, **no `ports:` mapping** (unpublished by design), reachable only as `http://duar-internal:9010` on the overlay. It sets `SESSION_SECRET_KEY=""` and `CORS_ORIGINS=""` (the dropped middleware needs neither) and `depends_on` the public service so the schema is migrated first.
 
 ```bash
-docker stack deploy -c docker-compose.prod.yml sentinel
+docker stack deploy -c docker-compose.prod.yml duar
 ```
 
 ### Pointing apps at the internal listener
 
-A backend that holds a Sentinel **service key** points its SDK `base_url` at the internal listener:
+A backend that holds a Duar **service key** points its SDK `base_url` at the internal listener:
 
 ```python
-sentinel = Sentinel(base_url="http://sentinel-internal:9010", service_name="reports", service_key=...)
+duar = Duar(base_url="http://duar-internal:9010", service_name="reports", service_key=...)
 ```
 
 ```typescript
-const m2m = new M2mTokenClient('http://sentinel-internal:9010', process.env.SERVICE_KEY)
+const m2m = new M2mTokenClient('http://duar-internal:9010', process.env.SERVICE_KEY)
 ```
 
 Browser-facing flows (login, the admin panel) continue to use the public `:9003` URL. See [Realms](../guide/realms.md) for what runs over this surface.
@@ -714,7 +714,7 @@ git commit -m "docs(realm): document the public/internal network split + TIER"
 
 **Placeholder scan:** none — every page's full markdown is inline; every edit shows the exact text. The only conditional is Task 4 Step 2 (table-vs-list-vs-missing-section in `nextjs.md`), which gives all three concrete forms because the current shape of that file's middleware-config section was not read at plan time.
 
-**Type/name consistency:** identifiers verified against shipped code — `effective_scope`, `m2m_ttl_s` (default 300, range 30–3600), slug pattern `^[a-z][a-z0-9-]*[a-z0-9]$`, audience `sentinel:m2m`, claims `{type, svc, caller, actions, aud_target, jti}`, Python `SystemAuth(caller, actions, svc)`/`can`, `verify_m2m_token`/`require_system`/`mint_m2m_token`/`fetch_whoami`/`effective_scope`/`realm`, JS `fetchWhoami`/`verifyM2mToken`/`M2mTokenClient.getToken`/`effectiveScope`, routers `PUBLIC_ROUTERS`/`INTERNAL_ROUTERS`, ports `:9003`/`:9010`, service names `sentinel`/`sentinel-internal`, response fields `RealmResponse {id,slug,name,m2m_ttl_s,is_active,created_at}` and `RealmMemberResponse {id,name,service_name,has_grants}`.
+**Type/name consistency:** identifiers verified against shipped code — `effective_scope`, `m2m_ttl_s` (default 300, range 30–3600), slug pattern `^[a-z][a-z0-9-]*[a-z0-9]$`, audience `sentinel:m2m`, claims `{type, svc, caller, actions, aud_target, jti}`, Python `SystemAuth(caller, actions, svc)`/`can`, `verify_m2m_token`/`require_system`/`mint_m2m_token`/`fetch_whoami`/`effective_scope`/`realm`, JS `fetchWhoami`/`verifyM2mToken`/`M2mTokenClient.getToken`/`effectiveScope`, routers `PUBLIC_ROUTERS`/`INTERNAL_ROUTERS`, ports `:9003`/`:9010`, service names `duar`/`duar-internal`, response fields `RealmResponse {id,slug,name,m2m_ttl_s,is_active,created_at}` and `RealmMemberResponse {id,name,service_name,has_grants}`.
 
 **Strict-build link discipline:** new pages link forward to each other; Tasks 1–2 carry two known forward-reference warnings that resolve once Task 3 lands. The strict gate is enforced at the end of Task 3 (all SDK/guide/api links resolve) and again at Task 5 (the deployment anchor resolves). The `#network-split-public--internal-listeners` anchor is produced verbatim by Task 5's heading and is the target of three earlier links — Task 5 must not rename that heading.
 

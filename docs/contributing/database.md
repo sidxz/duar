@@ -1,6 +1,6 @@
 # Database Schema
 
-Sentinel uses PostgreSQL 16 with SQLAlchemy 2.0 async and Alembic for migrations.
+Duar uses PostgreSQL 16 with SQLAlchemy 2.0 async and Alembic for migrations.
 
 ---
 

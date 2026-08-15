@@ -1,27 +1,27 @@
 # Private-Network Deployment
 
-Sentinel does not need a public address. In authz mode, user login happens at
+Duar does not need a public address. In authz mode, user login happens at
 the IdP (Google/EntraID), token minting already routes through your backend,
 and the SDKs ship reverse-proxy helpers for the remaining browser-facing reads
-— so Sentinel can live on a cluster-internal network reachable only by your app
+— so Duar can live on a cluster-internal network reachable only by your app
 backends.
 
 ```
 Browser ──▶ IdP (Google/EntraID) ──▶ back to app origin with id_token
-Browser ──▶ App backend /api/sentinel/* ──▶ Sentinel (internal)   ← proxy helpers
-App backend ──▶ Sentinel (permissions, roles, m2m, JWKS)          ← already internal
+Browser ──▶ App backend /api/duar/* ──▶ Duar (internal)   ← proxy helpers
+App backend ──▶ Duar (permissions, roles, m2m, JWKS)          ← already internal
 ```
 
-## Sentinel service
+## Duar service
 
 - **Kubernetes**: ClusterIP Service, no Ingress. Add a NetworkPolicy allowing
-  ingress only from app-backend pods. **Docker Swarm**: attach Sentinel to an
+  ingress only from app-backend pods. **Docker Swarm**: attach Duar to an
   internal overlay network; publish no ports.
 - Run a single listener with `TIER=all`. The public/internal tier split guards
   a public socket; with nothing published, the network boundary does that job.
-- Set `BASE_URL` to the internal DNS name (e.g. `http://sentinel.auth.svc:9003`).
+- Set `BASE_URL` to the internal DNS name (e.g. `http://duar.auth.svc:9003`).
   `BASE_URL` is the JWT `iss` claim — app-side verifiers must use the same value.
-- Sentinel still needs **outbound** HTTPS to the IdPs (JWKS, token exchange).
+- Duar still needs **outbound** HTTPS to the IdPs (JWKS, token exchange).
 
 ## App backends: mount the proxy
 
@@ -33,26 +33,26 @@ caller's tokens passed through. Nothing else is reachable.
 FastAPI (Python SDK):
 
 ```python
-app.include_router(sentinel.proxy_router(), prefix="/api/sentinel")
+app.include_router(duar.proxy_router(), prefix="/api/duar")
 ```
 
-Next.js — `app/api/sentinel/[...path]/route.ts`:
+Next.js — `app/api/duar/[...path]/route.ts`:
 
 ```ts
-import { createSentinelProxy } from '@sentinel-auth/nextjs/proxy'
+import { createDuarProxy } from '@duar-auth/nextjs/proxy'
 
-export const { GET, POST } = createSentinelProxy({
-  sentinelUrl: process.env.SENTINEL_URL!,        // internal URL
-  serviceKey: process.env.SENTINEL_SERVICE_KEY!,
+export const { GET, POST } = createDuarProxy({
+  duarUrl: process.env.DUAR_URL!,        // internal URL
+  serviceKey: process.env.DUAR_SERVICE_KEY!,
 })
 ```
 
 ## Frontends
 
 ```ts
-const authz = new SentinelAuthz({
-  sentinelUrl: '/api/sentinel',                    // same-origin proxy mount
-  mintEndpoint: '/api/sentinel/authz/resolve',     // the proxy IS the mint endpoint
+const authz = new DuarAuthz({
+  duarUrl: '/api/duar',                    // same-origin proxy mount
+  mintEndpoint: '/api/duar/authz/resolve',     // the proxy IS the mint endpoint
   // ...idps, storage as usual
 })
 ```
@@ -61,14 +61,14 @@ The Next.js Edge middleware keeps the **internal** URL — it verifies tokens
 server-side and derives JWKS/issuer from it:
 
 ```ts
-createSentinelAuthzMiddleware({ sentinelUrl: process.env.SENTINEL_URL!, ... })
+createDuarAuthzMiddleware({ duarUrl: process.env.DUAR_URL!, ... })
 ```
 
 ## Preserving client IPs in logs and rate limits
 
 The proxy helpers forward `X-Forwarded-For` and `User-Agent` unchanged. For
-Sentinel's access logs, security events, and per-IP rate limits to see real
-client IPs, set on Sentinel:
+Duar's access logs, security events, and per-IP rate limits to see real
+client IPs, set on Duar:
 
 ```env
 BEHIND_PROXY=true
@@ -80,9 +80,9 @@ The app-backend hop passes XFF through without appending, so it does not count.
 ## Caveats
 
 - **GitHub as IdP is unsupported** in this topology — its proxy-login flow
-  needs a browser-reachable Sentinel. Google/EntraID implicit flows are
+  needs a browser-reachable Duar. Google/EntraID implicit flows are
   unaffected: the browser talks to the IdP and returns to **your app's** origin,
-  so the IdP never needs a route to Sentinel. Only Sentinel's outbound JWKS
+  so the IdP never needs a route to Duar. Only Duar's outbound JWKS
   fetch does — allow egress to `login.microsoftonline.com` (Entra) or
   `www.googleapis.com` (Google) in your NetworkPolicy / Azure Firewall.
 - **Admin panel** is internal-only (a feature): reach it via VPN, jumpbox, or

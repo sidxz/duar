@@ -6,7 +6,7 @@ import httpx
 import pytest
 import respx
 
-from sentinel_auth.roles import RoleClient
+from duar_auth.roles import RoleClient
 
 
 @pytest.fixture()

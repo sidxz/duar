@@ -1,4 +1,4 @@
-import { AuthzProvider } from "@sentinel-auth/react";
+import { AuthzProvider } from "@duar-auth/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";

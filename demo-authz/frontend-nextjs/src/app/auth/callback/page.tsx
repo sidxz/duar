@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { AuthzCallback } from "@sentinel-auth/nextjs";
+import { AuthzCallback } from "@duar-auth/nextjs";
 import { RoleBadge } from "@/components/RoleBadge";
 
 export default function AuthCallbackPage() {

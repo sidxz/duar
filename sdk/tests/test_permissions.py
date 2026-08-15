@@ -6,7 +6,7 @@ import httpx
 import pytest
 import respx
 
-from sentinel_auth.permissions import PermissionCheck, PermissionClient, _TTLCache
+from duar_auth.permissions import PermissionCheck, PermissionClient, _TTLCache
 
 
 @pytest.fixture()
@@ -165,7 +165,7 @@ class TestTTLCache:
         monkeypatch.setattr(_time, "monotonic", lambda: t[0])
 
         # Patch the module-level import in permissions.py
-        from sentinel_auth import permissions
+        from duar_auth import permissions
 
         monkeypatch.setattr(permissions.time, "monotonic", lambda: t[0])
 
@@ -214,7 +214,7 @@ class TestPermissionClientCache:
                 json={"resource_ids": [str(r1)], "has_full_access": False},
             )
         )
-        # First call → hits Sentinel
+        # First call → hits Duar
         ids1, full1 = await cached_client.accessible("tok", "document", "view", WS_ID)
         assert len(ids1) == 1
         assert route.call_count == 1
@@ -271,7 +271,7 @@ class TestPermissionClientCache:
         )
         await cached_client.share("tok", "document", r1, "user", uuid.uuid4())
 
-        # Cache should be cleared — next accessible() must hit Sentinel again
+        # Cache should be cleared — next accessible() must hit Duar again
         await cached_client.accessible("tok", "document", "view", WS_ID)
         assert accessible_route.call_count == 2  # original + post-invalidation
 

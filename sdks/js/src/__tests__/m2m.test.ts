@@ -84,7 +84,7 @@ describe('fetchWhoami', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(
       new Response(JSON.stringify({ service_name: 'docs', effective_scope: 'acme-suite', realm: { slug: 'acme-suite', name: 'Acme' } }), { status: 200 }),
     ))
-    const who = await fetchWhoami({ sentinelUrl: 'http://localhost:9010', serviceKey: 'k' })
+    const who = await fetchWhoami({ duarUrl: 'http://localhost:9010', serviceKey: 'k' })
     expect(who.effective_scope).toBe('acme-suite')
     const [url, init] = vi.mocked(fetch).mock.calls[0]
     expect(url).toBe('http://localhost:9010/realm/whoami')
@@ -140,7 +140,7 @@ describe('M2mTokenClient', () => {
     vi.restoreAllMocks()
   })
 
-  it('throws when Sentinel rejects the mint', async () => {
+  it('throws when Duar rejects the mint', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ detail: 'not a realm member' }), { status: 403 }),
     ))

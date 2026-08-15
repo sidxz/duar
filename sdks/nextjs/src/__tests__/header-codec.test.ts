@@ -10,10 +10,10 @@ describe('header codec', () => {
 
   it('encoded values are Headers-safe (ByteString limit)', () => {
     // Premise: raw non-Latin-1 values throw in WHATWG Headers…
-    expect(() => new Headers().set('x-sentinel-name', '中文名')).toThrow()
+    expect(() => new Headers().set('x-duar-name', '中文名')).toThrow()
     // …encoded values do not.
     expect(() =>
-      new Headers().set('x-sentinel-name', encodeHeaderValue('中文名')),
+      new Headers().set('x-duar-name', encodeHeaderValue('中文名')),
     ).not.toThrow()
   })
 

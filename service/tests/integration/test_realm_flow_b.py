@@ -15,8 +15,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from slowapi.errors import RateLimitExceeded
 
-from sentinel_auth import Sentinel, SystemAuth
-from sentinel_auth.types import SentinelError
+from duar_auth import Duar, SystemAuth
+from duar_auth.types import DuarError
 from src.api import realm_routes
 from src.api.dependencies import ServiceKeyContext, require_service_key
 from src.api.realm_routes import router as realm_router
@@ -68,17 +68,15 @@ def _pubpem_for(token: str) -> str:
     return key_provider.verification_keys()[kid]
 
 
-def _sdk(
-    *, effective_scope: str, public_pem: str, service_name: str = "app-b"
-) -> Sentinel:
-    s = Sentinel(
-        base_url="https://sentinel.test",
+def _sdk(*, effective_scope: str, public_pem: str, service_name: str = "app-b") -> Duar:
+    s = Duar(
+        base_url="https://duar.test",
         service_name=service_name,
         service_key="svc-key",
         idp_public_key="-----BEGIN PUBLIC KEY-----\nx\n-----END PUBLIC KEY-----",
         idp_audience="client-id",
     )
-    s._sentinel_public_key = public_pem
+    s._duar_public_key = public_pem
     s._effective_scope = effective_scope
     return s
 
@@ -116,7 +114,7 @@ def test_flow_b_wrong_realm_rejected(monkeypatch):
     token = resp.json()["token"]
     # Receiver's effective_scope is a DIFFERENT realm → cross-realm replay must fail.
     sdk = _sdk(effective_scope="other-realm", public_pem=_pubpem_for(token))
-    with pytest.raises(SentinelError) as exc:
+    with pytest.raises(DuarError) as exc:
         sdk.verify_m2m_token(token)
     assert exc.value.status_code == 403
 
@@ -130,7 +128,7 @@ def test_flow_b_non_member_cannot_mint(monkeypatch):
 def test_flow_b_expired_rejected():
     token = create_m2m_token(svc="acme-suite", caller="app-a", ttl_s=-10)
     sdk = _sdk(effective_scope="acme-suite", public_pem=_pubpem_for(token))
-    with pytest.raises(SentinelError) as exc:
+    with pytest.raises(DuarError) as exc:
         sdk.verify_m2m_token(token)
     assert exc.value.status_code == 401
 
@@ -153,7 +151,7 @@ def test_flow_b_authz_token_rejected_as_m2m():
         org_is_public=False,
     )
     sdk = _sdk(effective_scope="acme-suite", public_pem=_pubpem_for(token))
-    with pytest.raises(SentinelError) as exc:
+    with pytest.raises(DuarError) as exc:
         sdk.verify_m2m_token(token)
     assert (
         exc.value.status_code == 401
@@ -170,7 +168,7 @@ def test_flow_b_aud_target_mismatch_rejected():
         public_pem=_pubpem_for(token),
         service_name="reports",
     )
-    with pytest.raises(SentinelError) as exc:
+    with pytest.raises(DuarError) as exc:
         sdk.verify_m2m_token(token)
     assert exc.value.status_code == 403
 
@@ -192,7 +190,7 @@ def test_committed_fixtures_accepted_and_negatives_rejected():
         "m2m_aud_target": 403,  # aud_target targets a different service
     }
     for label, code in expected.items():
-        with pytest.raises(SentinelError) as exc:
+        with pytest.raises(DuarError) as exc:
             sdk.verify_m2m_token(_FIX["tokens"][label])
         assert exc.value.status_code == code
 

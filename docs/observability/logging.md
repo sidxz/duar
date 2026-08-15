@@ -1,6 +1,6 @@
 # Structured Logging
 
-Sentinel emits machine-parseable JSON log lines to stdout. Every line follows a
+Duar emits machine-parseable JSON log lines to stdout. Every line follows a
 stable canonical envelope, making the stream suitable for log aggregators (Loki,
 Elasticsearch, Datadog, Splunk, CloudWatch) and AI anomaly-detection pipelines
 without per-deployment schema translation.
@@ -45,7 +45,7 @@ Every log line carries this base schema. Event-specific fields are added on top.
 | `category` | string | yes | `access` \| `security` \| `audit` \| `app` |
 | `outcome` | string | no | `success` \| `failure` \| `denied` \| `error` (omitted for pure informational lines) |
 | `reason` | string | no | Machine-readable reason code (`snake_case`, finite vocabulary) |
-| `service` | string | yes | Constant: `sentinel` |
+| `service` | string | yes | Constant: `duar` |
 | `version` | string | yes | Service version, e.g. `0.12.0` |
 | `env` | string | yes | `prod` when `DEBUG=false`; `dev` otherwise |
 | `request_id` | string | no | ULID; correlates all lines produced within one HTTP request |
@@ -64,7 +64,7 @@ Every log line carries this base schema. Event-specific fields are added on top.
   "category": "security",
   "outcome": "failure",
   "reason": "invalid_credentials",
-  "service": "sentinel",
+  "service": "duar",
   "version": "0.12.0",
   "env": "prod",
   "request_id": "01J9XKQM5F3V8P2NR0HT6WB7YC",

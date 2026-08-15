@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Split Sentinel into two listeners built from one image — a published **public** app (humans/browsers) and an **unpublished internal** app (the whole service-key surface: realm, permissions, authz, roles) — via a `create_app(tier)` factory, so the service-to-service endpoints have no socket on the public internet.
+**Goal:** Split Duar into two listeners built from one image — a published **public** app (humans/browsers) and an **unpublished internal** app (the whole service-key surface: realm, permissions, authz, roles) — via a `create_app(tier)` factory, so the service-to-service endpoints have no socket on the public internet.
 
 **Architecture:** A `create_app(tier)` factory in `service/src/main.py` builds the app, mounting tier-specific routers and middleware. `tier ∈ {public, internal, all}`: **public** = browser-facing routers + Session/CORS middleware; **internal** = service-key routers, no Session/CORS, no DB migration; **all** = both (today's single-process behavior — the default, so dev/`make start`/tests are unchanged). `TIER` env selects the tier. This task also **mounts the `/realm` router** (deferred from Plan 2) on the internal tier. A second task splits `docker-compose.prod.yml` into two services, the internal one unpublished.
 
@@ -253,7 +253,7 @@ def _resolve_tier() -> str:
 def create_app(tier: str) -> FastAPI:
     """Build a listener for the given tier. Same image, different surface."""
     app = FastAPI(
-        title=f"Sentinel Auth ({tier})",
+        title=f"Duar ({tier})",
         description="Authentication, workspace management, and permissions",
         version=__version__,
         lifespan=lifespan,
@@ -357,18 +357,18 @@ git commit -m "feat(realm): create_app(tier) public/internal split + mount /real
 ### Task 2: Two-service production deployment (internal unpublished)
 
 **Files:**
-- Modify: `docker-compose.prod.yml` (anchor the shared `sentinel` env; add `TIER: public`; add a `sentinel-internal` service on `:9010`, unpublished)
+- Modify: `docker-compose.prod.yml` (anchor the shared `duar` env; add `TIER: public`; add a `duar-internal` service on `:9010`, unpublished)
 - Test: `service/tests/test_compose_tiers.py` (validates the rendered compose: internal exists, `TIER: internal`, no published ports)
 
 **Interfaces:**
 - Consumes: the `TIER` env contract from Task 1 (`public`/`internal`); the image's default uvicorn CMD (overridden per service for the port).
-- Produces: a prod stack with a published public listener (`:9003`) and an unpublished internal listener (`:9010`, overlay-only, reachable as `http://sentinel-internal:9010`).
+- Produces: a prod stack with a published public listener (`:9003`) and an unpublished internal listener (`:9010`, overlay-only, reachable as `http://duar-internal:9010`).
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
 # service/tests/test_compose_tiers.py
-"""docker-compose.prod.yml runs two Sentinel listeners: a published public one and
+"""docker-compose.prod.yml runs two Duar listeners: a published public one and
 an UNPUBLISHED internal one. This guards the deployment contract — the internal
 service-key surface must never get a published port. PyYAML resolves the `<<` merge
 key, so the merged `environment` (incl. the per-service TIER override) is asserted
@@ -386,58 +386,58 @@ def _services() -> dict:
 
 
 def test_public_listener_is_published_with_tier_public():
-    svc = _services()["sentinel"]
+    svc = _services()["duar"]
     assert svc["environment"]["TIER"] == "public"
     assert svc.get("ports"), "public listener must publish a port"
 
 
 def test_internal_listener_exists_unpublished_with_tier_internal():
     services = _services()
-    assert "sentinel-internal" in services, "internal listener service must exist"
-    internal = services["sentinel-internal"]
+    assert "duar-internal" in services, "internal listener service must exist"
+    internal = services["duar-internal"]
     assert internal["environment"]["TIER"] == "internal"
     # The whole point of the split: the internal listener has NO socket on the host.
     assert not internal.get("ports"), "internal listener must NOT publish any port"
 
 
 def test_internal_listener_waits_for_public_to_migrate():
-    internal = _services()["sentinel-internal"]
+    internal = _services()["duar-internal"]
     # public + all are the only migrator tiers; internal must start after public is
     # healthy so the schema exists before it serves authz/permissions.
-    assert "sentinel" in internal.get("depends_on", {})
+    assert "duar" in internal.get("depends_on", {})
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `cd service && uv run pytest tests/test_compose_tiers.py -v`
-Expected: FAIL — `KeyError: 'TIER'` (no `TIER` on `sentinel` yet) / `'sentinel-internal'` missing.
+Expected: FAIL — `KeyError: 'TIER'` (no `TIER` on `duar` yet) / `'duar-internal'` missing.
 
 - [ ] **Step 3: Anchor the shared env + tag the public listener**
 
-In `docker-compose.prod.yml`, in the `sentinel:` service, change the `environment:` line to anchor the block and add `TIER: public` as its first entry:
+In `docker-compose.prod.yml`, in the `duar:` service, change the `environment:` line to anchor the block and add `TIER: public` as its first entry:
 
 ```yaml
-    environment: &sentinel_env
+    environment: &duar_env
       TIER: public
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?ssl=require
 ```
 
-(Leave every other line of that `environment:` mapping unchanged — only add the `&sentinel_env` anchor on the `environment:` key and the `TIER: public` line directly under it.)
+(Leave every other line of that `environment:` mapping unchanged — only add the `&duar_env` anchor on the `environment:` key and the `TIER: public` line directly under it.)
 
 - [ ] **Step 4: Add the unpublished internal listener**
 
-In `docker-compose.prod.yml`, add this service immediately after the `sentinel:` service block (before `sentinel-admin:`). It reuses the same image + shared env (overriding `TIER`), overrides the uvicorn port to `9010`, and publishes **no** ports:
+In `docker-compose.prod.yml`, add this service immediately after the `duar:` service block (before `duar-admin:`). It reuses the same image + shared env (overriding `TIER`), overrides the uvicorn port to `9010`, and publishes **no** ports:
 
 ```yaml
   # Internal listener — the service-key-only surface (realm, permissions, authz,
-  # roles). NOT published: reachable only on the `sentinel` overlay as
-  # http://sentinel-internal:9010. Apps that hold a Sentinel service key point their
-  # SDK base URL here. depends_on sentinel (public) so the schema is migrated first.
-  sentinel-internal:
-    image: ghcr.io/sidxz/sentinel:latest
+  # roles). NOT published: reachable only on the `duar` overlay as
+  # http://duar-internal:9010. Apps that hold a Duar service key point their
+  # SDK base URL here. depends_on duar (public) so the schema is migrated first.
+  duar-internal:
+    image: ghcr.io/sidxz/duar:latest
     command: [".venv/bin/uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "9010", "--no-server-header"]
     environment:
-      <<: *sentinel_env
+      <<: *duar_env
       TIER: internal
     secrets:
       - jwt_private_key
@@ -449,10 +449,10 @@ In `docker-compose.prod.yml`, add this service immediately after the `sentinel:`
         condition: service_healthy
       redis:
         condition: service_healthy
-      sentinel:
+      duar:
         condition: service_healthy
     networks:
-      - sentinel
+      - duar
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:9010/health"]
@@ -481,7 +481,7 @@ Expected: prints `compose valid`. Warnings about unset `${VARS}` are fine (they'
 
 ```bash
 git add docker-compose.prod.yml service/tests/test_compose_tiers.py
-git commit -m "feat(realm): prod two-listener split — unpublished sentinel-internal :9010"
+git commit -m "feat(realm): prod two-listener split — unpublished duar-internal :9010"
 ```
 
 ---
@@ -674,7 +674,7 @@ git commit -m "feat(realm): split authz router — /authz/idp (browser) public, 
 - Internal drops CORS + Session, keeps SecurityHeaders/rate-limiting/RequestContext/AccessLog → Task 1 (`test_internal_tier_drops_session_and_cors_middleware`).
 - JWKS public by default → Task 1 (`test_jwks_public_and_all_not_internal`).
 - Router audit (realm/permission/authz/role → internal; admin/org-admin/auth/client-log → public; user/workspace/group → public) → Task 1 router groups + `Global Constraints` tier map.
-- Swarm: both on the `sentinel` overlay, `:9010` never published, app services reach `sentinel-internal:9010` → Task 2.
+- Swarm: both on the `duar` overlay, `:9010` never published, app services reach `duar-internal:9010` → Task 2.
 - **Mounting the `/realm` router (deferred from Plan 2)** → Task 1 (`INTERNAL_ROUTERS`, `test_realm_router_is_internal_only`).
 - Spec test "internal routes not on the public app and vice-versa" → Task 1 (`test_public_…`/`test_internal_…`).
 - **Deferred (out of Plan 3):** SDK base-URL/internal-listener wiring (Plan 5); the internal-listener deployment-posture **docs** (Plan 6); `service/Dockerfile` `uv.lock` reproducibility gotcha (pre-existing, separate from the split).
@@ -683,6 +683,6 @@ git commit -m "feat(realm): split authz router — /authz/idp (browser) public, 
 
 **Placeholder scan:** none — every code/command step carries full content. The lifespan change is two exact find-and-replace edits reading `tier` from `app.state.tier` (no re-indentation); the unchanged Redis/security-check body is explicitly "stays as-is", not a placeholder.
 
-**Type consistency:** `create_app(tier: str) -> FastAPI` and `_resolve_tier() -> str` named identically in Task 1 code and its tests; `PUBLIC_ROUTERS`/`INTERNAL_ROUTERS` defined in Task 1, asserted in `test_realm_router_is_internal_only`. The `TIER` values `"public"`/`"internal"`/`"all"` are consistent across `_resolve_tier`, `create_app`, and the compose `environment` in Task 2. The `&sentinel_env` anchor defined in Task 2 Step 3 is referenced via `<<: *sentinel_env` in Step 4.
+**Type consistency:** `create_app(tier: str) -> FastAPI` and `_resolve_tier() -> str` named identically in Task 1 code and its tests; `PUBLIC_ROUTERS`/`INTERNAL_ROUTERS` defined in Task 1, asserted in `test_realm_router_is_internal_only`. The `TIER` values `"public"`/`"internal"`/`"all"` are consistent across `_resolve_tier`, `create_app`, and the compose `environment` in Task 2. The `&duar_env` anchor defined in Task 2 Step 3 is referenced via `<<: *duar_env` in Step 4.
 
 **Known integration gaps (call out at execution):** lifespan behavior (tier-gated migrations, CORS warm) runs only at real startup (`make start` / container boot), not in the construction-time unit tests — the tests prove router/middleware membership, the most security-relevant invariant. `docker compose config` (Task 2 Step 6) needs Docker; the YAML-level test (Step 5) is the portable gate.

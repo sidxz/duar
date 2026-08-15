@@ -1,12 +1,12 @@
 {
-  "name": "@sentinel-auth/react",
+  "name": "@duar-auth/react",
   "version": "0.20.1",
   "type": "module",
-  "description": "Sentinel Auth React SDK — provider, hooks, and components",
+  "description": "Duar React SDK — provider, hooks, and components",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/sidxz/Sentinel",
+    "url": "https://github.com/sidxz/duar",
     "directory": "sdks/react"
   },
   "exports": {
@@ -28,7 +28,7 @@
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",
-    "@sentinel-auth/js": "^0.20.1"
+    "@duar-auth/js": "^0.20.1"
   },
   "devDependencies": {
     "tsup": "^8.0.0",
@@ -38,6 +38,6 @@
     "react-dom": "^19.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@sentinel-auth/js": "file:../js"
+    "@duar-auth/js": "file:../js"
   }
 }

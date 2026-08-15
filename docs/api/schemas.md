@@ -1,6 +1,6 @@
 # Request & Response Schemas
 
-Pydantic models used across the Sentinel API. All UUIDs are v4 strings. Timestamps are ISO 8601.
+Pydantic models used across the Duar API. All UUIDs are v4 strings. Timestamps are ISO 8601.
 
 ---
 

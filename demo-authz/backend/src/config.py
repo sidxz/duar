@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from sentinel_auth import Sentinel
+from duar_auth import Duar
 
 
 class Settings(BaseSettings):
@@ -8,7 +8,7 @@ class Settings(BaseSettings):
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
 
-    sentinel_url: str = "http://localhost:9003"
+    duar_url: str = "http://localhost:9003"
     service_name: str = "team-notes"
     service_api_key: str = ""
     idp_jwks_url: str = "https://www.googleapis.com/oauth2/v3/certs"
@@ -28,8 +28,8 @@ if not settings.idp_audience:
         "Google-signed token from any OAuth client would be accepted."
     )
 
-sentinel = Sentinel(
-    base_url=settings.sentinel_url,
+duar = Duar(
+    base_url=settings.duar_url,
     service_name=settings.service_name,
     service_key=settings.service_api_key,
     mode="authz",

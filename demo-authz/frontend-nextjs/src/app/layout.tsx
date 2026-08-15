@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Team Notes — AuthZ Mode (Next.js)",
-  description: "Sentinel AuthZ demo with Next.js App Router",
+  description: "Duar AuthZ demo with Next.js App Router",
 };
 
 export default function RootLayout({

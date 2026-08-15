@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { SentinelAuth } from '../client'
+import { DuarAuth } from '../client'
 import { MemoryStore } from '../storage'
-import type { SentinelUser } from '../types'
+import type { DuarUser } from '../types'
 
 const tick = () => new Promise((r) => setTimeout(r, 0))
 
@@ -21,7 +21,7 @@ const basePayload = {
   wrole: 'editor',
   groups: [],
   aud: 'sentinel:access',
-  iss: 'sentinel',
+  iss: 'duar',
   iat: now,
   exp: now + 3600,
 }
@@ -76,13 +76,13 @@ describe('cross-tab refresh single-flight', () => {
     )
 
     const cfg = {
-      sentinelUrl: 'http://sentinel.test',
+      duarUrl: 'http://duar.test',
       clientId: 'app-1',
       storage: store,
       autoRefresh: false,
     }
-    const tabA = new SentinelAuth(cfg)
-    const tabB = new SentinelAuth(cfg)
+    const tabA = new DuarAuth(cfg)
+    const tabB = new DuarAuth(cfg)
 
     const [ra, rb] = await Promise.all([tabA.refresh(), tabB.refresh()])
 
@@ -107,8 +107,8 @@ describe('cross-tab refresh single-flight', () => {
     const store = new MemoryStore()
     store.setTokens(makeJwt({ ...basePayload, exp }), 'r')
 
-    const client = new SentinelAuth({
-      sentinelUrl: 'http://sentinel.test',
+    const client = new DuarAuth({
+      duarUrl: 'http://duar.test',
       clientId: 'app-1',
       storage: store,
       autoRefresh: true,
@@ -165,13 +165,13 @@ describe('cross-tab refresh single-flight', () => {
       )
 
       const cfg = {
-        sentinelUrl: 'http://sentinel.test',
+        duarUrl: 'http://duar.test',
         clientId: 'app-1',
         storage: store,
         autoRefresh: false,
       }
-      const tabA = new SentinelAuth(cfg) // grabs + holds the lock (its refresh hangs)
-      const tabB = new SentinelAuth(cfg)
+      const tabA = new DuarAuth(cfg) // grabs + holds the lock (its refresh hangs)
+      const tabB = new DuarAuth(cfg)
 
       void tabA.refresh() // do not await — holds the lock forever
       const bResult = tabB.refresh()
@@ -189,7 +189,7 @@ describe('cross-tab refresh single-flight', () => {
 
   it('logout in one tab propagates to other tabs of the same app', async () => {
     const cfg = (store: MemoryStore) => ({
-      sentinelUrl: 'http://sentinel.test',
+      duarUrl: 'http://duar.test',
       clientId: 'app-1',
       storage: store,
       autoRefresh: false,
@@ -199,10 +199,10 @@ describe('cross-tab refresh single-flight', () => {
     const storeB = new MemoryStore()
     storeB.setTokens(makeJwt(basePayload), 'rb')
 
-    const tabA = new SentinelAuth(cfg(storeA))
-    const tabB = new SentinelAuth(cfg(storeB))
+    const tabA = new DuarAuth(cfg(storeA))
+    const tabB = new DuarAuth(cfg(storeB))
 
-    let bUser: SentinelUser | null | 'unset' = 'unset'
+    let bUser: DuarUser | null | 'unset' = 'unset'
     tabB.onAuthStateChange((u) => {
       bUser = u
     })

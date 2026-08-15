@@ -51,9 +51,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen">
       <aside className="w-56 shrink-0 flex flex-col bg-sidebar text-sidebar-foreground">
         <div className="h-14 flex items-center gap-2.5 px-4 border-b border-white/15">
-          <img src="/logo.png" alt="Sentinel Auth" className="h-8 w-auto shrink-0" />
+          <img src="/logo.png" alt="Duar" className="h-8 w-auto shrink-0" />
           <span className="text-sm font-bold tracking-wider uppercase whitespace-nowrap">
-            Sentinel Auth
+            Duar
           </span>
         </div>
         <nav className="flex-1 px-2 py-3 space-y-0.5">

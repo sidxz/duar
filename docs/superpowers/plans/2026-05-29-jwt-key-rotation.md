@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Give Sentinel graceful RS256 signing-key rotation — sign with a current key (stamped with a `kid`), verify against current + retired keys by `kid`, publish all keys in JWKS, and make the SDK pick up new keys without a restart.
+**Goal:** Give Duar graceful RS256 signing-key rotation — sign with a current key (stamped with a `kid`), verify against current + retired keys by `kid`, publish all keys in JWKS, and make the SDK pick up new keys without a restart.
 
 **Architecture:** A thin `key_provider` seam returns the current signing key and a `{kid: public_pem}` verification set (KMS can replace it later). `jwt.py` stamps a `kid` header and verifies strictly by `kid`. `jwks.py` publishes every verification key. Both SDK middlewares resolve the verifying key by `kid` from a cached keyset, refetching JWKS on an unknown `kid`.
 
@@ -501,7 +501,7 @@ Expected: PASS
 - [ ] **Step 3: Run the full server suite (regression)**
 
 Run: `cd service && uv run pytest -q`
-Expected: PASS. If any test hand-signs a Sentinel token without a `kid` and now fails, update it to use the `create_*` helpers.
+Expected: PASS. If any test hand-signs a Duar token without a `kid` and now fails, update it to use the `create_*` helpers.
 
 - [ ] **Step 4: Commit**
 
@@ -517,7 +517,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ### Task 6: SDK `JWTAuthMiddleware` — keyset by `kid` + refetch on miss
 
 **Files:**
-- Modify: `sdk/src/sentinel_auth/middleware.py` (`__init__`, replace `_get_public_key`, `dispatch`)
+- Modify: `sdk/src/duar_auth/middleware.py` (`__init__`, replace `_get_public_key`, `dispatch`)
 - Test: `sdk/tests/test_middleware.py` (append a JWKS-rotation class)
 
 - [ ] **Step 1: Write the failing test**
@@ -546,11 +546,11 @@ class TestJWKSRotation:
         priv, pub = rsa_keypair
         kid = "key-1"
         token = pyjwt.encode(jwt_payload, priv, algorithm="RS256", headers={"kid": kid})
-        respx.get("http://sentinel/.well-known/jwks.json").mock(
+        respx.get("http://duar/.well-known/jwks.json").mock(
             return_value=Response(200, json=_jwks_for(pub, kid))
         )
 
-        app = _make_jwks_app("http://sentinel")
+        app = _make_jwks_app("http://duar")
         client = TestClient(app)
         resp = client.get("/protected", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200
@@ -571,14 +571,14 @@ class TestJWKSRotation:
             serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
         ).decode()
 
-        route = respx.get("http://sentinel/.well-known/jwks.json")
+        route = respx.get("http://duar/.well-known/jwks.json")
         route.side_effect = [
             Response(200, json=_jwks_for(old_pub, "old")),   # first fetch (caches "old")
             Response(200, json=_jwks_for(new_pub, "new")),   # refetch after unknown kid
         ]
 
         token_new = pyjwt.encode(jwt_payload, new_priv, algorithm="RS256", headers={"kid": "new"})
-        app = _make_jwks_app("http://sentinel")
+        app = _make_jwks_app("http://duar")
         client = TestClient(app)
         # First request carries an unknown kid → middleware must refetch and succeed.
         resp = client.get("/protected", headers={"Authorization": f"Bearer {token_new}"})
@@ -604,7 +604,7 @@ Expected: FAIL (current code caches `keys[0]`, never refetches, ignores `kid`)
 
 - [ ] **Step 3: Rewrite the middleware key handling**
 
-In `sdk/src/sentinel_auth/middleware.py`, replace `self.public_key = public_key` line and the `_get_public_key` method with a keyset. In `__init__` (after `self.jwks_url = jwks_url`) keep `self._jwks_lock = asyncio.Lock()` and add `self._keyset: dict | None = None`. Replace `_get_public_key` with:
+In `sdk/src/duar_auth/middleware.py`, replace `self.public_key = public_key` line and the `_get_public_key` method with a keyset. In `__init__` (after `self.jwks_url = jwks_url`) keep `self._jwks_lock = asyncio.Lock()` and add `self._keyset: dict | None = None`. Replace `_get_public_key` with:
 
 ```python
     async def _key_for_token(self, token: str):
@@ -655,7 +655,7 @@ Expected: PASS (new rotation class passes; existing static-key tests still pass)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add sdk/src/sentinel_auth/middleware.py sdk/tests/test_middleware.py
+git add sdk/src/duar_auth/middleware.py sdk/tests/test_middleware.py
 git commit -m "feat(sdk): JWTAuthMiddleware resolves key by kid, refetches JWKS on miss
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -663,68 +663,68 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task 7: SDK `AuthzMiddleware` + `Sentinel` keyset for the authz token
+### Task 7: SDK `AuthzMiddleware` + `Duar` keyset for the authz token
 
 **Files:**
-- Modify: `sdk/src/sentinel_auth/sentinel.py` (`__init__`, add `fetch_sentinel_keyset`, lifespan call)
-- Modify: `sdk/src/sentinel_auth/authz_middleware.py` (resolve sentinel-token key by kid)
+- Modify: `sdk/src/duar_auth/duar.py` (`__init__`, add `fetch_duar_keyset`, lifespan call)
+- Modify: `sdk/src/duar_auth/authz_middleware.py` (resolve duar-token key by kid)
 - Test: `sdk/tests/test_authz_middleware.py` (append)
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `sdk/tests/test_authz_middleware.py` (mirror its existing fixtures for IdP + sentinel keys; this test gives the middleware a `sentinel_instance` whose keyset is pre-seeded):
+Append to `sdk/tests/test_authz_middleware.py` (mirror its existing fixtures for IdP + duar keys; this test gives the middleware a `duar_instance` whose keyset is pre-seeded):
 
 ```python
-class _FakeSentinel:
+class _FakeDuar:
     def __init__(self, keyset):
-        self._sentinel_keyset = keyset
+        self._duar_keyset = keyset
         self.idp_public_key = None
         self.idp_jwks_url = None
 
     @property
-    def sentinel_keyset(self):
-        return self._sentinel_keyset
+    def duar_keyset(self):
+        return self._duar_keyset
 
-    async def fetch_sentinel_keyset(self):
-        return self._sentinel_keyset
+    async def fetch_duar_keyset(self):
+        return self._duar_keyset
 
 
-def test_authz_token_selected_by_kid(idp_keypair, sentinel_keypair, make_idp_token, make_authz_token):
-    # make_authz_token signs the Sentinel authz token WITH headers={"kid": "s1"}.
+def test_authz_token_selected_by_kid(idp_keypair, duar_keypair, make_idp_token, make_authz_token):
+    # make_authz_token signs the Duar authz token WITH headers={"kid": "s1"}.
     from jwt.algorithms import RSAAlgorithm
     from cryptography.hazmat.primitives.serialization import load_pem_public_key
 
-    _, sentinel_pub = sentinel_keypair
-    keyset = {"s1": load_pem_public_key(sentinel_pub.encode())}
-    # build app with AuthzMiddleware(sentinel_instance=_FakeSentinel(keyset), idp_public_key=...)
+    _, duar_pub = duar_keypair
+    keyset = {"s1": load_pem_public_key(duar_pub.encode())}
+    # build app with AuthzMiddleware(duar_instance=_FakeDuar(keyset), idp_public_key=...)
     # assert a request with a kid-stamped authz token + matching idp token → 200
     ...
 ```
 
-> The exact app/fixture wiring follows the existing `test_authz_middleware.py` patterns; the assertion is: a `kid`-stamped authz token verifies via the keyset, and an unknown `kid` triggers `fetch_sentinel_keyset` then succeeds/420s appropriately.
+> The exact app/fixture wiring follows the existing `test_authz_middleware.py` patterns; the assertion is: a `kid`-stamped authz token verifies via the keyset, and an unknown `kid` triggers `fetch_duar_keyset` then succeeds/420s appropriately.
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `cd sdk && uv run pytest tests/test_authz_middleware.py -k kid -v`
-Expected: FAIL (middleware uses a single pinned `sentinel_public_key`)
+Expected: FAIL (middleware uses a single pinned `duar_public_key`)
 
-- [ ] **Step 3: Add keyset to `Sentinel`**
+- [ ] **Step 3: Add keyset to `Duar`**
 
-In `sentinel.py __init__`, after `self._sentinel_public_key: str | None = None` add:
+In `duar.py __init__`, after `self._duar_public_key: str | None = None` add:
 
 ```python
-        self._sentinel_keyset: dict | None = None
+        self._duar_keyset: dict | None = None
 ```
 
 Add property + fetch:
 
 ```python
     @property
-    def sentinel_keyset(self) -> dict | None:
-        return self._sentinel_keyset
+    def duar_keyset(self) -> dict | None:
+        return self._duar_keyset
 
-    async def fetch_sentinel_keyset(self) -> dict:
-        """Fetch Sentinel's full verification keyset ({kid: key}) from JWKS."""
+    async def fetch_duar_keyset(self) -> dict:
+        """Fetch Duar's full verification keyset ({kid: key}) from JWKS."""
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(f"{self.base_url}/.well-known/jwks.json")
             resp.raise_for_status()
@@ -734,12 +734,12 @@ Add property + fetch:
             if k.get("kty") == "RSA" and k.get("kid"):
                 keyset[k["kid"]] = RSAAlgorithm.from_jwk(k)
         if not keyset:
-            raise RuntimeError("No keys found in Sentinel JWKS response")
-        self._sentinel_keyset = keyset
+            raise RuntimeError("No keys found in Duar JWKS response")
+        self._duar_keyset = keyset
         return keyset
 ```
 
-In `lifespan` `_lifespan`, replace `await self.fetch_sentinel_public_key()` with `await self.fetch_sentinel_keyset()`.
+In `lifespan` `_lifespan`, replace `await self.fetch_duar_public_key()` with `await self.fetch_duar_keyset()`.
 
 - [ ] **Step 4: Resolve the authz-token key by `kid` in `AuthzMiddleware`**
 
@@ -747,24 +747,24 @@ In `authz_middleware.py`, add a helper and use it in `dispatch` step 4. Insert:
 
 ```python
     async def _decode_authz(self, token: str) -> dict:
-        if self._sentinel_public_key:  # static/air-gapped pinned key
+        if self._duar_public_key:  # static/air-gapped pinned key
             return jwt.decode(
-                token, self._sentinel_public_key,
-                algorithms=[self.sentinel_algorithm], audience=self.sentinel_audience,
+                token, self._duar_public_key,
+                algorithms=[self.duar_algorithm], audience=self.duar_audience,
             )
         kid = jwt.get_unverified_header(token).get("kid")
-        keyset = self._sentinel_instance.sentinel_keyset if self._sentinel_instance else None
-        if (not keyset or kid not in keyset) and self._sentinel_instance:
-            keyset = await self._sentinel_instance.fetch_sentinel_keyset()
+        keyset = self._duar_instance.duar_keyset if self._duar_instance else None
+        if (not keyset or kid not in keyset) and self._duar_instance:
+            keyset = await self._duar_instance.fetch_duar_keyset()
         key = (keyset or {}).get(kid) if kid else None
         if key is None:
             raise jwt.InvalidTokenError("Unknown authz key id")
         return jwt.decode(
-            token, key, algorithms=[self.sentinel_algorithm], audience=self.sentinel_audience,
+            token, key, algorithms=[self.duar_algorithm], audience=self.duar_audience,
         )
 ```
 
-Replace the step-4 block in `dispatch` (the `jwt.decode(authz_token, self.sentinel_public_key, ...)` call, lines ~153-159) with:
+Replace the step-4 block in `dispatch` (the `jwt.decode(authz_token, self.duar_public_key, ...)` call, lines ~153-159) with:
 
 ```python
         try:
@@ -775,7 +775,7 @@ Replace the step-4 block in `dispatch` (the `jwt.decode(authz_token, self.sentin
             return JSONResponse(status_code=401, content={"detail": "Invalid authz token"})
 ```
 
-(Note: the `sentinel_public_key` constructor arg / property still exists for static mode; the `__init__` validation requiring `sentinel_public_key OR sentinel_instance` is unchanged and now satisfied by the keyset path.)
+(Note: the `duar_public_key` constructor arg / property still exists for static mode; the `__init__` validation requiring `duar_public_key OR duar_instance` is unchanged and now satisfied by the keyset path.)
 
 - [ ] **Step 5: Run tests**
 
@@ -785,8 +785,8 @@ Expected: PASS (existing static-key tests + new kid test)
 - [ ] **Step 6: Commit**
 
 ```bash
-git add sdk/src/sentinel_auth/sentinel.py sdk/src/sentinel_auth/authz_middleware.py sdk/tests/test_authz_middleware.py
-git commit -m "feat(sdk): AuthzMiddleware resolves authz-token key by kid via Sentinel keyset
+git add sdk/src/duar_auth/duar.py sdk/src/duar_auth/authz_middleware.py sdk/tests/test_authz_middleware.py
+git commit -m "feat(sdk): AuthzMiddleware resolves authz-token key by kid via Duar keyset
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
@@ -838,6 +838,6 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - [ ] Manual smoke (optional): start the service, `curl /.well-known/jwks.json` shows one key now and two during a simulated rotation; a freshly minted token's header `kid` matches the JWKS key.
 
 ## Self-review notes
-- **Spec coverage:** config (T1), provider seam (T2), kid signing + strict decode (T3), multi-key JWKS (T4), rotation continuity (T5), SDK JWTAuthMiddleware (T6), SDK AuthzMiddleware + Sentinel keyset (T7), runbook + client-upgrade note (T8). All spec sections mapped.
+- **Spec coverage:** config (T1), provider seam (T2), kid signing + strict decode (T3), multi-key JWKS (T4), rotation continuity (T5), SDK JWTAuthMiddleware (T6), SDK AuthzMiddleware + Duar keyset (T7), runbook + client-upgrade note (T8). All spec sections mapped.
 - **Strict-kid** enforced server-side (T3) and SDK JWKS mode (T6/T7); static `public_key` mode intentionally pins one key (air-gapped) and is documented as not rotation-capable.
-- **Type consistency:** `signing_key() -> (pem, kid)`, `verification_keys() -> {kid: pem}`, `thumbprint_kid(pem) -> str`, `reset_cache()`, `fetch_sentinel_keyset() -> {kid: key}`, `_key_for_token`/`_refresh_keyset`/`_decode_authz` used consistently across tasks.
+- **Type consistency:** `signing_key() -> (pem, kid)`, `verification_keys() -> {kid: pem}`, `thumbprint_kid(pem) -> str`, `reset_cache()`, `fetch_duar_keyset() -> {kid: key}`, `_key_for_token`/`_refresh_keyset`/`_decode_authz` used consistently across tasks.

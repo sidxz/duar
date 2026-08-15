@@ -7,7 +7,7 @@
 
 ## 1. Problem
 
-Sentinel is a commercial-grade authentication proxy + authorization microservice. Its
+Duar is a commercial-grade authentication proxy + authorization microservice. Its
 logging is not commercial-grade. `structlog>=24.4.0` is a dependency but **never
 configured**, so today the service emits plain-text lines to stdout with structlog's
 defaults: no JSON, no central config, no request correlation, no access logs, and
@@ -85,7 +85,7 @@ PII-redacted.
   "category": "security",              // access | security | audit | app
   "outcome": "denied",                 // success | failure | denied | error  (omit for pure info)
   "reason": "not_member",              // machine code from a finite vocabulary (optional)
-  "service": "sentinel",               // constant
+  "service": "duar",               // constant
   "version": "0.12.0",                 // from src/version.__version__
   "env": "prod",                       // derived from settings.debug
   "request_id": "01J9...",             // ULID; correlates all lines in a request

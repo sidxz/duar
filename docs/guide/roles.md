@@ -3,10 +3,10 @@
 Custom roles add fine-grained action-based authorization on top of workspace roles. Define actions your service supports, group them into roles, assign roles to users, and check at runtime.
 
 ```python
-from sentinel_auth import Sentinel
+from duar_auth import Duar
 
-sentinel = Sentinel(
-    base_url="https://sentinel.example.com",
+duar = Duar(
+    base_url="https://duar.example.com",
     service_name="analytics",
     service_key="sk_...",
     actions=[
@@ -17,7 +17,7 @@ sentinel = Sentinel(
 )
 
 @router.get("/reports/export")
-async def export_report(user=Depends(sentinel.require_action("reports:export"))):
+async def export_report(user=Depends(duar.require_action("reports:export"))):
     return generate_report()
 ```
 
@@ -56,11 +56,11 @@ Users are assigned roles within a workspace. A user can have multiple roles. The
 
 ### 1. Register Actions on Startup
 
-Pass `actions` to the `Sentinel` constructor. They are registered automatically during the app lifespan (idempotent -- re-registering updates descriptions without creating duplicates).
+Pass `actions` to the `Duar` constructor. They are registered automatically during the app lifespan (idempotent -- re-registering updates descriptions without creating duplicates).
 
 ```python
-sentinel = Sentinel(
-    base_url="https://sentinel.example.com",
+duar = Duar(
+    base_url="https://duar.example.com",
     service_name="analytics",
     service_key="sk_...",
     actions=[
@@ -69,14 +69,14 @@ sentinel = Sentinel(
     ],
 )
 
-app = FastAPI(lifespan=sentinel.lifespan)
-sentinel.protect(app)
+app = FastAPI(lifespan=duar.lifespan)
+duar.protect(app)
 ```
 
 Or register manually with the `RoleClient`:
 
 ```python
-await sentinel.roles.register_actions([
+await duar.roles.register_actions([
     {"action": "reports:export", "description": "Export reports"},
 ])
 ```
@@ -119,7 +119,7 @@ actions on their next check, removing them (or deleting the group) revokes.
 
 ```python
 @router.get("/reports/export")
-async def export_report(user=Depends(sentinel.require_action("reports:export"))):
+async def export_report(user=Depends(duar.require_action("reports:export"))):
     # User is guaranteed to have the action. 403 otherwise.
     return generate_report()
 ```
@@ -127,13 +127,13 @@ async def export_report(user=Depends(sentinel.require_action("reports:export")))
 **Option B -- manual check:**
 
 ```python
-allowed = await sentinel.roles.check_action(token, "reports:export", workspace_id)
+allowed = await duar.roles.check_action(token, "reports:export", workspace_id)
 ```
 
 **Option C -- list all user actions:**
 
 ```python
-actions = await sentinel.roles.get_user_actions(token, workspace_id)
+actions = await duar.roles.get_user_actions(token, workspace_id)
 # ["reports:export", "reports:view"]
 ```
 

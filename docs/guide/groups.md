@@ -4,7 +4,7 @@ Groups are named collections of users within a workspace. Their primary purpose 
 
 ```python
 # Share a document with the "Engineering" group
-await sentinel.permissions.share(
+await duar.permissions.share(
     token=user_token,
     resource_type="document",
     resource_id=doc_id,

@@ -24,7 +24,7 @@ RUN rm /etc/nginx/conf.d/default.conf
 COPY nginx.conf.template /etc/nginx/nginx.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 
-ENV SENTINEL_BACKEND=sentinel:9003
+ENV DUAR_BACKEND=duar:9003
 
 EXPOSE 80
 
@@ -32,6 +32,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
   CMD wget -qO- http://localhost/health || exit 1
 
 LABEL org.opencontainers.image.source="https://github.com/sidxz/identity-service"
-LABEL org.opencontainers.image.description="Sentinel Auth Admin Panel"
+LABEL org.opencontainers.image.description="Duar Admin Panel"
 
-CMD ["/bin/sh", "-c", "envsubst '$SENTINEL_BACKEND' < /etc/nginx/nginx.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
+CMD ["/bin/sh", "-c", "envsubst '$DUAR_BACKEND' < /etc/nginx/nginx.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]

@@ -3,8 +3,8 @@
 Workspaces are the tenant isolation boundary. Every user, group, role, and resource is scoped to a workspace. A user can belong to multiple workspaces, but their JWT always reflects one active workspace.
 
 ```python
-from sentinel_auth.dependencies import require_role
-from sentinel_auth.types import AuthenticatedUser
+from duar_auth.dependencies import require_role
+from duar_auth.types import AuthenticatedUser
 
 @router.post("/projects")
 async def create_project(
@@ -62,7 +62,7 @@ user.has_role("admin") # True if role >= admin in hierarchy
 Use `require_role` to enforce a minimum role on a route:
 
 ```python
-from sentinel_auth.dependencies import require_role
+from duar_auth.dependencies import require_role
 
 @router.delete("/workspace")
 async def delete_workspace(user=Depends(require_role("owner"))):

@@ -14,8 +14,8 @@ COPY src/ src/
 COPY migrations/ migrations/
 COPY alembic.ini .
 
-RUN adduser -D -u 1000 sentinel
-USER sentinel
+RUN adduser -D -u 1000 duar
+USER duar
 
 EXPOSE 9003
 

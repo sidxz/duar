@@ -51,7 +51,7 @@ export function Login() {
   return (
     <div className="flex h-screen items-center justify-center bg-background">
       <div className="w-full max-w-sm space-y-6 rounded-xl border border-border bg-card overflow-hidden">
-        <img src="/splash.png" alt="Sentinel Auth" className="w-full object-cover" />
+        <img src="/splash.png" alt="Duar" className="w-full object-cover" />
         <div className="px-8 pb-8 space-y-6">
           <div className="text-center">
             <p className="mt-1 text-sm text-muted-foreground">Sign in to access the admin panel</p>

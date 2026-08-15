@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuthzUser } from "@sentinel-auth/nextjs";
+import { useAuthzUser } from "@duar-auth/nextjs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";

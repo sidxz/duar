@@ -1,18 +1,18 @@
-# Sentinel Auth
+# Duar
 
-![Sentinel Auth](docs/assets/images/splash.png)
+![Duar](docs/assets/images/splash.png)
 
-An authentication proxy and authorization microservice. Sentinel handles OAuth2/OIDC authentication from external IdPs, multi-tenant workspace management, and fine-grained Zanzibar-style permissions so you can focus on your application logic.
+An authentication proxy and authorization microservice. Duar handles OAuth2/OIDC authentication from external IdPs, multi-tenant workspace management, and fine-grained Zanzibar-style permissions so you can focus on your application logic.
 
 Ships with an Admin UI, Python SDK, and JS/TS SDK (React, Next.js).
 
 ## Status
 
-[![CI](https://github.com/sidxz/Sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/sidxz/Sentinel/actions/workflows/ci.yml)
-[![Docs](https://github.com/sidxz/Sentinel/actions/workflows/docs.yml/badge.svg)](https://sidxz.github.io/Sentinel/)
-[![PyPI](https://img.shields.io/pypi/v/sentinel-auth-sdk?logo=pypi&logoColor=white&label=PyPI)](https://pypi.org/project/sentinel-auth-sdk/)
-[![npm](https://img.shields.io/npm/v/@sentinel-auth/js?logo=npm&logoColor=white&label=npm)](https://www.npmjs.com/package/@sentinel-auth/js)
-[![Docker](https://img.shields.io/badge/Docker-ghcr.io/sidxz/sentinel-2496ed?logo=docker&logoColor=white)](https://github.com/sidxz/Sentinel/pkgs/container/sentinel)
+[![CI](https://github.com/sidxz/duar/actions/workflows/ci.yml/badge.svg)](https://github.com/sidxz/duar/actions/workflows/ci.yml)
+[![Docs](https://github.com/sidxz/duar/actions/workflows/docs.yml/badge.svg)](https://sidxz.github.io/duar/)
+[![PyPI](https://img.shields.io/pypi/v/duar-auth?logo=pypi&logoColor=white&label=PyPI)](https://pypi.org/project/duar-auth/)
+[![npm](https://img.shields.io/npm/v/@duar-auth/js?logo=npm&logoColor=white&label=npm)](https://www.npmjs.com/package/@duar-auth/js)
+[![Docker](https://img.shields.io/badge/Docker-ghcr.io/sidxz/duar-2496ed?logo=docker&logoColor=white)](https://github.com/sidxz/duar/pkgs/container/duar)
 [![AI Assisted](https://img.shields.io/badge/AI%20Co--pilot-Claude%20Code-6f42c1?logo=anthropic&logoColor=white)](https://claude.ai/claude-code)
 [![Python](https://img.shields.io/badge/Python-3.12+-3776ab?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
@@ -21,9 +21,9 @@ Ships with an Admin UI, Python SDK, and JS/TS SDK (React, Next.js).
 
 ## Two Integration Modes
 
-**AuthZ mode (recommended)** — Your app handles IdP login directly (Google, GitHub, EntraID). Sentinel validates the IdP token and issues an authorization JWT. Dual-token design with `idp_sub` binding for security.
+**AuthZ mode (recommended)** — Your app handles IdP login directly (Google, GitHub, EntraID). Duar validates the IdP token and issues an authorization JWT. Dual-token design with `idp_sub` binding for security.
 
-**Proxy mode** — Sentinel handles the full OAuth2/OIDC flow. Your app receives a single Sentinel-issued JWT. Simpler setup, but Sentinel sits in the login path.
+**Proxy mode** — Duar handles the full OAuth2/OIDC flow. Your app receives a single Duar-issued JWT. Simpler setup, but Duar sits in the login path.
 
 ## Capabilities
 
@@ -32,8 +32,8 @@ Ships with an Admin UI, Python SDK, and JS/TS SDK (React, Next.js).
 - **Multi-tenant workspaces** — users, groups, roles, and permissions are scoped per workspace
 - **Token lifecycle** — RS256 JWTs, refresh rotation, reuse detection, Redis denylist
 - **Admin panel** — React SPA for managing workspaces, users, roles, permissions, and service apps
-- **Python SDK** — `pip install sentinel-auth-sdk` with middleware, FastAPI dependencies, and HTTP clients
-- **JS/TS SDK** — `@sentinel-auth/js`, `@sentinel-auth/react`, `@sentinel-auth/nextjs` for browser, React, and Next.js
+- **Python SDK** — `pip install duar-auth` with middleware, FastAPI dependencies, and HTTP clients
+- **JS/TS SDK** — `@duar-auth/js`, `@duar-auth/react`, `@duar-auth/nextjs` for browser, React, and Next.js
 - **DDD support** — `RequestAuth` bridge for clean architecture with framework-agnostic `AuthContext` protocol
 - **JWKS endpoint** — `/.well-known/jwks.json` for automatic key discovery
 - **Security hardened** — rate limiting, CORS, HSTS, CSP, trusted hosts, session encryption
@@ -43,13 +43,13 @@ Ships with an Admin UI, Python SDK, and JS/TS SDK (React, Next.js).
 
 ## Documentation
 
-Full documentation at [sidxz.github.io/Sentinel](https://sidxz.github.io/Sentinel/)
+Full documentation at [sidxz.github.io/duar](https://sidxz.github.io/duar/)
 
 ## Architecture
 
 ### AuthZ Mode (recommended)
 
-Your app handles IdP login. Sentinel validates the IdP token and issues an authorization JWT.
+Your app handles IdP login. Duar validates the IdP token and issues an authorization JWT.
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#dc2626', 'primaryTextColor': '#fff', 'primaryBorderColor': '#b91c1c', 'lineColor': '#dc2626', 'secondaryColor': '#fecaca', 'tertiaryColor': '#fee2e2', 'actorBkg': '#dc2626', 'actorTextColor': '#fff', 'actorBorder': '#b91c1c', 'signalColor': '#dc2626', 'labelBoxBkgColor': '#fee2e2', 'noteBkgColor': '#fecaca'}}}%%
@@ -57,7 +57,7 @@ sequenceDiagram
     participant U as User
     participant F as Your Frontend
     participant IdP as Google / GitHub
-    participant S as Sentinel
+    participant S as Duar
     participant B as Your Backend
 
     U->>F: Click "Sign in"
@@ -74,14 +74,14 @@ sequenceDiagram
 
 ### Proxy Mode
 
-Sentinel handles the full OAuth flow. Your app receives a single JWT.
+Duar handles the full OAuth flow. Your app receives a single JWT.
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#dc2626', 'primaryTextColor': '#fff', 'primaryBorderColor': '#b91c1c', 'lineColor': '#dc2626', 'secondaryColor': '#fecaca', 'tertiaryColor': '#fee2e2', 'actorBkg': '#dc2626', 'actorTextColor': '#fff', 'actorBorder': '#b91c1c', 'signalColor': '#dc2626', 'labelBoxBkgColor': '#fee2e2', 'noteBkgColor': '#fecaca'}}}%%
 sequenceDiagram
     participant U as User
     participant F as Your Frontend
-    participant S as Sentinel
+    participant S as Duar
     participant IdP as Google / GitHub
     participant B as Your Backend
 
@@ -133,7 +133,7 @@ make seed     # (optional) populate test data
 make setup
 vim .env.prod           # set BASE_URL, ADMIN_URL, OAuth creds, ADMIN_EMAILS
 docker swarm init    # once per host (overlay network + secrets need swarm mode)
-docker stack deploy -c docker-compose.prod.yml sentinel
+docker stack deploy -c docker-compose.prod.yml duar
 ```
 
 ### Next steps
@@ -142,19 +142,19 @@ docker stack deploy -c docker-compose.prod.yml sentinel
 2. Register a **service app** (API key for your backend + allowed origins for your frontend).
 3. Integrate using the [Python SDK](#python-sdk) or [JS/TS SDK](#jsts-sdk).
 
-See the [Getting Started guide](https://sidxz.github.io/Sentinel/getting-started/) for the full walkthrough.
+See the [Getting Started guide](https://sidxz.github.io/duar/getting-started/) for the full walkthrough.
 
 ## Python SDK
 
 ```bash
-pip install sentinel-auth-sdk
+pip install duar-auth
 ```
 
 ```python
 from fastapi import FastAPI, Depends
-from sentinel_auth import Sentinel
+from duar_auth import Duar
 
-sentinel = Sentinel(
+duar = Duar(
     base_url="http://localhost:9003",
     service_name="my-service",
     service_key="sk_...",
@@ -166,44 +166,44 @@ sentinel = Sentinel(
     ],
 )
 
-app = FastAPI(lifespan=sentinel.lifespan)
-sentinel.protect(app)
+app = FastAPI(lifespan=duar.lifespan)
+duar.protect(app)
 
 # Tier 1: workspace role from JWT
 @app.get("/projects")
-async def list_projects(user=Depends(sentinel.require_user)):
+async def list_projects(user=Depends(duar.require_user)):
     return await get_projects(user.workspace_id)
 
 # Tier 2: RBAC action check
 @app.get("/reports/export")
-async def export(user=Depends(sentinel.require_action("reports:export"))):
+async def export(user=Depends(duar.require_action("reports:export"))):
     ...
 
 # Tier 3: entity-level permission
 @app.get("/projects/{id}")
-async def get_project(id: str, auth=Depends(sentinel.get_auth)):
+async def get_project(id: str, auth=Depends(duar.get_auth)):
     if not await auth.can("project", id, "view"):
         raise HTTPException(403)
     ...
 ```
 
-For DDD / Clean Architecture integration, see the [DDD guide](https://sidxz.github.io/Sentinel/sdk/ddd/).
+For DDD / Clean Architecture integration, see the [DDD guide](https://sidxz.github.io/duar/sdk/ddd/).
 
 ## JS/TS SDK
 
 ```bash
-npm install @sentinel-auth/js @sentinel-auth/react
+npm install @duar-auth/js @duar-auth/react
 ```
 
 ```tsx
-import { IdpConfigs } from "@sentinel-auth/js";
-import { AuthzProvider, AuthzGuard, useAuthz, useAuthzUser } from "@sentinel-auth/react";
+import { IdpConfigs } from "@duar-auth/js";
+import { AuthzProvider, AuthzGuard, useAuthz, useAuthzUser } from "@duar-auth/react";
 
 function App() {
   return (
     <AuthzProvider
       config={{
-        sentinelUrl: "http://localhost:9003",
+        duarUrl: "http://localhost:9003",
         mintEndpoint: "/api/auth/mint", // YOUR backend route — holds the service key
         idps: { google: IdpConfigs.google("your-google-client-id") },
       }}
@@ -226,13 +226,13 @@ function Dashboard() {
 }
 ```
 
-For Next.js, see `@sentinel-auth/nextjs` with Edge Middleware and server-side JWT verification.
+For Next.js, see `@duar-auth/nextjs` with Edge Middleware and server-side JWT verification.
 
 ## Project Structure
 
 ```
 ├── service/              # FastAPI microservice
-├── sdk/                  # Python SDK (sentinel-auth-sdk)
+├── sdk/                  # Python SDK (duar-auth)
 ├── sdks/                 # JS/TS SDKs (js, react, nextjs)
 ├── admin/                # React admin panel (Vite + TailwindCSS)
 ├── demo-authz/           # Demo app — AuthZ mode (Next.js + FastAPI)
@@ -245,7 +245,7 @@ For Next.js, see `@sentinel-auth/nextjs` with Edge Middleware and server-side JW
 
 ## Security
 
-Defense-in-depth middleware, per-endpoint rate limiting, and a comprehensive penetration testing suite. See the [security documentation](https://sidxz.github.io/Sentinel/security/).
+Defense-in-depth middleware, per-endpoint rate limiting, and a comprehensive penetration testing suite. See the [security documentation](https://sidxz.github.io/duar/security/).
 
 ## Changelog
 
@@ -253,7 +253,7 @@ Notable changes — especially **breaking changes with before/after snippets for
 
 ## Contributing
 
-See the [contributing guide](https://sidxz.github.io/Sentinel/contributing/).
+See the [contributing guide](https://sidxz.github.io/duar/contributing/).
 
 ## License
 

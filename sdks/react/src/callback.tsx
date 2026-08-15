@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import type { SentinelUser, WorkspaceOption } from '@sentinel-auth/js'
+import type { DuarUser, WorkspaceOption } from '@duar-auth/js'
 import { useAuth } from './hooks'
 
 export interface WorkspaceSelectorProps {
@@ -10,7 +10,7 @@ export interface WorkspaceSelectorProps {
 
 export interface AuthCallbackProps {
   /** Called after successful authentication with the user object. */
-  onSuccess: (user: SentinelUser) => void
+  onSuccess: (user: DuarUser) => void
   /** Called on error. */
   onError?: (error: Error) => void
   /** Shown while loading. */

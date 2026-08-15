@@ -1,6 +1,6 @@
 "use client";
 
-import { AuthzGuard } from "@sentinel-auth/nextjs";
+import { AuthzGuard } from "@duar-auth/nextjs";
 import { RedirectToLogin } from "@/components/RedirectToLogin";
 import { AppShell } from "@/components/AppShell";
 

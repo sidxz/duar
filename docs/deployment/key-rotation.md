@@ -1,6 +1,6 @@
 # JWT Signing-Key Rotation
 
-Sentinel signs all tokens (access / admin / refresh / authz) with an RSA private
+Duar signs all tokens (access / admin / refresh / authz) with an RSA private
 key. Every issued token carries a `kid` (RFC-7638 thumbprint) header, and
 `/.well-known/jwks.json` publishes the **current key plus any retired keys** so
 verifiers can pick the right one during a rotation.
@@ -35,7 +35,7 @@ restarts and identical between the signer and JWKS.
    JWT_PRIVATE_KEY_PATH=keys/private-new.pem
    JWT_PUBLIC_KEY_PATH=keys/public-new.pem
    ```
-4. **Reload Sentinel.** New tokens sign with the new `kid`; tokens still bearing
+4. **Reload Duar.** New tokens sign with the new `kid`; tokens still bearing
    the old `kid` continue to verify because the old public key is in
    `JWT_PREVIOUS_PUBLIC_KEY_PATHS` and is published in JWKS.
 5. **Wait out the overlap.** Keep the old public key for at least

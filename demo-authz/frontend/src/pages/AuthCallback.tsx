@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { AuthzCallback } from "@sentinel-auth/react";
+import { AuthzCallback } from "@duar-auth/react";
 import { RoleBadge } from "../components/RoleBadge";
 
 export function AuthCallback() {

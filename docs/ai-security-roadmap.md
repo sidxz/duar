@@ -1,6 +1,6 @@
 # AI/ML Security Capabilities — Roadmap Notes
 
-> Brainstorm 2026-07-25. Ranked by value-for-effort given what Sentinel already has
+> Brainstorm 2026-07-25. Ranked by value-for-effort given what Duar already has
 > (structured AI-ready logs, silentLogin/step-up, three-tier authz, refresh-reuse detection).
 
 ## Principle
@@ -44,7 +44,7 @@ feeding signals into deterministic policy.
 - **Access-review copilot (admin)** — "explain why user X can edit document Y"
   by walking the three tiers and narrating the grant chain. UX over existing
   `/check` logic.
-- **AI-driven adversarial testing** — `sentinel-pentest` Layer 2 is already
+- **AI-driven adversarial testing** — `duar-pentest` Layer 2 is already
   positioned for this: LLM-generated attack sequences against staging,
   replayed as regression suites.
 

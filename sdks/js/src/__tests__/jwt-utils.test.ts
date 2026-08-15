@@ -19,7 +19,7 @@ const samplePayload = {
   wrole: 'editor',
   groups: ['group-a'],
   aud: 'sentinel:access',
-  iss: 'sentinel',
+  iss: 'duar',
   exp: Math.floor(Date.now() / 1000) + 3600,
   iat: Math.floor(Date.now() / 1000),
   jti: 'token-id-789',
@@ -65,7 +65,7 @@ describe('isTokenExpired', () => {
 })
 
 describe('tokenToUser', () => {
-  it('maps JWT claims to SentinelUser', () => {
+  it('maps JWT claims to DuarUser', () => {
     const token = makeJwt(samplePayload)
     const user = tokenToUser(token)
     expect(user).toEqual({
@@ -89,7 +89,7 @@ const authzPayload = {
   wrole: 'editor',
   actions: ['notes:create'],
   aud: 'sentinel:authz',
-  iss: 'sentinel',
+  iss: 'duar',
   exp: Math.floor(Date.now() / 1000) + 300,
   iat: Math.floor(Date.now() / 1000),
   jti: 'authz-token-789',
@@ -97,7 +97,7 @@ const authzPayload = {
 }
 
 describe('authzTokenToUser', () => {
-  it('maps authz token claims with identity to SentinelUser', () => {
+  it('maps authz token claims with identity to DuarUser', () => {
     const token = makeJwt(authzPayload)
     const user = authzTokenToUser(token, { email: 'test@example.com', name: 'Test User' })
     expect(user).toEqual({

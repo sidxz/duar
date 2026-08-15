@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Re-skin the Sentinel admin SPA onto shadcn/ui with a light/dark theme system and a theme-invariant red brand rail, reading as an intentional security console — all ~19 pages.
+**Goal:** Re-skin the Duar admin SPA onto shadcn/ui with a light/dark theme system and a theme-invariant red brand rail, reading as an intentional security console — all ~19 pages.
 
-**Architecture:** shadcn/ui primitives (Radix + existing Tailwind 4) in `src/components/ui/`. A native theme provider toggles `.dark` on `<html>`; semantic CSS-var tokens flip the canvas while the sidebar stays Sentinel red in both themes. Shared components (`Layout`, `DataTable`, badges, modals, `SearchInput`) keep their **public APIs** and are re-skinned once — that propagates to most pages. Pages are then converted by a fixed token-map recipe.
+**Architecture:** shadcn/ui primitives (Radix + existing Tailwind 4) in `src/components/ui/`. A native theme provider toggles `.dark` on `<html>`; semantic CSS-var tokens flip the canvas while the sidebar stays Duar red in both themes. Shared components (`Layout`, `DataTable`, badges, modals, `SearchInput`) keep their **public APIs** and are re-skinned once — that propagates to most pages. Pages are then converted by a fixed token-map recipe.
 
 **Tech Stack:** React 19, Vite 7, Tailwind 4 (`@tailwindcss/vite`, CSS-first), shadcn/ui (new-york), lucide-react, sonner, @fontsource IBM Plex.
 
@@ -329,8 +329,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen">
       <aside className="w-56 shrink-0 flex flex-col bg-sidebar text-sidebar-foreground">
         <div className="h-14 flex items-center gap-2.5 px-4 border-b border-white/15">
-          <img src="/logo.png" alt="Sentinel Auth" className="h-8 w-auto shrink-0" />
-          <span className="text-sm font-bold tracking-wider uppercase whitespace-nowrap">Sentinel Auth</span>
+          <img src="/logo.png" alt="Duar" className="h-8 w-auto shrink-0" />
+          <span className="text-sm font-bold tracking-wider uppercase whitespace-nowrap">Duar</span>
         </div>
         <nav className="flex-1 px-2 py-3 space-y-0.5">
           {NAV.map(({ to, label, Icon }) => (

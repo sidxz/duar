@@ -1,5 +1,5 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose'
-import type { JWTPayload, SentinelUser, VerifyOptions } from './types'
+import type { JWTPayload, DuarUser, VerifyOptions } from './types'
 
 const jwksSets = new Map<string, ReturnType<typeof createRemoteJWKSet>>()
 
@@ -13,7 +13,7 @@ function getJWKS(url: string) {
 }
 
 /**
- * Verify and decode a Sentinel JWT using JWKS.
+ * Verify and decode a Duar JWT using JWKS.
  * Uses `jose` (Edge-compatible, zero native deps).
  */
 export async function verifyToken(
@@ -28,8 +28,8 @@ export async function verifyToken(
   return payload as unknown as JWTPayload
 }
 
-/** Map a verified JWT payload to a SentinelUser object. */
-export function payloadToUser(payload: JWTPayload): SentinelUser {
+/** Map a verified JWT payload to a DuarUser object. */
+export function payloadToUser(payload: JWTPayload): DuarUser {
   return {
     userId: payload.sub,
     email: payload.email,

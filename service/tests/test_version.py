@@ -1,7 +1,7 @@
 """Regression guard for version drift.
 
 The version surfaced by the running service (OpenAPI metadata + the admin
-System Health tab) must track the installed ``sentinel-auth`` package version,
+System Health tab) must track the installed ``duar`` package version,
 never a hardcoded literal. Historically these were pinned to "0.1.0" while the
 packages were released at 0.11.0, so the System tab showed a stale version.
 """
@@ -32,7 +32,7 @@ def _disable_limiter():
     limiter.enabled = original
 
 
-PACKAGE_VERSION = dist_version("sentinel-auth")
+PACKAGE_VERSION = dist_version("duar-service")
 
 
 def test_package_version_has_moved_past_the_old_placeholder():

@@ -58,10 +58,10 @@ done
 # Admin panel
 sed -i '' "s/\"version\": \".*\"/\"version\": \"${VERSION}\"/" admin/package.json
 
-# Update peer dependency ranges for @sentinel-auth/* packages
-sed -i '' "s/\"@sentinel-auth\/js\": \"\\^.*\"/\"@sentinel-auth\/js\": \"^${VERSION}\"/" sdks/react/package.json
-sed -i '' "s/\"@sentinel-auth\/js\": \"\\^.*\"/\"@sentinel-auth\/js\": \"^${VERSION}\"/" sdks/nextjs/package.json
-sed -i '' "s/\"@sentinel-auth\/react\": \"\\^.*\"/\"@sentinel-auth\/react\": \"^${VERSION}\"/" sdks/nextjs/package.json
+# Update peer dependency ranges for @duar-auth/* packages
+sed -i '' "s/\"@duar-auth\/js\": \"\\^.*\"/\"@duar-auth\/js\": \"^${VERSION}\"/" sdks/react/package.json
+sed -i '' "s/\"@duar-auth\/js\": \"\\^.*\"/\"@duar-auth\/js\": \"^${VERSION}\"/" sdks/nextjs/package.json
+sed -i '' "s/\"@duar-auth\/react\": \"\\^.*\"/\"@duar-auth\/react\": \"^${VERSION}\"/" sdks/nextjs/package.json
 
 # Refresh the uv workspace lockfile so it tracks the bumped member versions.
 echo "Updating uv.lock..."

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Standardize logging across the Sentinel service (and admin SPA) into a single structured JSON pipeline with request correlation, access logging, a security/audit event taxonomy, and PII redaction — sufficient to feed an AI anomaly-detection pipeline.
+**Goal:** Standardize logging across the Duar service (and admin SPA) into a single structured JSON pipeline with request correlation, access logging, a security/audit event taxonomy, and PII redaction — sufficient to feed an AI anomaly-detection pipeline.
 
 **Architecture:** Configure the already-present `structlog` once and route stdlib logging through it via `ProcessorFormatter`, so app + framework logs share one JSON schema. Two pure-ASGI middlewares (outermost) provide a per-request `request_id` (via `contextvars`) and a single `http.access` event. A PII redaction processor enforces "never log raw email/secrets" at render time. Thin event helpers (`log_security`/`log_audit`/`log_access`) enforce a stable envelope. Gap-fills add the currently-silent rate-limit events and dual-emit DB audit rows as log events. The admin SPA ships security-relevant client events to a new authenticated backend ingest endpoint that re-emits them into the same stream.
 
@@ -314,7 +314,7 @@ def test_configure_emits_json_envelope(capsys, monkeypatch):
     rec = json.loads(line)
     assert rec["event"] == "test.event"
     assert rec["level"] == "info"
-    assert rec["service"] == "sentinel"
+    assert rec["service"] == "duar"
     assert rec["version"]
     assert rec["ts"]
     assert rec["foo"] == "bar"
@@ -357,7 +357,7 @@ from src.version import __version__
 
 
 def _add_service_context(logger, method_name, event_dict: dict) -> dict:
-    event_dict.setdefault("service", "sentinel")
+    event_dict.setdefault("service", "duar")
     event_dict.setdefault("version", __version__)
     event_dict.setdefault("env", settings.environment)
     return event_dict
@@ -413,7 +413,7 @@ def configure_logging() -> None:
 
 - [ ] **Step 4: Wire into startup**
 
-In `service/src/main.py`, make `configure_logging()` the first line of `lifespan` (before the existing `logger.info("daikon-sentinel starting", ...)` at line 54). Add the import near the top:
+In `service/src/main.py`, make `configure_logging()` the first line of `lifespan` (before the existing `logger.info("daikon-duar starting", ...)` at line 54). Add the import near the top:
 
 ```python
 from src.logging_config import configure_logging

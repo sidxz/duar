@@ -7,7 +7,7 @@
 
 ## Problem
 
-Sentinel signs every token (access / admin / refresh / authz) with a **single
+Duar signs every token (access / admin / refresh / authz) with a **single
 static RSA private key** loaded from a file (`service/src/auth/jwt.py`). Issued
 tokens carry **no `kid` header**, and `decode_token` verifies against **one**
 public key. Consequences:
@@ -88,7 +88,7 @@ Every `create_*_token` (access / admin / refresh / authz) passes
 with its `kid`, `use: sig`, `alg: RS256`. (Loop the existing single-key builder.)
 Endpoint stays `/.well-known/jwks.json`.
 
-### 6. SDK (`sdk/src/sentinel_auth/`) — required for rotation to work
+### 6. SDK (`sdk/src/duar_auth/`) — required for rotation to work
 **`JWTAuthMiddleware`** and **`AuthzMiddleware`**:
 - Replace the single-key cache with a `{kid: key}` **keyset** fetched from JWKS.
 - On each request, read the token's `kid` and select that key.
@@ -96,14 +96,14 @@ Endpoint stays `/.well-known/jwks.json`.
   retry; still unknown → reject.
 - Tokens with no `kid` → reject (strict, matches server).
 - `AuthzMiddleware` gains the JWKS-by-`kid` path it currently lacks (it pins one
-  PEM today); it derives the JWKS URL from `base_url` / `sentinel_instance`.
+  PEM today); it derives the JWKS URL from `base_url` / `duar_instance`.
 
 ### 7. Rotation runbook (`docs/` — operator doc)
 **Planned rotation:**
 1. Generate a new RSA keypair.
 2. Move the *old* public key path into `JWT_PREVIOUS_PUBLIC_KEY_PATHS`.
 3. Point `JWT_PRIVATE_KEY_PATH` / `JWT_PUBLIC_KEY_PATH` at the new key.
-4. Reload Sentinel. New tokens sign with the new `kid`; old tokens still verify.
+4. Reload Duar. New tokens sign with the new `kid`; old tokens still verify.
 5. Keep the old public key for **≥ the longest token lifetime** (refresh = 7 days),
    then remove it from `JWT_PREVIOUS_PUBLIC_KEY_PATHS`.
 

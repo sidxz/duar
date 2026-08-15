@@ -1,6 +1,6 @@
 import type { TokenStore } from './types'
 
-const PREFIX = 'sentinel_'
+const PREFIX = 'duar_'
 
 /** Token storage using browser localStorage. */
 export class LocalStorageStore implements TokenStore {

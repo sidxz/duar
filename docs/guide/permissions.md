@@ -1,10 +1,10 @@
 # Entity Permissions (ACLs)
 
-Per-resource access control: "can user X view document Y?" Resources are registered with Sentinel using a generic model. Access is resolved through ownership, visibility, and explicit shares.
+Per-resource access control: "can user X view document Y?" Resources are registered with Duar using a generic model. Access is resolved through ownership, visibility, and explicit shares.
 
 ```python
 # Register a resource when it's created
-await sentinel.permissions.register_resource(
+await duar.permissions.register_resource(
     resource_type="document",
     resource_id=doc.id,
     workspace_id=user.workspace_id,
@@ -13,10 +13,10 @@ await sentinel.permissions.register_resource(
 )
 
 # Check access
-allowed = await sentinel.permissions.can(token, "document", doc.id, "edit")
+allowed = await duar.permissions.can(token, "document", doc.id, "edit")
 
 # Share with another user
-await sentinel.permissions.share(
+await duar.permissions.share(
     token=token,
     resource_type="document",
     resource_id=doc.id,
@@ -146,7 +146,7 @@ The grantee must belong to the same workspace as the resource. Sharing with a us
 
 ```python
 # Share with a user (must be a workspace member)
-await sentinel.permissions.share(
+await duar.permissions.share(
     token=token,
     resource_type="document",
     resource_id=doc_id,
@@ -156,7 +156,7 @@ await sentinel.permissions.share(
 )
 
 # Share with a group
-await sentinel.permissions.share(
+await duar.permissions.share(
     token=token,
     resource_type="document",
     resource_id=doc_id,
@@ -179,7 +179,7 @@ X-Service-Key: your-service-key
 List all resource IDs a user can access, useful for filtered list views:
 
 ```python
-resource_ids, has_full_access = await sentinel.permissions.accessible(
+resource_ids, has_full_access = await duar.permissions.accessible(
     token=token,
     resource_type="document",
     action="view",

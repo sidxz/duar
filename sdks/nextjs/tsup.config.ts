@@ -5,5 +5,5 @@ export default defineConfig({
   format: ['esm', 'cjs'],
   dts: true,
   clean: true,
-  external: ['next', 'next/server', 'react', '@sentinel-auth/js', '@sentinel-auth/react', 'jose'],
+  external: ['next', 'next/server', 'react', '@duar-auth/js', '@duar-auth/react', 'jose'],
 })

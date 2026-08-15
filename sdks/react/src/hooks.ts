@@ -1,20 +1,20 @@
 import { useContext } from 'react'
-import type { SentinelUser, WorkspaceRole } from '@sentinel-auth/js'
-import { SentinelAuthContext, type SentinelAuthContextValue } from './provider'
+import type { DuarUser, WorkspaceRole } from '@duar-auth/js'
+import { DuarAuthContext, type DuarAuthContextValue } from './provider'
 
 const ROLE_HIERARCHY: WorkspaceRole[] = ['viewer', 'editor', 'admin', 'owner']
 
-/** Access the full Sentinel auth context. Throws if used outside SentinelAuthProvider. */
-export function useAuth(): SentinelAuthContextValue {
-  const ctx = useContext(SentinelAuthContext)
+/** Access the full Duar auth context. Throws if used outside DuarAuthProvider. */
+export function useAuth(): DuarAuthContextValue {
+  const ctx = useContext(DuarAuthContext)
   if (!ctx) {
-    throw new Error('useAuth must be used within a SentinelAuthProvider')
+    throw new Error('useAuth must be used within a DuarAuthProvider')
   }
   return ctx
 }
 
 /** Get the current authenticated user. Throws if not authenticated. */
-export function useUser(): SentinelUser {
+export function useUser(): DuarUser {
   const { user } = useAuth()
   if (!user) {
     throw new Error('useUser: no authenticated user')

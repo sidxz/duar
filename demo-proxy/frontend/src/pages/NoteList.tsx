@@ -1,4 +1,4 @@
-import { useUser } from "@sentinel-auth/react";
+import { useUser } from "@duar-auth/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { createNote, fetchNotes } from "../api/notes";

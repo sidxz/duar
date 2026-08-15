@@ -8,7 +8,7 @@ import type {
 import { warnIfInsecure } from './warn-insecure'
 
 /**
- * Server-side client for the Sentinel permission API.
+ * Server-side client for the Duar permission API.
  * Mirrors the Python SDK's `PermissionClient`.
  */
 export class PermissionClient {

@@ -2,28 +2,28 @@
 
 Build the same Team Notes app from the [React tutorial](react.md), but using proxy mode instead of authz mode.
 
-**Key difference:** In proxy mode, Sentinel handles the entire OAuth flow. The frontend redirects to Sentinel, which authenticates with the IdP, issues a single JWT, and redirects back. No dual tokens. No IdP configuration on the client.
+**Key difference:** In proxy mode, Duar handles the entire OAuth flow. The frontend redirects to Duar, which authenticates with the IdP, issues a single JWT, and redirects back. No dual tokens. No IdP configuration on the client.
 
-Use proxy mode when you want Sentinel to own the login flow end-to-end. Use [authz mode](react.md) (recommended) when you want the frontend to authenticate with the IdP directly and keep Sentinel as a pure authorization service.
+Use proxy mode when you want Duar to own the login flow end-to-end. Use [authz mode](react.md) (recommended) when you want the frontend to authenticate with the IdP directly and keep Duar as a pure authorization service.
 
 ## Prerequisites
 
 Same as the [React tutorial](react.md#prerequisites), except:
 
-- No Google Client ID needed on the frontend (Sentinel handles IdP config)
+- No Google Client ID needed on the frontend (Duar handles IdP config)
 - Client app redirect URI: `http://localhost:5173/auth/callback`
 
 ## Backend Differences
 
 ### Config
 
-The `Sentinel` class takes `mode="proxy"` and does not need `idp_jwks_url`.
+The `Duar` class takes `mode="proxy"` and does not need `idp_jwks_url`.
 
 ```python
 # config.py
-from sentinel_auth import Sentinel
+from duar_auth import Duar
 
-sentinel = Sentinel(
+duar = Duar(
     base_url="http://localhost:9003",
     service_name="team-notes",
     service_key="sk_your_key_here",
@@ -36,16 +36,16 @@ sentinel = Sentinel(
 
 ### Middleware
 
-`sentinel.protect(app)` adds `JWTAuthMiddleware` (not `AuthzMiddleware`). It validates a single `Authorization: Bearer <sentinel_jwt>` token per request.
+`duar.protect(app)` adds `JWTAuthMiddleware` (not `AuthzMiddleware`). It validates a single `Authorization: Bearer <duar_jwt>` token per request.
 
 ```python
 # main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from config import sentinel
+from config import duar
 
-app = FastAPI(title="Team Notes", lifespan=sentinel.lifespan)
-sentinel.protect(app, exclude_paths=["/health", "/docs", "/openapi.json"])
+app = FastAPI(title="Team Notes", lifespan=duar.lifespan)
+duar.protect(app, exclude_paths=["/health", "/docs", "/openapi.json"])
 
 app.add_middleware(
     CORSMiddleware,
@@ -58,79 +58,79 @@ app.add_middleware(
 
 ### Routes
 
-The routes are identical to the authz-mode tutorial. `get_current_user`, `require_role`, `sentinel.require_action`, and `sentinel.permissions.can` all work the same way. The middleware populates `request.state.user` regardless of mode.
+The routes are identical to the authz-mode tutorial. `get_current_user`, `require_role`, `duar.require_action`, and `duar.permissions.can` all work the same way. The middleware populates `request.state.user` regardless of mode.
 
-One difference: `request.state.token` contains the Sentinel JWT (single token) instead of the authz token. The `get_token` helper works identically.
+One difference: `request.state.token` contains the Duar JWT (single token) instead of the authz token. The `get_token` helper works identically.
 
 ```python
 # Same routes as react.md Steps 3 -- no changes needed
-from sentinel_auth.dependencies import get_current_user, get_workspace_id, require_role
+from duar_auth.dependencies import get_current_user, get_workspace_id, require_role
 ```
 
 ## Frontend Differences
 
 ### Auth Client
 
-Use `SentinelAuth` instead of `SentinelAuthz`. No IdP configuration needed -- Sentinel handles it.
+Use `DuarAuth` instead of `DuarAuthz`. No IdP configuration needed -- Duar handles it.
 
 ```typescript
 // src/api/client.ts
-import { SentinelAuth } from "@sentinel-auth/js";
+import { DuarAuth } from "@duar-auth/js";
 
-const SENTINEL_URL = import.meta.env.VITE_SENTINEL_URL || "http://localhost:9003";
+const DUAR_URL = import.meta.env.VITE_DUAR_URL || "http://localhost:9003";
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:9200";
-const CLIENT_ID = import.meta.env.VITE_SENTINEL_CLIENT_ID;
+const CLIENT_ID = import.meta.env.VITE_DUAR_CLIENT_ID;
 if (!CLIENT_ID) {
-  throw new Error("VITE_SENTINEL_CLIENT_ID is required — get it from the Sentinel admin panel");
+  throw new Error("VITE_DUAR_CLIENT_ID is required — get it from the Duar admin panel");
 }
 
-export const sentinelClient = new SentinelAuth({
-  sentinelUrl: SENTINEL_URL,
+export const duarClient = new DuarAuth({
+  duarUrl: DUAR_URL,
   clientId: CLIENT_ID,
 });
 
 export async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  return sentinelClient.fetchJson<T>(`${BACKEND_URL}${path}`, options);
+  return duarClient.fetchJson<T>(`${BACKEND_URL}${path}`, options);
 }
 ```
 
 !!! tip "Why `clientId` is required"
-    `clientId` is the ClientApp UUID you get from the Sentinel admin panel. Sentinel uses it to bind a login to a specific registered app — a crafted link cannot redirect the OAuth flow to another app's callback. See [Vuln 7](../security.md) for background.
+    `clientId` is the ClientApp UUID you get from the Duar admin panel. Duar uses it to bind a login to a specific registered app — a crafted link cannot redirect the OAuth flow to another app's callback. See [Vuln 7](../security.md) for background.
 
-`sentinelClient.fetchJson()` attaches a single `Authorization: Bearer <token>` header (no `X-Authz-Token`).
+`duarClient.fetchJson()` attaches a single `Authorization: Bearer <token>` header (no `X-Authz-Token`).
 
 ### Provider + App Shell
 
-Use `SentinelAuthProvider`, `AuthGuard`, and `AuthCallback` instead of the authz variants.
+Use `DuarAuthProvider`, `AuthGuard`, and `AuthCallback` instead of the authz variants.
 
 ```tsx
 // src/main.tsx
-import { SentinelAuthProvider } from "@sentinel-auth/react";
+import { DuarAuthProvider } from "@duar-auth/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
-import { sentinelClient } from "./api/client";
+import { duarClient } from "./api/client";
 
 const queryClient = new QueryClient();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <SentinelAuthProvider client={sentinelClient}>
+    <DuarAuthProvider client={duarClient}>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <App />
         </BrowserRouter>
       </QueryClientProvider>
-    </SentinelAuthProvider>
+    </DuarAuthProvider>
   </StrictMode>,
 );
 ```
 
 ```tsx
 // src/App.tsx
-import { AuthGuard } from "@sentinel-auth/react";
+import { AuthGuard } from "@duar-auth/react";
 import { Route, Routes } from "react-router-dom";
 import { AuthCallback } from "./pages/AuthCallback";
 import { Login } from "./pages/Login";
@@ -157,11 +157,11 @@ export function App() {
 
 ### Login
 
-`login("google")` redirects to Sentinel, which redirects to Google. No IdP client ID needed on the frontend.
+`login("google")` redirects to Duar, which redirects to Google. No IdP client ID needed on the frontend.
 
 ```tsx
 // src/pages/Login.tsx
-import { useAuth } from "@sentinel-auth/react";
+import { useAuth } from "@duar-auth/react";
 
 export function Login() {
   const { login } = useAuth();
@@ -173,13 +173,13 @@ export function Login() {
 
 ```tsx
 // src/pages/AuthCallback.tsx
-import { AuthCallback as SentinelCallback } from "@sentinel-auth/react";
+import { AuthCallback as DuarCallback } from "@duar-auth/react";
 import { useNavigate } from "react-router-dom";
 
 export function AuthCallback() {
   const navigate = useNavigate();
   return (
-    <SentinelCallback
+    <DuarCallback
       onSuccess={() => navigate("/notes", { replace: true })}
       workspaceSelector={({ workspaces, onSelect, isLoading }) => (
         <div>
@@ -202,7 +202,7 @@ Use `useUser` instead of `useAuthzUser`. Everything else is the same.
 
 ```tsx
 // src/pages/NoteList.tsx
-import { useUser } from "@sentinel-auth/react";
+import { useUser } from "@duar-auth/react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "../api/client";
 
@@ -233,11 +233,11 @@ export function NoteList() {
 
 | Aspect | AuthZ Mode | Proxy Mode |
 |--------|-----------|------------|
-| Who handles IdP login | Frontend (direct) | Sentinel (redirect) |
-| Tokens per request | 2 (IdP + authz) | 1 (Sentinel JWT) |
+| Who handles IdP login | Frontend (direct) | Duar (redirect) |
+| Tokens per request | 2 (IdP + authz) | 1 (Duar JWT) |
 | Frontend IdP config | Required (client ID, JWKS) | Not needed |
-| JS client class | `SentinelAuthz` | `SentinelAuth` |
-| React provider | `AuthzProvider` | `SentinelAuthProvider` |
+| JS client class | `DuarAuthz` | `DuarAuth` |
+| React provider | `AuthzProvider` | `DuarAuthProvider` |
 | Route guard | `AuthzGuard` | `AuthGuard` |
 | User hook | `useAuthzUser` | `useUser` |
 | Auth hook | `useAuthz` | `useAuth` |

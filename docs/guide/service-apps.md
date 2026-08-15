@@ -1,6 +1,6 @@
 # Service Apps
 
-A **service app** is a registered backend service that calls Sentinel APIs. Each service app has an API key for server-to-server authentication and an optional list of allowed origins for browser frontends.
+A **service app** is a registered backend service that calls Duar APIs. Each service app has an API key for server-to-server authentication and an optional list of allowed origins for browser frontends.
 
 A service app can optionally belong to a [realm](realms.md) — a group of apps that share sign-in and permissions under one scope. By default an app is standalone and isolated by its `service_name`.
 
@@ -15,7 +15,7 @@ The service name scopes all permissions and RBAC actions. A key for `docu-store`
 
 ## Authentication Tiers
 
-Sentinel endpoints use three auth tiers depending on the trust level required:
+Duar endpoints use three auth tiers depending on the trust level required:
 
 | Tier | Headers | Used by | Example endpoints |
 |------|---------|---------|-------------------|
@@ -25,7 +25,7 @@ Sentinel endpoints use three auth tiers depending on the trust level required:
 
 ### Service Key + User JWT (dual auth)
 
-The backend sends both its service key and the user's JWT. Sentinel verifies the service identity and extracts user context. Used for any operation that is "service X asks on behalf of user Y."
+The backend sends both its service key and the user's JWT. Duar verifies the service identity and extracts user context. Used for any operation that is "service X asks on behalf of user Y."
 
 ```
 POST /permissions/check
@@ -44,7 +44,7 @@ X-Service-Key: sk_live_abc123...
 
 ### Origin-based
 
-Browser frontends do not have access to service keys. Instead, Sentinel matches the request's `Origin` header against the `allowed_origins` list on the service app. This is lower trust than a service key — only certain endpoints accept it.
+Browser frontends do not have access to service keys. Instead, Duar matches the request's `Origin` header against the `allowed_origins` list on the service app. This is lower trust than a service key — only certain endpoints accept it.
 
 ```
 POST /authz/resolve
@@ -58,7 +58,7 @@ Configure allowed origins in the admin panel under the service app's settings.
 Pass the service key when initializing SDK clients:
 
 ```python
-from sentinel_auth import PermissionClient
+from duar_auth import PermissionClient
 
 permissions = PermissionClient(
     base_url="http://localhost:9003",

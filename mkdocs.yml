@@ -1,9 +1,9 @@
-site_name: Sentinel Auth
+site_name: Duar
 site_description: Authentication, workspace management, and permissions microservice
-site_url: https://docs.sentinel-auth.com/
+site_url: https://docs.duar.io/
 
-repo_name: sentinel
-repo_url: https://github.com/sidxz/Sentinel
+repo_name: duar
+repo_url: https://github.com/sidxz/duar
 
 theme:
   name: material
@@ -96,7 +96,7 @@ nav:
     - Proxy Mode: tutorial/proxy-mode.md
   - Python SDK:
     - sdk/index.md
-    - Sentinel Class: sdk/sentinel-class.md
+    - Duar Class: sdk/duar-class.md
     - Middleware: sdk/middleware.md
     - Dependencies: sdk/dependencies.md
     - Permissions: sdk/permissions.md

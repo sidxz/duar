@@ -1,10 +1,10 @@
 "use client";
 
-import { AuthzProvider } from "@sentinel-auth/nextjs";
+import { AuthzProvider } from "@duar-auth/nextjs";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { getAuthzClient } from "@/lib/authz-client";
-import type { SentinelAuthz } from "@sentinel-auth/js";
+import type { DuarAuthz } from "@duar-auth/js";
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
@@ -13,7 +13,7 @@ export function Providers({ children }: { children: ReactNode }) {
         defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
       }),
   );
-  const clientRef = useRef<SentinelAuthz | null>(null);
+  const clientRef = useRef<DuarAuthz | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {

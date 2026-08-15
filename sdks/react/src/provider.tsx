@@ -6,15 +6,15 @@ import {
   type ReactNode,
 } from 'react'
 import {
-  SentinelAuth,
-  type SentinelConfig,
-  type SentinelUser,
+  DuarAuth,
+  type DuarConfig,
+  type DuarUser,
   type WorkspaceOption,
-} from '@sentinel-auth/js'
+} from '@duar-auth/js'
 
-export interface SentinelAuthContextValue {
-  client: SentinelAuth
-  user: SentinelUser | null
+export interface DuarAuthContextValue {
+  client: DuarAuth
+  user: DuarUser | null
   isLoading: boolean
   isAuthenticated: boolean
   login(provider: string): Promise<void>
@@ -26,30 +26,30 @@ export interface SentinelAuthContextValue {
   fetchJson: <T>(input: RequestInfo | URL, init?: RequestInit) => Promise<T>
 }
 
-const SentinelAuthContext = createContext<SentinelAuthContextValue | null>(null)
+const DuarAuthContext = createContext<DuarAuthContextValue | null>(null)
 
-export interface SentinelAuthProviderProps {
-  /** Provide config to let the provider create a SentinelAuth instance, or provide a pre-created client. */
-  config?: SentinelConfig
-  /** Pre-created SentinelAuth client. Takes precedence over config. */
-  client?: SentinelAuth
+export interface DuarAuthProviderProps {
+  /** Provide config to let the provider create a DuarAuth instance, or provide a pre-created client. */
+  config?: DuarConfig
+  /** Pre-created DuarAuth client. Takes precedence over config. */
+  client?: DuarAuth
   children: ReactNode
 }
 
-export function SentinelAuthProvider({
+export function DuarAuthProvider({
   config,
   client: externalClient,
   children,
-}: SentinelAuthProviderProps) {
-  const clientRef = useRef<SentinelAuth | null>(externalClient ?? null)
+}: DuarAuthProviderProps) {
+  const clientRef = useRef<DuarAuth | null>(externalClient ?? null)
   if (!clientRef.current) {
-    if (!config) throw new Error('SentinelAuthProvider requires either config or client prop')
-    clientRef.current = new SentinelAuth(config)
+    if (!config) throw new Error('DuarAuthProvider requires either config or client prop')
+    clientRef.current = new DuarAuth(config)
   }
   const client = clientRef.current
   const ownsClient = !externalClient
 
-  const [user, setUser] = useState<SentinelUser | null>(() => client.getUser())
+  const [user, setUser] = useState<DuarUser | null>(() => client.getUser())
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -66,7 +66,7 @@ export function SentinelAuthProvider({
     }
   }, [client, ownsClient])
 
-  const value: SentinelAuthContextValue = {
+  const value: DuarAuthContextValue = {
     client,
     user,
     isLoading,
@@ -83,10 +83,10 @@ export function SentinelAuthProvider({
   }
 
   return (
-    <SentinelAuthContext.Provider value={value}>
+    <DuarAuthContext.Provider value={value}>
       {children}
-    </SentinelAuthContext.Provider>
+    </DuarAuthContext.Provider>
   )
 }
 
-export { SentinelAuthContext }
+export { DuarAuthContext }

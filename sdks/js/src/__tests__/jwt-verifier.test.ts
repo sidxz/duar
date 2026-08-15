@@ -18,7 +18,7 @@ const mockPayload = {
   wrole: 'admin',
   groups: ['g1'],
   aud: 'sentinel:access',
-  iss: 'sentinel',
+  iss: 'duar',
   exp: Math.floor(Date.now() / 1000) + 3600,
   iat: Math.floor(Date.now() / 1000),
   jti: 'jti-1',
@@ -67,7 +67,7 @@ describe('verifyToken', () => {
 })
 
 describe('payloadToUser', () => {
-  it('maps payload to SentinelUser', () => {
+  it('maps payload to DuarUser', () => {
     const user = payloadToUser(mockPayload as any)
     expect(user).toEqual({
       userId: 'user-1',

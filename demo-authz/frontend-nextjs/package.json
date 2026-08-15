@@ -7,9 +7,9 @@
     "start": "next start -p 5174"
   },
   "dependencies": {
-    "@sentinel-auth/js": "file:../../sdks/js",
-    "@sentinel-auth/nextjs": "file:../../sdks/nextjs",
-    "@sentinel-auth/react": "file:../../sdks/react",
+    "@duar-auth/js": "file:../../sdks/js",
+    "@duar-auth/nextjs": "file:../../sdks/nextjs",
+    "@duar-auth/react": "file:../../sdks/react",
     "@tanstack/react-query": "^5.90.21",
     "next": "^15.3.0",
     "react": "^19.0.0",

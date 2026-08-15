@@ -4,9 +4,9 @@ A **realm** is a named group of service apps that fully trust each other. Member
 
 - **Shared sign-in** — a user's authz token works on every member app.
 - **Shared permissions** — all members read and write entity ACLs and RBAC actions under one shared scope.
-- **Trusted app-to-app calls** — members call each other's APIs both *with* a signed-in user and *with no user at all*, every call credentialed and validated by Sentinel.
+- **Trusted app-to-app calls** — members call each other's APIs both *with* a signed-in user and *with no user at all*, every call credentialed and validated by Duar.
 
-Apps in a realm carry **no auth logic and no realm config** — the SDK self-discovers the realm from Sentinel. Standalone service apps are unaffected: a realm is opt-in and non-breaking.
+Apps in a realm carry **no auth logic and no realm config** — the SDK self-discovers the realm from Duar. Standalone service apps are unaffected: a realm is opt-in and non-breaking.
 
 !!! note "Realm vs Group"
     A **realm** is a trust boundary over *service apps*. A [Group](groups.md) is a collection of *users* within a workspace (a Tier-3 ACL grantee). Different concepts, no overlap.
@@ -28,7 +28,7 @@ A service app belongs to **at most one realm** (an ambiguous scope otherwise).
 
 ## Token flows
 
-A realm enables two app-to-app call patterns. In both, trust is rooted in Sentinel's RS256 signature — never in app-to-app trust.
+A realm enables two app-to-app call patterns. In both, trust is rooted in Duar's RS256 signature — never in app-to-app trust.
 
 ### Flow A — user-context
 
@@ -38,7 +38,7 @@ A human is behind the call. App A forwards the user's authz token to App B; beca
 sequenceDiagram
     participant U as User
     participant A as App A
-    participant S as Sentinel
+    participant S as Duar
     participant B as App B
     U->>A: signed-in request
     A->>S: POST /authz/resolve (X-Service-Key + IdP token)
@@ -55,7 +55,7 @@ A background/system call with no human (a cron job, a queue worker). App A mints
 ```mermaid
 sequenceDiagram
     participant A as App A (cron)
-    participant S as Sentinel
+    participant S as Duar
     participant B as App B
     A->>S: POST /realm/m2m-token (X-Service-Key)
     S-->>A: m2m token { type=m2m, svc="acme-suite", caller="app-a", actions=["*"] }
@@ -68,14 +68,14 @@ The m2m token carries **no user claims** — it is an honest "no human" credenti
 
 ## Trust model
 
-Two independent, Sentinel-rooted checks — apps never trust each other directly:
+Two independent, Duar-rooted checks — apps never trust each other directly:
 
-- **Mint-time** (App A → Sentinel): the m2m endpoint is gated by the service key. The token's `caller` and `svc` are **server-stamped from the authenticated key**, never client-asserted — so a leaked key can only mint *that member's* token, and cannot impersonate another member or jump realms. Minting is rejected unless the service is an active member of an active realm.
-- **Present-time** (App A → App B): App B verifies Sentinel's RS256 signature over JWKS, plus `aud == sentinel:m2m`, `svc == effective_scope` (a cross-realm replay fails), and a short expiry.
+- **Mint-time** (App A → Duar): the m2m endpoint is gated by the service key. The token's `caller` and `svc` are **server-stamped from the authenticated key**, never client-asserted — so a leaked key can only mint *that member's* token, and cannot impersonate another member or jump realms. Minting is rejected unless the service is an active member of an active realm.
+- **Present-time** (App A → App B): App B verifies Duar's RS256 signature over JWKS, plus `aud == sentinel:m2m`, `svc == effective_scope` (a cross-realm replay fails), and a short expiry.
 
 | Threat | Defense |
 |---|---|
-| Forged / fabricated token | RS256 signature — unforgeable without Sentinel's private key |
+| Forged / fabricated token | RS256 signature — unforgeable without Duar's private key |
 | Stolen service key | high-entropy, hashed, backend-only, rotatable; server-stamped identity blocks impersonation |
 | Stolen token in transit | short TTL + TLS + `svc` binding |
 | Malicious member | v1 is full in-realm trust by design; the reserved `actions` field is the future least-privilege lever |

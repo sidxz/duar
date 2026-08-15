@@ -1,24 +1,24 @@
 # Proxy Client
 
-`SentinelAuth` is the browser auth client for proxy mode. Sentinel manages the full OAuth2 + PKCE redirect flow, token exchange, and refresh. You get a single access token + refresh token pair.
+`DuarAuth` is the browser auth client for proxy mode. Duar manages the full OAuth2 + PKCE redirect flow, token exchange, and refresh. You get a single access token + refresh token pair.
 
 For the recommended authz mode, see [AuthZ Client](authz-client.md).
 
 ## Setup
 
 ```typescript
-import { SentinelAuth } from '@sentinel-auth/js'
+import { DuarAuth } from '@duar-auth/js'
 
-const auth = new SentinelAuth({
-  sentinelUrl: 'http://localhost:9003',
+const auth = new DuarAuth({
+  duarUrl: 'http://localhost:9003',
   clientId: '00000000-0000-0000-0000-000000000000', // ClientApp id from admin panel
 })
 ```
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `sentinelUrl` | `string` | required | Base URL of the Sentinel service |
-| `clientId` | `string` | **required** | ClientApp UUID from the Sentinel admin panel. Binds this login flow to a specific registered app — Sentinel rejects a login whose `redirect_uri` does not belong to this `client_id`. Prevents cross-app auth-code interception. |
+| `duarUrl` | `string` | required | Base URL of the Duar service |
+| `clientId` | `string` | **required** | ClientApp UUID from the Duar admin panel. Binds this login flow to a specific registered app — Duar rejects a login whose `redirect_uri` does not belong to this `client_id`. Prevents cross-app auth-code interception. |
 | `redirectUri` | `string` | `${origin}/auth/callback` | OAuth redirect URI. Must be listed on the ClientApp's registered `redirect_uris`. |
 | `storage` | `TokenStore` | `MemoryStore` | Token storage backend |
 | `autoRefresh` | `boolean` | `true` | Refresh tokens before expiry |
@@ -27,8 +27,8 @@ const auth = new SentinelAuth({
 ## How it works
 
 ```
-1. auth.login('google')            -> PKCE + CSRF state, redirect to Sentinel
-2. Sentinel -> Google -> callback  -> ?code=...&state=...
+1. auth.login('google')            -> PKCE + CSRF state, redirect to Duar
+2. Duar -> Google -> callback  -> ?code=...&state=...
 3. auth.verifyCallbackState()      -> verify CSRF state
 4. auth.getWorkspaces(code)        -> list available workspaces
 5. auth.selectWorkspace(code, id)  -> exchange code + PKCE verifier for tokens
@@ -39,7 +39,7 @@ const auth = new SentinelAuth({
 
 ### login(provider)
 
-Generate PKCE verifier and CSRF state, redirect to Sentinel's login endpoint.
+Generate PKCE verifier and CSRF state, redirect to Duar's login endpoint.
 
 ```typescript
 await auth.login('google')
@@ -70,7 +70,7 @@ await auth.selectWorkspace(code, workspaceId)
 
 ```typescript
 const token = auth.getToken()        // raw access token string
-const user = auth.getUser()          // SentinelUser | null
+const user = auth.getUser()          // DuarUser | null
 if (auth.isAuthenticated) { /* */ }  // non-expired token exists
 ```
 
@@ -85,7 +85,7 @@ const notes = await auth.fetchJson<Note[]>('/api/notes')
 
 ### getProviders()
 
-Fetch available OAuth providers from Sentinel.
+Fetch available OAuth providers from Duar.
 
 ```typescript
 const providers = await auth.getProviders() // ['google', 'github']
@@ -109,9 +109,9 @@ auth.destroy()        // clean up timers
 | `SessionStorageStore` | Cleared when tab closes |
 
 ```typescript
-import { SentinelAuth, LocalStorageStore } from '@sentinel-auth/js'
-const auth = new SentinelAuth({
-  sentinelUrl: '...',
+import { DuarAuth, LocalStorageStore } from '@duar-auth/js'
+const auth = new DuarAuth({
+  duarUrl: '...',
   clientId: '00000000-0000-0000-0000-000000000000',
   storage: new LocalStorageStore(),
 })
@@ -120,10 +120,10 @@ const auth = new SentinelAuth({
 ## Complete example
 
 ```typescript
-import { SentinelAuth, LocalStorageStore } from '@sentinel-auth/js'
+import { DuarAuth, LocalStorageStore } from '@duar-auth/js'
 
-const auth = new SentinelAuth({
-  sentinelUrl: 'http://localhost:9003',
+const auth = new DuarAuth({
+  duarUrl: 'http://localhost:9003',
   clientId: '00000000-0000-0000-0000-000000000000',
   storage: new LocalStorageStore(),
 })
@@ -148,9 +148,9 @@ const notes = await auth.fetchJson<Note[]>('/api/notes')
 
 ## How it differs from AuthZ mode
 
-| | Proxy (`SentinelAuth`) | AuthZ (`SentinelAuthz`) |
+| | Proxy (`DuarAuth`) | AuthZ (`DuarAuthz`) |
 |---|---|---|
-| OAuth flow | Sentinel proxies (PKCE, redirect) | You configure IdPs, SDK redirects directly |
+| OAuth flow | Duar proxies (PKCE, redirect) | You configure IdPs, SDK redirects directly |
 | Token exchange | code + PKCE verifier via `/auth/token` | IdP token via `/authz/resolve` |
 | Tokens | Access + refresh (single JWT) | IdP token + authz token (dual) |
 | Headers | `Authorization: Bearer` | `Authorization` + `X-Authz-Token` |

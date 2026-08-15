@@ -1,24 +1,24 @@
 # Authorization
 
-Sentinel provides three tiers of authorization, from coarse to fine-grained.
+Duar provides three tiers of authorization, from coarse to fine-grained.
 
 ```python
-from sentinel_auth.dependencies import require_role, require_action
+from duar_auth.dependencies import require_role, require_action
 
 # Tier 1 — workspace role from JWT (no API call)
 @router.post("/projects")
 async def create_project(user=Depends(require_role("editor"))):
     ...
 
-# Tier 2 — RBAC action check (API call to Sentinel)
+# Tier 2 — RBAC action check (API call to Duar)
 @router.get("/reports/export")
-async def export_report(user=Depends(sentinel.require_action("reports:export"))):
+async def export_report(user=Depends(duar.require_action("reports:export"))):
     ...
 
-# Tier 3 — entity ACL check (API call to Sentinel)
+# Tier 3 — entity ACL check (API call to Duar)
 @router.get("/documents/{doc_id}")
-async def get_document(doc_id: UUID, user=Depends(sentinel.require_user)):
-    if not await sentinel.permissions.can(token, "document", doc_id, "view"):
+async def get_document(doc_id: UUID, user=Depends(duar.require_user)):
+    if not await duar.permissions.can(token, "document", doc_id, "view"):
         raise HTTPException(403)
     ...
 ```
@@ -35,7 +35,7 @@ See [Workspaces](workspaces.md) for the full role hierarchy and permissions matr
 
 ### Tier 2: Custom RBAC
 
-Services define application-specific actions (e.g. `reports:export`, `templates:manage`) and organize them into named roles. Users are assigned roles within a workspace. Checks hit the Sentinel API.
+Services define application-specific actions (e.g. `reports:export`, `templates:manage`) and organize them into named roles. Users are assigned roles within a workspace. Checks hit the Duar API.
 
 Use for action-based authorization: "can this user export reports?" or "can this user approve invoices?"
 
@@ -43,7 +43,7 @@ See [Custom Roles](roles.md) for the full RBAC workflow.
 
 ### Tier 3: Entity ACLs
 
-Zanzibar-style per-resource permissions. Resources are registered with Sentinel using a generic `(service_name, resource_type, resource_id)` tuple. Access is controlled through ownership, visibility, and explicit shares to users or groups.
+Zanzibar-style per-resource permissions. Resources are registered with Duar using a generic `(service_name, resource_type, resource_id)` tuple. Access is controlled through ownership, visibility, and explicit shares to users or groups.
 
 Use for resource-level authorization: "can user X edit document Y?"
 
@@ -55,8 +55,8 @@ See [Entity Permissions](permissions.md) for the resolution algorithm and share 
 |----------|------|-------|
 | Can this user create resources? | Workspace Role | `require_role("editor")` |
 | Can this user manage members? | Workspace Role | `require_role("admin")` |
-| Can this user export reports? | Custom RBAC | `sentinel.require_action("reports:export")` |
-| Can this user approve invoices? | Custom RBAC | `sentinel.require_action("billing:approve")` |
+| Can this user export reports? | Custom RBAC | `duar.require_action("reports:export")` |
+| Can this user approve invoices? | Custom RBAC | `duar.require_action("billing:approve")` |
 | Can this user view document X? | Entity ACL | `permissions.can(token, "document", doc_id, "view")` |
 | Can this user edit project Y? | Entity ACL | `permissions.can(token, "project", proj_id, "edit")` |
 | Which documents can this user see? | Entity ACL | `permissions.accessible(token, "document", "view", wid)` |

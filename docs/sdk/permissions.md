@@ -1,18 +1,18 @@
 # PermissionClient
 
-Async HTTP client for Sentinel's Zanzibar-style entity permission API. Handles resource registration, permission checks, sharing, and accessible-resource lookups.
+Async HTTP client for Duar's Zanzibar-style entity permission API. Handles resource registration, permission checks, sharing, and accessible-resource lookups.
 
-Usually accessed via `sentinel.permissions` (lazily created with the correct `base_url`, `service_name`, and `service_key`):
+Usually accessed via `duar.permissions` (lazily created with the correct `base_url`, `service_name`, and `service_key`):
 
 ```python
-sentinel = Sentinel(base_url="...", service_name="my-service", service_key="sk_...")
-perms = sentinel.permissions
+duar = Duar(base_url="...", service_name="my-service", service_key="sk_...")
+perms = duar.permissions
 ```
 
 Or create directly:
 
 ```python
-from sentinel_auth.permissions import PermissionClient
+from duar_auth.permissions import PermissionClient
 
 perms = PermissionClient(
     base_url="http://localhost:9003",
@@ -27,8 +27,8 @@ perms = PermissionClient(
 `PermissionClient` supports opt-in TTL caching for `accessible()` and `can()` results. This eliminates redundant HTTP calls when the same permission is checked multiple times within the TTL window (e.g. across search, browse, and list endpoints in a single user session).
 
 ```python
-# Via Sentinel constructor (recommended)
-sentinel = Sentinel(base_url="...", service_name="...", service_key="...", cache_ttl=120)
+# Via Duar constructor (recommended)
+duar = Duar(base_url="...", service_name="...", service_key="...", cache_ttl=120)
 
 # Or directly on PermissionClient
 perms = PermissionClient(base_url="...", service_name="...", service_key="...", cache_ttl=120)
@@ -92,7 +92,7 @@ async def can(
 The `token` is the user's JWT (or authz token in authz mode). The `service_name` is set on the client.
 
 ```python
-from sentinel_auth.dependencies import get_token
+from duar_auth.dependencies import get_token
 
 @app.get("/documents/{doc_id}")
 async def get_doc(doc_id: UUID, token: str = Depends(get_token)):
@@ -115,7 +115,7 @@ async def check(
 `PermissionCheck` and `PermissionResult` are dataclasses:
 
 ```python
-from sentinel_auth.permissions import PermissionCheck, PermissionResult
+from duar_auth.permissions import PermissionCheck, PermissionResult
 
 results = await perms.check(token, [
     PermissionCheck(service_name="my-service", resource_type="document", resource_id=id1, action="view"),
@@ -191,7 +191,7 @@ Internally, `share()` first resolves the resource coordinates to a permission ID
 
 ## `close()`
 
-Close the underlying `httpx.AsyncClient`. Called automatically by `Sentinel.lifespan` on shutdown.
+Close the underlying `httpx.AsyncClient`. Called automatically by `Duar.lifespan` on shutdown.
 
 ```python
 await perms.close()
@@ -206,13 +206,13 @@ async with PermissionClient(base_url="...", service_name="...", service_key="...
 
 ## Error Handling
 
-All methods raise `SentinelError` on non-2xx responses from Sentinel. The error includes the HTTP status code:
+All methods raise `DuarError` on non-2xx responses from Duar. The error includes the HTTP status code:
 
 ```python
-from sentinel_auth.types import SentinelError
+from duar_auth.types import DuarError
 
 try:
     await perms.can(token, "document", doc_id, "view")
-except SentinelError as e:
+except DuarError as e:
     print(e.status_code)  # e.g. 404, 502
 ```

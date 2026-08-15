@@ -1,6 +1,6 @@
 # Deployment
 
-Sentinel is a stateless FastAPI application. Multiple instances can run behind a load balancer as long as they share the same PostgreSQL database, Redis instance, and JWT signing keys.
+Duar is a stateless FastAPI application. Multiple instances can run behind a load balancer as long as they share the same PostgreSQL database, Redis instance, and JWT signing keys.
 
 ## Architecture
 
@@ -12,7 +12,7 @@ Sentinel is a stateless FastAPI application. Multiple instances can run behind a
                 └──────┬──────┘
                        │ HTTP :9003
                 ┌──────v──────┐
-                │  Sentinel   │
+                │  Duar   │
                 │  Auth       │
                 └──┬──────┬───┘
                    │      │
@@ -30,7 +30,7 @@ The default `docker-compose.yml` starts PostgreSQL 16 and Redis 7 with TLS and h
 
 ```bash
 make setup    # Generate keys, TLS certs, .env files, install deps, start containers
-make start    # Start Sentinel on :9003 (auto-migrates)
+make start    # Start Duar on :9003 (auto-migrates)
 make admin    # Start admin panel on :9004
 ```
 
@@ -49,7 +49,7 @@ make admin    # Start admin panel on :9004
 |---------|---------------|-----------|
 | PostgreSQL | 5432 | 9001 |
 | Redis | 6379 | 9002 |
-| Sentinel | 9003 | 9003 |
+| Duar | 9003 | 9003 |
 
 ### Data Persistence
 
@@ -73,7 +73,7 @@ vim .env.prod   # Set BASE_URL, ADMIN_URL, OAuth creds, ADMIN_EMAILS
 Deploy:
 
 ```bash
-docker stack deploy -c docker-compose.prod.yml sentinel
+docker stack deploy -c docker-compose.prod.yml duar
 ```
 
 Both PostgreSQL and Redis run with TLS enabled. The service connects via `?ssl=require` (Postgres) and `rediss://` (Redis).
@@ -98,25 +98,25 @@ The internal listener drops the Session and CORS middleware (it has no browser c
 
 ### Swarm topology
 
-`docker-compose.prod.yml` defines both services on the `sentinel` overlay:
+`docker-compose.prod.yml` defines both services on the `duar` overlay:
 
-- **`sentinel`** — `TIER=public`, published on `:9003`, serves humans and the admin panel.
-- **`sentinel-internal`** — `TIER=internal`, command runs uvicorn on `:9010`, **no `ports:` mapping** (unpublished by design), reachable only as `http://sentinel-internal:9010` on the overlay. It sets `SESSION_SECRET_KEY=""` and `CORS_ORIGINS=""` (the dropped middleware needs neither) and `depends_on` the public service so the schema is migrated first.
+- **`duar`** — `TIER=public`, published on `:9003`, serves humans and the admin panel.
+- **`duar-internal`** — `TIER=internal`, command runs uvicorn on `:9010`, **no `ports:` mapping** (unpublished by design), reachable only as `http://duar-internal:9010` on the overlay. It sets `SESSION_SECRET_KEY=""` and `CORS_ORIGINS=""` (the dropped middleware needs neither) and `depends_on` the public service so the schema is migrated first.
 
 ```bash
-docker stack deploy -c docker-compose.prod.yml sentinel
+docker stack deploy -c docker-compose.prod.yml duar
 ```
 
 ### Pointing apps at the internal listener
 
-A backend that holds a Sentinel **service key** points its SDK `base_url` at the internal listener:
+A backend that holds a Duar **service key** points its SDK `base_url` at the internal listener:
 
 ```python
-sentinel = Sentinel(base_url="http://sentinel-internal:9010", service_name="reports", service_key=...)
+duar = Duar(base_url="http://duar-internal:9010", service_name="reports", service_key=...)
 ```
 
 ```typescript
-const m2m = new M2mTokenClient('http://sentinel-internal:9010', process.env.SERVICE_KEY)
+const m2m = new M2mTokenClient('http://duar-internal:9010', process.env.SERVICE_KEY)
 ```
 
 Browser-facing flows (login, the admin panel) continue to use the public `:9003` URL. See [Realms](../guide/realms.md) for what runs over this surface.
@@ -150,7 +150,7 @@ Browser-facing flows (login, the admin panel) continue to use the public `:9003`
 
 ### Workers
 
-Sentinel is stateless. Run multiple uvicorn workers or container replicas behind a load balancer:
+Duar is stateless. Run multiple uvicorn workers or container replicas behind a load balancer:
 
 ```bash
 uvicorn src.main:app --host 0.0.0.0 --port 9003 --workers 4
@@ -168,7 +168,7 @@ All instances must share the same JWT keys, PostgreSQL, and Redis.
 
 ## Structured Logging
 
-Sentinel emits one JSON object per line to stdout. The Docker swarm log driver
+Duar emits one JSON object per line to stdout. The Docker swarm log driver
 collects it automatically — no sidecar or file-based shipping required.
 
 Set the following in your production environment (or `.env.prod`):

@@ -58,7 +58,7 @@ async def create_service_app(
     # same name serializes and the collision check can't be raced.
     await db.execute(
         text("SELECT pg_advisory_xact_lock(hashtext(:k))"),
-        {"k": f"sentinel:scope:{service_name}"},
+        {"k": f"duar:scope:{service_name}"},
     )
     collision = await db.execute(
         select(Realm.id).where(Realm.slug == service_name).limit(1)

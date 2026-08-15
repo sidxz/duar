@@ -1,6 +1,6 @@
 """Regression: /roles/check-action + /roles/user-actions must accept authz tokens.
 
-In authz mode a backend only holds the IdP token and the Sentinel authz token —
+In authz mode a backend only holds the IdP token and the Duar authz token —
 never a sentinel:access token. These endpoints used get_current_user (access-only),
 which made tier-2 RBAC checks return 401 for every authz-mode caller. They must use
 the same dual access/authz dependency as the permission routes, including the

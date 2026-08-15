@@ -9,19 +9,19 @@ from typing import TYPE_CHECKING
 import httpx
 from fastapi import Depends, HTTPException, Request
 
-from sentinel_auth.auth import RequestAuth
-from sentinel_auth.types import AuthenticatedUser, SentinelError, WorkspaceContext
+from duar_auth.auth import RequestAuth
+from duar_auth.types import AuthenticatedUser, DuarError, WorkspaceContext
 
 if TYPE_CHECKING:
-    from sentinel_auth.permissions import PermissionClient
-    from sentinel_auth.roles import RoleClient
+    from duar_auth.permissions import PermissionClient
+    from duar_auth.roles import RoleClient
 
 
 def get_token(request: Request) -> str:
-    """Return the Sentinel token for this request.
+    """Return the Duar token for this request.
 
     Prefers ``request.state.token`` (set by the middlewares — in authz mode the
-    Authorization header carries the IdP token, not a Sentinel-signed one), and
+    Authorization header carries the IdP token, not a Duar-signed one), and
     falls back to the Authorization header when no middleware stored a token.
     """
     token: str | None = getattr(request.state, "token", None)
@@ -95,7 +95,7 @@ def require_action(role_client: RoleClient, action: str) -> Callable:
             allowed = await role_client.check_action(token, action, user.workspace_id)
         except (httpx.TransportError, httpx.TimeoutException):
             raise HTTPException(status_code=503, detail="Authorization service unavailable")
-        except SentinelError as exc:
+        except DuarError as exc:
             raise HTTPException(status_code=exc.status_code or 502, detail="Authorization check failed")
         if not allowed:
             raise HTTPException(status_code=403, detail=f"Action '{action}' not permitted")

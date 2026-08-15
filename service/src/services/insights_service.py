@@ -1,7 +1,7 @@
 """Sign-in insights: device + geo aggregates derived from activity detail.
 
 All derivation is passive — parsed from the user_agent and ip the auth
-callbacks already capture at the trust boundary. Sentinel never runs
+callbacks already capture at the trust boundary. Duar never runs
 collection code inside client apps.
 """
 

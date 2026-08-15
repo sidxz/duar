@@ -1,4 +1,4 @@
-import type { SentinelUser, WorkspaceRole } from './types'
+import type { DuarUser, WorkspaceRole } from './types'
 
 /** Configuration for a specific IdP (Google, EntraID, etc.). */
 export interface IdpConfig {
@@ -30,28 +30,28 @@ export const IdpConfigs = {
   }),
 } as const
 
-export interface SentinelAuthzConfig {
-  /** Base URL the browser uses to reach Sentinel (e.g. "http://localhost:9003").
+export interface DuarAuthzConfig {
+  /** Base URL the browser uses to reach Duar (e.g. "http://localhost:9003").
    *
    * Used only for the browser-facing reads: workspace discovery
    * (``/authz/resolve`` without a workspace) and the directory helpers
    * (members/groups/``/users/me``). It is NOT used for redirects, issuer, or
    * JWKS derivation.
    *
-   * Private-network deployments: when Sentinel has no browser-reachable
-   * address, set this to a same-origin path (e.g. ``"/api/sentinel"``) served
-   * by your backend's reverse proxy — ``createSentinelProxy`` from
-   * ``@sentinel-auth/nextjs/proxy`` or ``Sentinel.proxy_router()`` from the
-   * Python SDK — and set ``mintEndpoint`` to ``"/api/sentinel/authz/resolve"``.
+   * Private-network deployments: when Duar has no browser-reachable
+   * address, set this to a same-origin path (e.g. ``"/api/duar"``) served
+   * by your backend's reverse proxy — ``createDuarProxy`` from
+   * ``@duar-auth/nextjs/proxy`` or ``Duar.proxy_router()`` from the
+   * Python SDK — and set ``mintEndpoint`` to ``"/api/duar/authz/resolve"``.
    */
-  sentinelUrl: string
+  duarUrl: string
   /**
    * URL of YOUR backend's mint endpoint. Required.
    *
-   * The browser calls this endpoint (not Sentinel directly) to exchange an IdP
-   * token + workspace_id for a Sentinel authz token. Your backend is expected
-   * to hold the Sentinel service key and forward the request to
-   * ``POST {sentinelUrl}/authz/resolve`` with ``X-Service-Key``.
+   * The browser calls this endpoint (not Duar directly) to exchange an IdP
+   * token + workspace_id for a Duar authz token. Your backend is expected
+   * to hold the Duar service key and forward the request to
+   * ``POST {duarUrl}/authz/resolve`` with ``X-Service-Key``.
    *
    * Rationale: minting an authz token is credential issuance and must be
    * gated by server-to-server trust, not by browser Origin matching. Without
@@ -94,7 +94,7 @@ export interface UserIdentity {
  */
 export type AuthState = 'authenticated' | 'needs_reauth' | 'unauthenticated'
 
-/** Outcome of {@link SentinelAuthz.handleCallback}. */
+/** Outcome of {@link DuarAuthz.handleCallback}. */
 export type AuthzCallbackResult =
   | { status: 'success'; idpToken: string; provider: string; returnTo: string | null }
   | { status: 'silent_failed'; error: string; provider: string | null; returnTo: string | null }
@@ -137,7 +137,7 @@ export interface AuthzWorkspaceInfo {
   role: WorkspaceRole
 }
 
-// ── Workspace & group types for SentinelAuthz helpers ───────────────
+// ── Workspace & group types for DuarAuthz helpers ───────────────
 
 export interface WorkspaceMember {
   user_id: string
@@ -173,4 +173,4 @@ export interface UserProfile {
   created_at: string
 }
 
-export { SentinelUser, WorkspaceRole }
+export { DuarUser, WorkspaceRole }

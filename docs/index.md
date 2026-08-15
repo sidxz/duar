@@ -1,13 +1,13 @@
 ---
-title: Sentinel Auth
+title: Duar
 description: Authentication proxy and authorization microservice for your applications
 ---
 
-![Sentinel Auth](assets/images/splash.png)
+![Duar](assets/images/splash.png)
 
-# Sentinel
+# Duar
 
-An authentication proxy and authorization microservice. Sentinel handles OAuth2/OIDC authentication from external IdPs, multi-tenant workspace management, and fine-grained Zanzibar-style permissions so you can focus on your application logic.
+An authentication proxy and authorization microservice. Duar handles OAuth2/OIDC authentication from external IdPs, multi-tenant workspace management, and fine-grained Zanzibar-style permissions so you can focus on your application logic.
 
 Built with **FastAPI**, **SQLAlchemy 2.0** (async), **PostgreSQL 16**, **Redis 7**, and **Authlib**.
 
@@ -19,7 +19,7 @@ Built with **FastAPI**, **SQLAlchemy 2.0** (async), **PostgreSQL 16**, **Redis 7
 
     ---
 
-    Your app handles IdP login directly (Google, GitHub, EntraID). Sentinel validates the IdP token and issues an authorization JWT. Dual-token design with `idp_sub` binding.
+    Your app handles IdP login directly (Google, GitHub, EntraID). Duar validates the IdP token and issues an authorization JWT. Dual-token design with `idp_sub` binding.
 
     [:octicons-arrow-right-24: How it works](guide/how-it-works.md)
 
@@ -51,7 +51,7 @@ Built with **FastAPI**, **SQLAlchemy 2.0** (async), **PostgreSQL 16**, **Redis 7
 
     ---
 
-    `pip install sentinel-auth-sdk` and integrate in minutes. Middleware, FastAPI dependencies, permission and role clients with a typed async API.
+    `pip install duar-auth` and integrate in minutes. Middleware, FastAPI dependencies, permission and role clients with a typed async API.
 
     [:octicons-arrow-right-24: Python SDK](sdk/index.md)
 
@@ -70,9 +70,9 @@ Built with **FastAPI**, **SQLAlchemy 2.0** (async), **PostgreSQL 16**, **Redis 7
 ## Quick integration
 
 ```python
-from sentinel_auth import Sentinel
+from duar_auth import Duar
 
-sentinel = Sentinel(
+duar = Duar(
     base_url="http://localhost:9003",
     service_name="my-app",
     service_key="sk_...",
@@ -81,11 +81,11 @@ sentinel = Sentinel(
     idp_audience="123-abc.apps.googleusercontent.com",  # your OAuth client_id
 )
 
-app = FastAPI(lifespan=sentinel.lifespan)
-sentinel.protect(app)
+app = FastAPI(lifespan=duar.lifespan)
+duar.protect(app)
 
 @app.get("/projects")
-async def list_projects(user=Depends(sentinel.require_user)):
+async def list_projects(user=Depends(duar.require_user)):
     return await get_projects(user.workspace_id)
 ```
 
@@ -99,7 +99,7 @@ async def list_projects(user=Depends(sentinel.require_user)):
 
     ---
 
-    Run Sentinel, configure an IdP, and connect your first app in 5 minutes.
+    Run Duar, configure an IdP, and connect your first app in 5 minutes.
 
     [:octicons-arrow-right-24: Quickstart](getting-started/quickstart.md)
 

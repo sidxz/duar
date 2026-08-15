@@ -81,7 +81,7 @@ def test_all_tiers_exist_and_parse():
     for name in TIERS:
         value = getattr(settings, name)
         assert isinstance(value, str), name
-        if value:  # "" is the explicit "disable this tier" sentinel
+        if value:  # "" is the explicit "disable this tier" duar
             parse(value)  # raises ValueError on a malformed limit string
 ```
 
@@ -723,10 +723,10 @@ In `docker-compose.yml`, remove the `RATE_LIMIT_RPM: 10000` line. (Defaults are 
 
 - [ ] **Step 3: Prod compose — the outage fix**
 
-In `docker-compose.prod.yml`, in the `sentinel` service `environment:` block (after `BEHIND_PROXY: "true"`, line 105), add:
+In `docker-compose.prod.yml`, in the `duar` service `environment:` block (after `BEHIND_PROXY: "true"`, line 105), add:
 
 ```yaml
-      # Number of trusted proxy hops in front of Sentinel (CDN/LB + nginx = 2, etc.).
+      # Number of trusted proxy hops in front of Duar (CDN/LB + nginx = 2, etc.).
       # MUST match reality or all clients collapse into one IP bucket. Verify per deploy.
       TRUSTED_PROXY_COUNT: ${TRUSTED_PROXY_COUNT:-1}
       # Rate-limit tiers (tunable without an image rebuild). Aggregate is the per-IP
@@ -750,7 +750,7 @@ In `docs/getting-started/configuration.md`, remove any `RATE_LIMIT_RPM` row and 
 
 In `docs/security.md`, update the rate-limiting section to describe: slowapi as the single mechanism; the tier set; per-user/per-service/IP keying; fail-open on Redis; and a clearly-marked callout:
 
-> **Volumetric DoS protection requires edge rate limiting.** The app-layer aggregate (`RATE_LIMIT_AGGREGATE`) only covers routes without a per-route limit; decorated routes (`/authz/resolve`, `/auth/token`, admin POSTs) enforce their own tier but are not in the aggregate and are not throttled before authentication. Put nginx/Cloudflare/ALB rate limiting in front of Sentinel for volumetric/bad-auth defense.
+> **Volumetric DoS protection requires edge rate limiting.** The app-layer aggregate (`RATE_LIMIT_AGGREGATE`) only covers routes without a per-route limit; decorated routes (`/authz/resolve`, `/auth/token`, admin POSTs) enforce their own tier but are not in the aggregate and are not throttled before authentication. Put nginx/Cloudflare/ALB rate limiting in front of Duar for volumetric/bad-auth defense.
 
 - [ ] **Step 7: Verify docs build**
 

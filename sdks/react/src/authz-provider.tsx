@@ -6,16 +6,16 @@ import {
   type ReactNode,
 } from 'react'
 import {
-  SentinelAuthz,
-  type SentinelAuthzConfig,
-  type SentinelUser,
+  DuarAuthz,
+  type DuarAuthzConfig,
+  type DuarUser,
   type AuthzResolveResponse,
   type AuthState,
-} from '@sentinel-auth/js'
+} from '@duar-auth/js'
 
 export interface AuthzContextValue {
-  client: SentinelAuthz
-  user: SentinelUser | null
+  client: DuarAuthz
+  user: DuarUser | null
   isLoading: boolean
   isAuthenticated: boolean
   /**
@@ -41,8 +41,8 @@ export interface AuthzContextValue {
 const AuthzContext = createContext<AuthzContextValue | null>(null)
 
 export interface AuthzProviderProps {
-  config?: SentinelAuthzConfig
-  client?: SentinelAuthz
+  config?: DuarAuthzConfig
+  client?: DuarAuthz
   /**
    * When true, automatically attempt a silent (``prompt=none``) re-auth on
    * mount if the session is in the ``needs_reauth`` state (e.g. after a page
@@ -60,15 +60,15 @@ export function AuthzProvider({
   autoReauth = false,
   children,
 }: AuthzProviderProps) {
-  const clientRef = useRef<SentinelAuthz | null>(externalClient ?? null)
+  const clientRef = useRef<DuarAuthz | null>(externalClient ?? null)
   if (!clientRef.current) {
     if (!config) throw new Error('AuthzProvider requires either config or client prop')
-    clientRef.current = new SentinelAuthz(config)
+    clientRef.current = new DuarAuthz(config)
   }
   const client = clientRef.current
   const ownsClient = !externalClient
 
-  const [user, setUser] = useState<SentinelUser | null>(() => client.getUser())
+  const [user, setUser] = useState<DuarUser | null>(() => client.getUser())
   const [authState, setAuthState] = useState<AuthState>(() => client.getAuthState())
   const [isLoading, setIsLoading] = useState(true)
 

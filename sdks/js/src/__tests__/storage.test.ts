@@ -34,10 +34,10 @@ describe('LocalStorageStore', () => {
     expect(store.getRefreshToken()).toBeNull()
   })
 
-  it('uses sentinel_ prefix in localStorage', () => {
+  it('uses duar_ prefix in localStorage', () => {
     store.setTokens('a', 'r')
-    expect(localStorage.setItem).toHaveBeenCalledWith('sentinel_access_token', 'a')
-    expect(localStorage.setItem).toHaveBeenCalledWith('sentinel_refresh_token', 'r')
+    expect(localStorage.setItem).toHaveBeenCalledWith('duar_access_token', 'a')
+    expect(localStorage.setItem).toHaveBeenCalledWith('duar_refresh_token', 'r')
   })
 })
 

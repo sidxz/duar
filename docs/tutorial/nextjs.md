@@ -2,7 +2,7 @@
 
 Build the same Team Notes app from the [React tutorial](react.md), but with a Next.js App Router frontend. Same backend, different frontend stack.
 
-**What you'll build:** A Next.js frontend with Edge Middleware for route protection, server components for data fetching, and client components for interactive UI -- all using `@sentinel-auth/nextjs`.
+**What you'll build:** A Next.js frontend with Edge Middleware for route protection, server components for data fetching, and client components for interactive UI -- all using `@duar-auth/nextjs`.
 
 ## Prerequisites
 
@@ -22,22 +22,22 @@ If you haven't built it yet, follow [React tutorial Steps 1-3](react.md#step-1-b
 ```bash
 npx create-next-app@latest frontend --app --typescript --tailwind
 cd frontend
-npm install @sentinel-auth/js @sentinel-auth/nextjs
+npm install @duar-auth/js @duar-auth/nextjs
 ```
 
 ### Auth Client
 
-Create a shared `SentinelAuthz` instance. This is the same client from the React tutorial -- `@sentinel-auth/nextjs` re-exports the React hooks and wraps them with Next.js-specific helpers.
+Create a shared `DuarAuthz` instance. This is the same client from the React tutorial -- `@duar-auth/nextjs` re-exports the React hooks and wraps them with Next.js-specific helpers.
 
 ```typescript
 // lib/auth.ts
-import { SentinelAuthz, IdpConfigs } from "@sentinel-auth/js";
+import { DuarAuthz, IdpConfigs } from "@duar-auth/js";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:9200";
 
-export const authzClient = new SentinelAuthz({
-  sentinelUrl: process.env.NEXT_PUBLIC_SENTINEL_URL || "http://localhost:9003",
-  // Mint endpoint on YOUR backend. Browsers do not hold the Sentinel service
+export const authzClient = new DuarAuthz({
+  duarUrl: process.env.NEXT_PUBLIC_DUAR_URL || "http://localhost:9003",
+  // Mint endpoint on YOUR backend. Browsers do not hold the Duar service
   // key; this route forwards the mint call server-to-server.
   mintEndpoint: `${BACKEND_URL}/auth/mint`,
   idps: {
@@ -50,7 +50,7 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
 }
 ```
 
-Pair this with a Next.js Route Handler (or a FastAPI route on the team-notes backend) that accepts `POST /auth/mint` and proxies to Sentinel with the service key — see [AuthZ Client docs](../js-sdk/authz-client.md#backend-mint-route) for the full snippet.
+Pair this with a Next.js Route Handler (or a FastAPI route on the team-notes backend) that accepts `POST /auth/mint` and proxies to Duar with the service key — see [AuthZ Client docs](../js-sdk/authz-client.md#backend-mint-route) for the full snippet.
 
 ## Step 3: Edge Middleware
 
@@ -58,10 +58,10 @@ Protect routes at the edge. Unauthenticated users are redirected to `/login`.
 
 ```typescript
 // middleware.ts
-import { createSentinelAuthzMiddleware } from "@sentinel-auth/nextjs/authz-middleware";
+import { createDuarAuthzMiddleware } from "@duar-auth/nextjs/authz-middleware";
 
-export default createSentinelAuthzMiddleware({
-  sentinelUrl: process.env.SENTINEL_URL!,
+export default createDuarAuthzMiddleware({
+  duarUrl: process.env.DUAR_URL!,
   idpJwksUrl: "https://www.googleapis.com/oauth2/v3/certs",
   idpAudience: process.env.GOOGLE_CLIENT_ID!,
   idpIssuer: "https://accounts.google.com",
@@ -83,7 +83,7 @@ Wrap the app in `AuthzProvider` so hooks work in client components.
 
 ```tsx
 // app/layout.tsx
-import { AuthzProvider } from "@sentinel-auth/nextjs";
+import { AuthzProvider } from "@duar-auth/nextjs";
 import { authzClient } from "@/lib/auth";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -106,7 +106,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 ```tsx
 // app/login/page.tsx
 "use client";
-import { useAuthz } from "@sentinel-auth/nextjs";
+import { useAuthz } from "@duar-auth/nextjs";
 
 export default function LoginPage() {
   const { login } = useAuthz();
@@ -119,7 +119,7 @@ export default function LoginPage() {
 ```tsx
 // app/auth/callback/page.tsx
 "use client";
-import { AuthzCallback } from "@sentinel-auth/nextjs";
+import { AuthzCallback } from "@duar-auth/nextjs";
 import { useRouter } from "next/navigation";
 
 export default function CallbackPage() {
@@ -149,7 +149,7 @@ A client component that uses `useAuthzUser()` for role checks and `apiFetch` for
 ```tsx
 // app/notes/page.tsx
 "use client";
-import { useAuthzUser } from "@sentinel-auth/nextjs";
+import { useAuthzUser } from "@duar-auth/nextjs";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/auth";
 import Link from "next/link";
@@ -230,10 +230,10 @@ cd frontend && npm run dev
 
 | Component | React version | Next.js version |
 |-----------|--------------|-----------------|
-| Provider | `AuthzProvider` from `@sentinel-auth/react` | `AuthzProvider` from `@sentinel-auth/nextjs` |
-| Route guard | `AuthzGuard` in JSX | `withSentinelAuthz` Edge Middleware |
-| Hooks | `useAuthz`, `useAuthzUser` from `@sentinel-auth/react` | Same hooks from `@sentinel-auth/nextjs` |
-| Callback | `AuthzCallback` from `@sentinel-auth/react` | `AuthzCallback` from `@sentinel-auth/nextjs` |
+| Provider | `AuthzProvider` from `@duar-auth/react` | `AuthzProvider` from `@duar-auth/nextjs` |
+| Route guard | `AuthzGuard` in JSX | `withDuarAuthz` Edge Middleware |
+| Hooks | `useAuthz`, `useAuthzUser` from `@duar-auth/react` | Same hooks from `@duar-auth/nextjs` |
+| Callback | `AuthzCallback` from `@duar-auth/react` | `AuthzCallback` from `@duar-auth/nextjs` |
 | Data fetching | React Query + `apiFetch` | `apiFetch` (or React Query) |
 
 The backend is identical. The authorization model (three tiers) is backend-enforced and frontend-agnostic.

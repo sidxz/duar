@@ -5,7 +5,7 @@ export { RoleClient } from './roles'
 export { verifyM2mToken, fetchWhoami, M2mTokenClient } from './m2m'
 
 export type {
-  SentinelUser,
+  DuarUser,
   WorkspaceRole,
   JWTPayload,
   VerifyOptions,

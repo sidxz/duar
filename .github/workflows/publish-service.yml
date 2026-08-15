@@ -36,5 +36,5 @@ jobs:
           context: service/
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/sentinel:${{ steps.version.outputs.VERSION }}
-            ghcr.io/${{ github.repository_owner }}/sentinel:latest
+            ghcr.io/${{ github.repository_owner }}/duar:${{ steps.version.outputs.VERSION }}
+            ghcr.io/${{ github.repository_owner }}/duar:latest

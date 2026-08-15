@@ -1,13 +1,13 @@
 // ── Config ──────────────────────────────────────────────────────────
 
-export interface SentinelConfig {
-  /** Base URL of the Sentinel identity service (e.g. "http://localhost:9003") */
-  sentinelUrl: string
+export interface DuarConfig {
+  /** Base URL of the Duar identity service (e.g. "http://localhost:9003") */
+  duarUrl: string
   /**
-   * The Sentinel ClientApp ID (UUID) this frontend is registered as. Required —
+   * The Duar ClientApp ID (UUID) this frontend is registered as. Required —
    * the login flow binds this ID to the chosen redirect URI so a crafted link
    * cannot redirect a victim's login to a different app's callback. Obtain from
-   * the Sentinel admin panel.
+   * the Duar admin panel.
    */
   clientId: string
   /** OAuth redirect URI. Defaults to `${window.location.origin}/auth/callback` */
@@ -49,7 +49,7 @@ export interface WorkspaceOption {
 
 export type WorkspaceRole = 'owner' | 'admin' | 'editor' | 'viewer'
 
-export interface SentinelUser {
+export interface DuarUser {
   userId: string
   email: string
   name: string
@@ -167,7 +167,7 @@ export interface WhoamiResponse {
 }
 
 export interface M2mVerifyOptions {
-  /** JWKS URL of the Sentinel that signs m2m tokens. */
+  /** JWKS URL of the Duar that signs m2m tokens. */
   jwksUrl: string
   /** This service's shared scope (realm slug). The token's `svc` must equal it. */
   effectiveScope: string
@@ -177,7 +177,7 @@ export interface M2mVerifyOptions {
   issuer?: string
 }
 
-/** No-user in-realm caller context — the counterpart to a SentinelUser. */
+/** No-user in-realm caller context — the counterpart to a DuarUser. */
 export interface SystemAuth {
   caller: string
   actions: string[]

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add the no-user realm token primitive and the two service-facing realm endpoints — `GET /realm/whoami` (SDK scope self-discovery) and `POST /realm/m2m-token` (mint a short-lived `sentinel:m2m` token) — so a realm member can credential a background, no-human app↔app call entirely through Sentinel.
+**Goal:** Add the no-user realm token primitive and the two service-facing realm endpoints — `GET /realm/whoami` (SDK scope self-discovery) and `POST /realm/m2m-token` (mint a short-lived `sentinel:m2m` token) — so a realm member can credential a background, no-human app↔app call entirely through Duar.
 
 **Architecture:** A new `sentinel:m2m` JWT audience + `create_m2m_token()` mints a token carrying **service identity only** (no `sub`/user claims). A new `/realm` router (service-key-only) exposes `whoami` (returns `service_name`, `effective_scope`, and the realm if any) and `m2m-token` (server-stamps `caller`/`svc` from the authenticated key, mints under the realm's `m2m_ttl_s`, rejects non-members and inactive realms). The token's `svc` is the realm slug (`effective_scope`), so any member accepts it; receiver-side acceptance lives in the SDK (Plan 5).
 
@@ -446,7 +446,7 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'src.api.realm_routes'`
 Both endpoints require a service key (``require_service_key``). ``whoami`` lets the
 SDK self-discover its shared ``effective_scope`` with no app-side config.
 ``m2m-token`` mints a short-lived no-user realm token: the caller proves itself with
-its service key, Sentinel server-stamps the token's ``caller``/``svc`` from that key
+its service key, Duar server-stamps the token's ``caller``/``svc`` from that key
 (never client-asserted), so a leaked key can only mint its own member's token — it
 cannot impersonate another member or jump realms.
 

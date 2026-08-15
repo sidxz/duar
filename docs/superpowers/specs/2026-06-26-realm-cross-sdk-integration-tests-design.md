@@ -3,7 +3,7 @@
 **Date:** 2026-06-26
 **Status:** Approved (design)
 **Branch:** `realm-trusted-app-group`
-**Task:** Add integration tests that exercise the **real** Sentinel token minters against the **real** SDK verifiers — in Python and JS — to prove realm Flow A (shared user-context) and Flow B (no-user m2m) hold end-to-end across a Python app and a JS app in one realm. Deferred from Plans 5–6 (the unit suites are mock-only).
+**Task:** Add integration tests that exercise the **real** Duar token minters against the **real** SDK verifiers — in Python and JS — to prove realm Flow A (shared user-context) and Flow B (no-user m2m) hold end-to-end across a Python app and a JS app in one realm. Deferred from Plans 5–6 (the unit suites are mock-only).
 
 ## Problem — what the existing suites do NOT cover
 
@@ -25,7 +25,7 @@ The value of this work is closing exactly those two gaps — **not** re-testing 
 
 - **No two-process / live-listener e2e** (no uvicorn, no real ports, no Postgres/Redis). Rejected in brainstorming as ops-heavy and flaky in the network sandbox.
 - **No re-testing of the SDK's own HTTP client** (`fetch_whoami`, `mint_m2m_token`, `M2mTokenClient.getToken`) — already covered by respx (Python) and fetch-mock (JS) unit tests. The SDK's HTTP client cannot take an injected transport, and a loopback uvicorn fixture would add flakiness for no new coverage.
-- **No `nextjs` test** — `@sentinel-auth/nextjs` has no unit harness and only **re-exports** `@sentinel-auth/js`'s m2m helpers, which this design covers at the source.
+- **No `nextjs` test** — `@duar-auth/nextjs` has no unit harness and only **re-exports** `@duar-auth/js`'s m2m helpers, which this design covers at the source.
 - No exercise of the DB-heavy `/authz/resolve` endpoint (it has its own tests); Flow A's authz token is produced by calling the real `create_authz_token` minter directly.
 
 ## Architecture — three pieces
@@ -56,9 +56,9 @@ Regenerated via a `make` target (e.g. `make realm-fixtures`) when the token shap
 
 `test_realm_flows.py` — pure in-process (TestClient = httpx against ASGI, **no socket**), reusing the `test_realm_routes.py` override pattern (override `require_service_key` → `ServiceKeyContext(service_name=..., realm_slug=...)`, `get_db` → yields `None`, monkeypatch `realm_service.get_realm_by_slug` → a fake `_Realm`, disable the limiter).
 
-- **Flow B (live):** `TestClient.post("/realm/m2m-token")` drives the **real** handler → a **real** m2m token. The test reads the token's `kid` header and pulls the matching public PEM from `key_provider.verification_keys()[kid]` — so it feeds the SDK the actual signing key, with **no env/keypair wrangling**. It constructs the real SDK `Sentinel`, sets `_sentinel_public_key` = that PEM and `_effective_scope = "acme-suite"`, then asserts `verify_m2m_token(token)` → `SystemAuth(caller="…", svc="acme-suite", actions=["*"])`.
+- **Flow B (live):** `TestClient.post("/realm/m2m-token")` drives the **real** handler → a **real** m2m token. The test reads the token's `kid` header and pulls the matching public PEM from `key_provider.verification_keys()[kid]` — so it feeds the SDK the actual signing key, with **no env/keypair wrangling**. It constructs the real SDK `Duar`, sets `_duar_public_key` = that PEM and `_effective_scope = "acme-suite"`, then asserts `verify_m2m_token(token)` → `SystemAuth(caller="…", svc="acme-suite", actions=["*"])`.
   - Negatives: wrong-realm (`_effective_scope` mismatch), expired (`ttl_s=-10` via the minter), non-member (mint returns 403), wrong-aud (an authz token rejected by `verify_m2m_token`), `aud_target` mismatch.
-- **Flow A (contract):** call the real `create_authz_token(service_name="acme-suite", …)` for the authz token + a fake IdP token signed by an in-test IdP keypair (mirrors `test_authz_effective_scope.py`'s two-keypair `TestClient` setup). The real `AuthzMiddleware` (static-key mode, `sentinel_public_key` = the signing key's public PEM via `key_provider`, `idp_public_key` = the test IdP pub, `effective_scope` via the `_FakeInstance` stub) accepts it; a token minted with `service_name="other"` is rejected (403).
+- **Flow A (contract):** call the real `create_authz_token(service_name="acme-suite", …)` for the authz token + a fake IdP token signed by an in-test IdP keypair (mirrors `test_authz_effective_scope.py`'s two-keypair `TestClient` setup). The real `AuthzMiddleware` (static-key mode, `duar_public_key` = the signing key's public PEM via `key_provider`, `idp_public_key` = the test IdP pub, `effective_scope` via the `_FakeInstance` stub) accepts it; a token minted with `service_name="other"` is rejected (403).
 - **Fixture freshness guard:** load the committed `fixtures.json`, feed its `public_pem` to the SDK, and assert `m2m_valid` verifies to a `SystemAuth` while `m2m_expired`/`m2m_wrong_realm`/`m2m_aud_target`/`wrong_aud` each reject. If the service minter changes shape and `fixtures.json` is not regenerated, this fails — protecting the JS fixture from silent staleness. (One test file doubles as the guard; no separate mechanism.)
 
 ### 3. JS integration test — real crypto (`sdks/js/src/__tests__/realm-integration.test.ts`)
@@ -78,7 +78,7 @@ A **separate** test file that does **not** `vi.mock('jose')` — real `jose`. It
 
 ## Env wiring
 
-The Python integration test imports both `src.*` (service) and `sentinel_auth` (SDK) in one process. **Update (verified at plan time): no dependency change is needed** — the root `daikon-sentinel` workspace already depends on both `sentinel-auth` and `sentinel-auth-sdk` (`[tool.uv.sources] … { workspace = true }`), so the shared workspace venv already exposes `sentinel_auth` in the service test run (`cd service && uv run python -c "import sentinel_auth, src.auth.jwt"` succeeds). The earlier "add a dev-dep" plan is a no-op and is dropped. The JS test runs in the existing `sdks/js` vitest harness; it only reads the committed JSON (no new dependency).
+The Python integration test imports both `src.*` (service) and `duar_auth` (SDK) in one process. **Update (verified at plan time): no dependency change is needed** — the root `daikon-duar` workspace already depends on both `duar` and `duar-auth` (`[tool.uv.sources] … { workspace = true }`), so the shared workspace venv already exposes `duar_auth` in the service test run (`cd service && uv run python -c "import duar_auth, src.auth.jwt"` succeeds). The earlier "add a dev-dep" plan is a no-op and is dropped. The JS test runs in the existing `sdks/js` vitest harness; it only reads the committed JSON (no new dependency).
 
 ## Keypair handling — no committed private key
 

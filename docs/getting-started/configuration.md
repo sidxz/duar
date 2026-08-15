@@ -15,7 +15,7 @@ cp .env.prod.example .env.prod       # production deployment
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DATABASE_URL` | `postgresql+asyncpg://identity:identity_dev@localhost:9001/identity?ssl=require` | Async PostgreSQL connection string. Must use the `asyncpg` driver. |
-| `REDIS_URL` | `rediss://:sentinel_dev@localhost:9002/0` | Redis connection string. Use `rediss://` for TLS. |
+| `REDIS_URL` | `rediss://:duar_dev@localhost:9002/0` | Redis connection string. Use `rediss://` for TLS. |
 | `REDIS_TLS_CA_CERT` | `""` | Path to CA cert for Redis TLS verification (e.g. `keys/tls/ca.crt`). |
 | `REDIS_TLS_VERIFY` | `none` | `"none"` or `"required"`. Set to `"required"` in production. |
 
@@ -72,7 +72,7 @@ The provider identifier is `entra_id` (not `entra`) everywhere: callback paths, 
 These callbacks are only used for the admin panel's server-side OAuth flow. In AuthZ mode, your frontend authenticates directly with the IdP.
 
 !!! note "Entra ID: email claim"
-    Entra omits the `email` claim for managed work accounts unless the app registration adds it as an **optional claim** (Token configuration → Add optional claim → ID → `email`). Without it Sentinel falls back to `preferred_username` (the UPN) when that is address-shaped; if neither is present, sign-in is refused with an actionable error. Entra also emits no `email_verified` claim — see [Authentication](../guide/authentication.md#supported-idps).
+    Entra omits the `email` claim for managed work accounts unless the app registration adds it as an **optional claim** (Token configuration → Add optional claim → ID → `email`). Without it Duar falls back to `preferred_username` (the UPN) when that is address-shaped; if neither is present, sign-in is refused with an actionable error. Entra also emits no `email_verified` claim — see [Authentication](../guide/authentication.md#supported-idps).
 
 ---
 
@@ -82,7 +82,7 @@ These callbacks are only used for the admin panel's server-side OAuth flow. In A
 |----------|---------|-------------|
 | `SERVICE_HOST` | `0.0.0.0` | Host address the service binds to. |
 | `SERVICE_PORT` | `9003` | Port the service listens on. |
-| `BASE_URL` | `http://localhost:9003` | Public URL of Sentinel. Used for OAuth callback URLs and JWKS endpoint. |
+| `BASE_URL` | `http://localhost:9003` | Public URL of Duar. Used for OAuth callback URLs and JWKS endpoint. |
 | `FRONTEND_URL` | `http://localhost:3000` | Default frontend URL for post-login redirects. |
 
 ---
@@ -97,7 +97,7 @@ These callbacks are only used for the admin panel's server-side OAuth flow. In A
 | `ALLOWED_HOSTS` | `""` | Comma-separated hostnames. Empty = derived from `BASE_URL` + `ADMIN_URL`. |
 | `DEBUG` | `false` | Enables `/docs` and `/redoc` Swagger UI. Relaxes startup validation. |
 | `BEHIND_PROXY` | `false` | Set `true` behind a reverse proxy (nginx, ALB). Enables `X-Forwarded-For` for rate limiting. |
-| `TRUSTED_PROXY_COUNT` | `1` | Number of trusted reverse-proxy hops in front of Sentinel. Must match your actual topology (e.g. `2` for CDN + nginx). Incorrect values collapse all clients into one IP bucket. |
+| `TRUSTED_PROXY_COUNT` | `1` | Number of trusted reverse-proxy hops in front of Duar. Must match your actual topology (e.g. `2` for CDN + nginx). Incorrect values collapse all clients into one IP bucket. |
 
 ---
 
@@ -124,7 +124,7 @@ These callbacks are only used for the admin panel's server-side OAuth flow. In A
 - `REDIS_TLS_VERIFY=required`
 - `DEBUG=false`
 - `BEHIND_PROXY=true` + `TRUSTED_PROXY_COUNT` matching the real proxy hop count (default `1`; verify per deploy -- a wrong value collapses all clients into one rate-limit bucket)
-- Edge rate limiting (nginx/Cloudflare/ALB) in front of Sentinel -- required for volumetric/bad-auth defense (the app-layer aggregate does not cover decorated routes)
+- Edge rate limiting (nginx/Cloudflare/ALB) in front of Duar -- required for volumetric/bad-auth defense (the app-layer aggregate does not cover decorated routes)
 
 ---
 

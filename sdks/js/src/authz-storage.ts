@@ -1,6 +1,6 @@
 import type { AuthzTokenStore, UserIdentity } from './authz-types'
 
-const PREFIX = 'sentinel_'
+const PREFIX = 'duar_'
 
 /**
  * Authz token storage using browser localStorage — the authz token plus

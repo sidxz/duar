@@ -1,10 +1,10 @@
 [project]
-name = "daikon-sentinel"
+name = "duar"
 version = "0.1.0"
-description = "Sentinel Auth — authentication, workspace management & permissions microservice"
+description = "Duar — authentication, workspace management & permissions microservice"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["sentinel-auth", "sentinel-auth-sdk", "uvicorn[standard]>=0.34.0"]
+dependencies = ["duar-service", "duar-auth", "uvicorn[standard]>=0.34.0"]
 
 [project.optional-dependencies]
 dev = [
@@ -23,8 +23,8 @@ docs = [
 ]
 
 [tool.uv.sources]
-sentinel-auth = { workspace = true }
-sentinel-auth-sdk = { workspace = true }
+duar-service = { workspace = true }
+duar-auth = { workspace = true }
 
 [tool.uv.workspace]
 members = ["service", "sdk"]

@@ -3,7 +3,7 @@
 Both endpoints require a service key (``require_service_key``). ``whoami`` lets the
 SDK self-discover its shared ``effective_scope`` with no app-side config.
 ``m2m-token`` mints a short-lived no-user realm token: the caller proves itself with
-its service key, Sentinel server-stamps the token's ``caller``/``svc`` from that key
+its service key, Duar server-stamps the token's ``caller``/``svc`` from that key
 (never client-asserted), so a leaked key can only mint its own member's token — it
 cannot impersonate another member or jump realms.
 

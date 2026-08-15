@@ -12,11 +12,11 @@ import uuid
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from sentinel_auth.types import AuthenticatedUser, SentinelError
+from duar_auth.types import AuthenticatedUser, DuarError
 
 if TYPE_CHECKING:
-    from sentinel_auth.permissions import PermissionClient
-    from sentinel_auth.roles import RoleClient
+    from duar_auth.permissions import PermissionClient
+    from duar_auth.roles import RoleClient
 
 
 @dataclass
@@ -25,7 +25,7 @@ class RequestAuth:
 
     The raw JWT token is stored privately and never exposed in ``repr``.
     Authorization methods (``can``, ``check_action``, ``accessible``) use it
-    internally when calling Sentinel APIs.
+    internally when calling Duar APIs.
 
     Attributes:
         user: The authenticated user from JWT claims.
@@ -95,25 +95,25 @@ class RequestAuth:
         resource_id: uuid.UUID,
         action: str,
     ) -> bool:
-        """Check entity-level permission via Sentinel's Zanzibar API.
+        """Check entity-level permission via Duar's Zanzibar API.
 
         Results are deduplicated within the same request — calling ``can()``
         twice with the same arguments makes only one HTTP call.
         """
         if self._permissions is None:
-            raise SentinelError("PermissionClient not configured on this RequestAuth")
+            raise DuarError("PermissionClient not configured on this RequestAuth")
         key = ("can", resource_type, resource_id, action)
         if key not in self._request_cache:
             self._request_cache[key] = await self._permissions.can(self._token, resource_type, resource_id, action)
         return self._request_cache[key]
 
     async def check_action(self, action: str) -> bool:
-        """Check RBAC action via Sentinel's role API.
+        """Check RBAC action via Duar's role API.
 
         Results are deduplicated within the same request.
         """
         if self._roles is None:
-            raise SentinelError("RoleClient not configured on this RequestAuth")
+            raise DuarError("RoleClient not configured on this RequestAuth")
         key = ("check_action", action)
         if key not in self._request_cache:
             self._request_cache[key] = await self._roles.check_action(self._token, action, self.user.workspace_id)
@@ -131,7 +131,7 @@ class RequestAuth:
         within the same request.
         """
         if self._permissions is None:
-            raise SentinelError("PermissionClient not configured on this RequestAuth")
+            raise DuarError("PermissionClient not configured on this RequestAuth")
         key = ("accessible", resource_type, action, limit)
         if key not in self._request_cache:
             self._request_cache[key] = await self._permissions.accessible(
@@ -151,7 +151,7 @@ class RequestAuth:
     ) -> dict:
         """Register a new resource ACL (uses service key + user context)."""
         if self._permissions is None:
-            raise SentinelError("PermissionClient not configured on this RequestAuth")
+            raise DuarError("PermissionClient not configured on this RequestAuth")
         return await self._permissions.register_resource(
             resource_type=resource_type,
             resource_id=resource_id,
@@ -170,7 +170,7 @@ class RequestAuth:
     ) -> dict:
         """Share a resource with a user or group."""
         if self._permissions is None:
-            raise SentinelError("PermissionClient not configured on this RequestAuth")
+            raise DuarError("PermissionClient not configured on this RequestAuth")
         return await self._permissions.share(
             self._token,
             resource_type,
@@ -190,7 +190,7 @@ class RequestAuth:
     ) -> dict:
         """Revoke a share on a resource."""
         if self._permissions is None:
-            raise SentinelError("PermissionClient not configured on this RequestAuth")
+            raise DuarError("PermissionClient not configured on this RequestAuth")
         return await self._permissions.unshare(
             self._token,
             resource_type,
@@ -208,7 +208,7 @@ class RequestAuth:
     ) -> dict:
         """Update resource visibility (private/workspace)."""
         if self._permissions is None:
-            raise SentinelError("PermissionClient not configured on this RequestAuth")
+            raise DuarError("PermissionClient not configured on this RequestAuth")
         return await self._permissions.update_visibility(
             self._token,
             resource_type,
@@ -223,7 +223,7 @@ class RequestAuth:
     ) -> dict:
         """Get the full ACL record for a resource, including shares."""
         if self._permissions is None:
-            raise SentinelError("PermissionClient not configured on this RequestAuth")
+            raise DuarError("PermissionClient not configured on this RequestAuth")
         return await self._permissions.get_resource_acl(resource_type, resource_id)
 
     async def get_enriched_resource_acl(
@@ -233,7 +233,7 @@ class RequestAuth:
     ) -> dict:
         """Get ACL with user profiles resolved inline (names, emails)."""
         if self._permissions is None:
-            raise SentinelError("PermissionClient not configured on this RequestAuth")
+            raise DuarError("PermissionClient not configured on this RequestAuth")
         return await self._permissions.get_enriched_resource_acl(resource_type, resource_id)
 
     # -- Workspace / group helpers (auto-inject workspace_id from JWT) --------
@@ -245,7 +245,7 @@ class RequestAuth:
     ) -> list[dict]:
         """Search workspace members by name or email."""
         if self._permissions is None:
-            raise SentinelError("PermissionClient not configured on this RequestAuth")
+            raise DuarError("PermissionClient not configured on this RequestAuth")
         return await self._permissions.search_workspace_members(
             self._token,
             self.user.workspace_id,
@@ -259,7 +259,7 @@ class RequestAuth:
     ) -> list[dict]:
         """List all members of the current workspace."""
         if self._permissions is None:
-            raise SentinelError("PermissionClient not configured on this RequestAuth")
+            raise DuarError("PermissionClient not configured on this RequestAuth")
         return await self._permissions.search_workspace_members(
             self._token,
             self.user.workspace_id,
@@ -270,13 +270,13 @@ class RequestAuth:
     async def list_groups(self) -> list[dict]:
         """List groups in the current workspace."""
         if self._permissions is None:
-            raise SentinelError("PermissionClient not configured on this RequestAuth")
+            raise DuarError("PermissionClient not configured on this RequestAuth")
         return await self._permissions.list_groups(self._token, self.user.workspace_id)
 
     async def get_group_members(self, group_id: uuid.UUID) -> list[dict]:
         """List members of a group in the current workspace."""
         if self._permissions is None:
-            raise SentinelError("PermissionClient not configured on this RequestAuth")
+            raise DuarError("PermissionClient not configured on this RequestAuth")
         return await self._permissions.get_group_members(
             self._token,
             self.user.workspace_id,
@@ -289,8 +289,8 @@ class SystemAuth:
     """Per-request context for a no-user (machine-to-machine) in-realm call.
 
     The no-user counterpart to :class:`RequestAuth`. It is produced by
-    ``Sentinel.verify_m2m_token`` after a ``type=m2m`` token (``aud=sentinel:m2m``)
-    passes Sentinel's RS256 signature + realm-scope checks. It carries service
+    ``Duar.verify_m2m_token`` after a ``type=m2m`` token (``aud=sentinel:m2m``)
+    passes Duar's RS256 signature + realm-scope checks. It carries service
     identity only — never a user:
 
     - ``caller``: the realm member that minted the token (server-stamped, for audit).

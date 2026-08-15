@@ -1,5 +1,5 @@
 import { useContext } from 'react'
-import type { SentinelUser, WorkspaceRole } from '@sentinel-auth/js'
+import type { DuarUser, WorkspaceRole } from '@duar-auth/js'
 import { AuthzContext, type AuthzContextValue } from './authz-provider'
 
 const ROLE_HIERARCHY: WorkspaceRole[] = ['viewer', 'editor', 'admin', 'owner']
@@ -12,7 +12,7 @@ export function useAuthz(): AuthzContextValue {
   return ctx
 }
 
-export function useAuthzUser(): SentinelUser {
+export function useAuthzUser(): DuarUser {
   const { user } = useAuthz()
   if (!user) {
     throw new Error('useAuthzUser: no authenticated user')

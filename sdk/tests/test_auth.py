@@ -7,10 +7,10 @@ import httpx
 import pytest
 import respx
 
-from sentinel_auth.auth import RequestAuth
-from sentinel_auth.permissions import PermissionClient
-from sentinel_auth.roles import RoleClient
-from sentinel_auth.types import AuthenticatedUser, SentinelError
+from duar_auth.auth import RequestAuth
+from duar_auth.permissions import PermissionClient
+from duar_auth.roles import RoleClient
+from duar_auth.types import AuthenticatedUser, DuarError
 
 
 def _make_user(role: str = "editor") -> AuthenticatedUser:
@@ -95,30 +95,30 @@ class TestHasRole:
 
 
 class TestCanWithoutClient:
-    async def test_raises_sentinel_error(self):
+    async def test_raises_duar_error(self):
         auth = RequestAuth(user=_make_user(), _token=TOKEN)
-        with pytest.raises(SentinelError, match="PermissionClient not configured"):
+        with pytest.raises(DuarError, match="PermissionClient not configured"):
             await auth.can("document", RES_ID, "view")
 
 
 class TestCheckActionWithoutClient:
-    async def test_raises_sentinel_error(self):
+    async def test_raises_duar_error(self):
         auth = RequestAuth(user=_make_user(), _token=TOKEN)
-        with pytest.raises(SentinelError, match="RoleClient not configured"):
+        with pytest.raises(DuarError, match="RoleClient not configured"):
             await auth.check_action("reports:export")
 
 
 class TestAccessibleWithoutClient:
-    async def test_raises_sentinel_error(self):
+    async def test_raises_duar_error(self):
         auth = RequestAuth(user=_make_user(), _token=TOKEN)
-        with pytest.raises(SentinelError, match="PermissionClient not configured"):
+        with pytest.raises(DuarError, match="PermissionClient not configured"):
             await auth.accessible("document", "view")
 
 
 class TestRegisterResourceWithoutClient:
-    async def test_raises_sentinel_error(self):
+    async def test_raises_duar_error(self):
         auth = RequestAuth(user=_make_user(), _token=TOKEN)
-        with pytest.raises(SentinelError, match="PermissionClient not configured"):
+        with pytest.raises(DuarError, match="PermissionClient not configured"):
             await auth.register_resource("document", RES_ID)
 
 

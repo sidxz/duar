@@ -1,11 +1,11 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createRemoteJWKSet, jwtVerify } from 'jose'
-import { verifyToken } from '@sentinel-auth/js/server'
+import { verifyToken } from '@duar-auth/js/server'
 import { encodeHeaderValue } from './header-codec'
 
-export interface SentinelAuthzMiddlewareConfig {
-  /** Base URL of the Sentinel service. Derives /.well-known/jwks.json for authz token verification. */
-  sentinelUrl: string
+export interface DuarAuthzMiddlewareConfig {
+  /** Base URL of the Duar service. Derives /.well-known/jwks.json for authz token verification. */
+  duarUrl: string
   /** JWKS URL for IdP token verification (e.g. Google's JWKS endpoint). */
   idpJwksUrl: string
   /**
@@ -25,14 +25,14 @@ export interface SentinelAuthzMiddlewareConfig {
   /**
    * Realm slug (this service's shared scope). When set, the authz token's `svc`
    * may equal either `serviceName` or this. Realm members resolve it once at
-   * startup via `fetchWhoami` from `@sentinel-auth/js/server`. Omit for standalone.
+   * startup via `fetchWhoami` from `@duar-auth/js/server`. Omit for standalone.
    */
   effectiveScope?: string
   /** Paths that skip auth (e.g. ["/login", "/api/auth"]). */
   publicPaths?: string[]
   /** Redirect target for unauthenticated page requests. Defaults to "/login". */
   loginPath?: string
-  /** Expected JWT issuer for the authz token. Defaults to the origin of sentinelUrl. */
+  /** Expected JWT issuer for the authz token. Defaults to the origin of duarUrl. */
   issuer?: string
 }
 
@@ -59,9 +59,9 @@ function getJWKS(url: string) {
  *
  * Usage in `middleware.ts`:
  * ```ts
- * import { createSentinelAuthzMiddleware } from '@sentinel-auth/nextjs/authz-middleware'
- * export default createSentinelAuthzMiddleware({
- *   sentinelUrl: 'http://localhost:9003',
+ * import { createDuarAuthzMiddleware } from '@duar-auth/nextjs/authz-middleware'
+ * export default createDuarAuthzMiddleware({
+ *   duarUrl: 'http://localhost:9003',
  *   idpJwksUrl: 'https://www.googleapis.com/oauth2/v3/certs',
  *   idpAudience: process.env.GOOGLE_CLIENT_ID!,
  *   idpIssuer: 'https://accounts.google.com',
@@ -71,9 +71,9 @@ function getJWKS(url: string) {
  * export const config = { matcher: ['/((?!_next|favicon.ico).*)'] }
  * ```
  */
-export function createSentinelAuthzMiddleware(config: SentinelAuthzMiddlewareConfig) {
+export function createDuarAuthzMiddleware(config: DuarAuthzMiddlewareConfig) {
   const {
-    sentinelUrl,
+    duarUrl,
     idpJwksUrl,
     idpAudience,
     idpIssuer,
@@ -84,33 +84,33 @@ export function createSentinelAuthzMiddleware(config: SentinelAuthzMiddlewareCon
   } = config
 
   if (!serviceName) {
-    throw new Error('createSentinelAuthzMiddleware: serviceName is required')
+    throw new Error('createDuarAuthzMiddleware: serviceName is required')
   }
   if (!idpAudience || (Array.isArray(idpAudience) && idpAudience.length === 0)) {
-    throw new Error('createSentinelAuthzMiddleware: idpAudience is required')
+    throw new Error('createDuarAuthzMiddleware: idpAudience is required')
   }
 
-  const sentinelJwksUrl = `${sentinelUrl.replace(/\/+$/, '')}/.well-known/jwks.json`
-  const issuer = config.issuer ?? new URL(sentinelUrl).origin
+  const duarJwksUrl = `${duarUrl.replace(/\/+$/, '')}/.well-known/jwks.json`
+  const issuer = config.issuer ?? new URL(duarUrl).origin
 
-  const SENTINEL_HEADERS = [
-    'x-sentinel-user-id',
-    'x-sentinel-email',
-    'x-sentinel-name',
-    'x-sentinel-workspace-id',
-    'x-sentinel-workspace-slug',
-    'x-sentinel-workspace-role',
-    'x-sentinel-idp-sub',
+  const DUAR_HEADERS = [
+    'x-duar-user-id',
+    'x-duar-email',
+    'x-duar-name',
+    'x-duar-workspace-id',
+    'x-duar-workspace-slug',
+    'x-duar-workspace-role',
+    'x-duar-idp-sub',
   ] as const
 
   return async function middleware(req: NextRequest): Promise<NextResponse> {
     const { pathname } = req.nextUrl
 
-    // Strip any client-sent x-sentinel-* headers to prevent spoofing.
+    // Strip any client-sent x-duar-* headers to prevent spoofing.
     // This runs on ALL paths (public and protected) so that downstream
     // server components / route handlers can never see forged identity.
     const requestHeaders = new Headers(req.headers)
-    for (const h of SENTINEL_HEADERS) {
+    for (const h of DUAR_HEADERS) {
       requestHeaders.delete(h)
     }
 
@@ -135,7 +135,7 @@ export function createSentinelAuthzMiddleware(config: SentinelAuthzMiddlewareCon
     try {
       // Verify both tokens in parallel.
       // IdP token: signature + audience (+ optional issuer).
-      // Authz token: signature + audience via Sentinel's verifyToken.
+      // Authz token: signature + audience via Duar's verifyToken.
       const idpVerifyOptions: {
         audience: string | string[]
         issuer?: string
@@ -144,7 +144,7 @@ export function createSentinelAuthzMiddleware(config: SentinelAuthzMiddlewareCon
 
       const [idpResult, authzPayload] = await Promise.all([
         jwtVerify(idpToken, getJWKS(idpJwksUrl), idpVerifyOptions),
-        verifyToken(authzToken, { jwksUrl: sentinelJwksUrl, audience: 'sentinel:authz', issuer }),
+        verifyToken(authzToken, { jwksUrl: duarJwksUrl, audience: 'sentinel:authz', issuer }),
       ])
 
       const idpPayload = idpResult.payload
@@ -164,20 +164,20 @@ export function createSentinelAuthzMiddleware(config: SentinelAuthzMiddlewareCon
 
       // Forward verified user info in request headers for server components / route handlers
       // Identity (email, name) comes from IdP token; authorization from authz token
-      requestHeaders.set('x-sentinel-user-id', String(authzPayload.sub))
+      requestHeaders.set('x-duar-user-id', String(authzPayload.sub))
       // Email/name may contain code points >255 (ByteString limit) — encode.
       requestHeaders.set(
-        'x-sentinel-email',
+        'x-duar-email',
         encodeHeaderValue(String(idpPayload.email ?? '')),
       )
       requestHeaders.set(
-        'x-sentinel-name',
+        'x-duar-name',
         encodeHeaderValue(String(idpPayload.name ?? '')),
       )
-      requestHeaders.set('x-sentinel-workspace-id', String(authzPayload.wid))
-      requestHeaders.set('x-sentinel-workspace-slug', String(authzPayload.wslug))
-      requestHeaders.set('x-sentinel-workspace-role', String(authzPayload.wrole))
-      requestHeaders.set('x-sentinel-idp-sub', String(authzClaims.idp_sub))
+      requestHeaders.set('x-duar-workspace-id', String(authzPayload.wid))
+      requestHeaders.set('x-duar-workspace-slug', String(authzPayload.wslug))
+      requestHeaders.set('x-duar-workspace-role', String(authzPayload.wrole))
+      requestHeaders.set('x-duar-idp-sub', String(authzClaims.idp_sub))
 
       return NextResponse.next({ request: { headers: requestHeaders } })
     } catch {

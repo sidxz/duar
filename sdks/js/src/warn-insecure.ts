@@ -7,7 +7,7 @@ export function warnIfInsecure(url: string, context?: string): void {
     if (parsed.protocol === 'http:' && !SAFE_HOSTS.has(parsed.hostname)) {
       const label = context ? ` (${context})` : ''
       console.warn(
-        `[sentinel-auth]${label} Connecting over plain HTTP to ${parsed.hostname}. ` +
+        `[duar]${label} Connecting over plain HTTP to ${parsed.hostname}. ` +
           'Use HTTPS in production to protect tokens and credentials.',
       )
     }

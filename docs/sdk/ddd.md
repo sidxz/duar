@@ -1,6 +1,6 @@
 # DDD / Clean Architecture
 
-Integrate Sentinel into applications that follow Domain-Driven Design, Clean Architecture, or similar layered patterns — where inner layers must remain framework-agnostic.
+Integrate Duar into applications that follow Domain-Driven Design, Clean Architecture, or similar layered patterns — where inner layers must remain framework-agnostic.
 
 The key concept is **`RequestAuth`** — a per-request object that bundles authenticated user identity with token-backed authorization methods. It satisfies any `Protocol` your application layer defines via structural typing, so your domain and application layers never import the SDK.
 
@@ -24,12 +24,12 @@ Wraps three things in one object:
 |------|-----|---------------|
 | **Identity** | `user_id`, `workspace_id`, `workspace_role`, `email`, `name`, `groups`, `is_admin`, `is_editor` | No |
 | **Role checks** | `has_role(minimum_role)` — local hierarchy check | No |
-| **Authorization** | `can()`, `check_action()`, `accessible()`, `register_resource()` — calls Sentinel API | Yes (deduplicated) |
+| **Authorization** | `can()`, `check_action()`, `accessible()`, `register_resource()` — calls Duar API | Yes (deduplicated) |
 
 **Per-request deduplication**: `can()`, `check_action()`, and `accessible()` results are automatically cached within the same `RequestAuth` instance. If multiple code paths call `auth.accessible("document", "view")` during the same request, only one HTTP call is made. Since `RequestAuth` is created fresh per request, there is zero risk of cross-request leakage.
 
 ```python
-from sentinel_auth import RequestAuth
+from duar_auth import RequestAuth
 ```
 
 ### Properties
@@ -66,27 +66,27 @@ await auth.register_resource("document", doc_id, visibility="workspace")
 
 ## Setup (AuthZ Mode)
 
-AuthZ mode is the recommended default. Your app handles IdP login (Google, GitHub, etc.), and Sentinel validates the IdP token and issues an authorization JWT. The SDK middleware validates both tokens on every request.
+AuthZ mode is the recommended default. Your app handles IdP login (Google, GitHub, etc.), and Duar validates the IdP token and issues an authorization JWT. The SDK middleware validates both tokens on every request.
 
 ### 1. Install
 
 ```bash
-pip install sentinel-auth-sdk
+pip install duar-auth
 ```
 
 Or in `pyproject.toml`:
 
 ```toml
-dependencies = ["sentinel-auth-sdk"]
+dependencies = ["duar-auth"]
 ```
 
-### 2. Create Sentinel instance
+### 2. Create Duar instance
 
 ```python
 # infrastructure/auth.py
-from sentinel_auth import Sentinel
+from duar_auth import Duar
 
-sentinel = Sentinel(
+duar = Duar(
     base_url="http://localhost:9003",
     service_name="my-service",
     service_key="sk_...",
@@ -107,22 +107,22 @@ sentinel = Sentinel(
 ```python
 # interfaces/api/main.py
 from fastapi import FastAPI
-from your_app.infrastructure.auth import sentinel
+from your_app.infrastructure.auth import duar
 
-app = FastAPI(lifespan=sentinel.lifespan)
-sentinel.protect(app, exclude_paths=["/health", "/docs", "/openapi.json"])
+app = FastAPI(lifespan=duar.lifespan)
+duar.protect(app, exclude_paths=["/health", "/docs", "/openapi.json"])
 ```
 
-- `lifespan` fetches Sentinel's public key on startup and registers RBAC actions
+- `lifespan` fetches Duar's public key on startup and registers RBAC actions
 - `protect()` adds `AuthzMiddleware` which validates both IdP and authz tokens on every request
 
 ### 4. Expose the dependency
 
 ```python
 # interfaces/dependencies.py
-from your_app.infrastructure.auth import sentinel
+from your_app.infrastructure.auth import duar
 
-get_auth = sentinel.get_auth
+get_auth = duar.get_auth
 ```
 
 ## Application Layer
@@ -215,7 +215,7 @@ Routes inject `RequestAuth` and pass it to use cases:
 ```python
 # interfaces/api/routes/document_routes.py
 from fastapi import APIRouter, Depends
-from sentinel_auth import RequestAuth
+from duar_auth import RequestAuth
 from your_app.interfaces.dependencies import get_auth, get_container
 
 router = APIRouter(prefix="/documents")
@@ -252,7 +252,7 @@ class Document:
 
 ## ACL Registration
 
-When a resource is created, register it with Sentinel so the permission system can manage access.
+When a resource is created, register it with Duar so the permission system can manage access.
 
 ### Option A: In the use case (simple apps)
 
@@ -273,7 +273,7 @@ For event-sourced architectures, register ACLs in a domain event handler — kee
 
 ```python
 # infrastructure/event_handlers/permission_handler.py
-from sentinel_auth import PermissionClient
+from duar_auth import PermissionClient
 
 class PermissionEventHandler:
     def __init__(self, permission_client: PermissionClient):
@@ -364,7 +364,7 @@ async def test_create_document_succeeds_for_editor():
 ### Integration tests — override FastAPI dependency
 
 ```python
-from sentinel_auth.types import AuthenticatedUser
+from duar_auth.types import AuthenticatedUser
 
 def mock_editor():
     return AuthenticatedUser(
@@ -376,7 +376,7 @@ def mock_editor():
         workspace_role="editor",
     )
 
-app.dependency_overrides[sentinel.require_user] = mock_editor
+app.dependency_overrides[duar.require_user] = mock_editor
 ```
 
 ## Architecture Summary
@@ -407,10 +407,10 @@ app.dependency_overrides[sentinel.require_user] = mock_editor
 ├─────────────────────────────────────────────────────┤
 │  Infrastructure                                     │
 │  ┌───────────────────────────────────────────────┐  │
-│  │ sentinel = Sentinel(mode="authz", ...)        │  │
+│  │ duar = Duar(mode="authz", ...)        │  │
 │  │ AuthzMiddleware validates IdP + authz tokens  │  │
-│  │ PermissionClient ↔ Sentinel API               │  │
-│  │ RoleClient ↔ Sentinel API                     │  │
+│  │ PermissionClient ↔ Duar API               │  │
+│  │ RoleClient ↔ Duar API                     │  │
 │  └───────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
 ```
@@ -427,18 +427,18 @@ app.dependency_overrides[sentinel.require_user] = mock_editor
 
 ## Proxy Mode
 
-If you use Sentinel in proxy mode (Sentinel handles the full OAuth flow and issues a single JWT), the DDD integration pattern is identical. The only difference is the infrastructure setup.
+If you use Duar in proxy mode (Duar handles the full OAuth flow and issues a single JWT), the DDD integration pattern is identical. The only difference is the infrastructure setup.
 
 ### Setup differences
 
 ```python
 # infrastructure/auth.py
-sentinel = Sentinel(
+duar = Duar(
     base_url="http://localhost:9003",
     service_name="my-service",
     service_key="sk_...",
     mode="proxy",
-    # No idp_jwks_url needed — Sentinel handles IdP validation
+    # No idp_jwks_url needed — Duar handles IdP validation
     actions=[...],
 )
 ```
@@ -446,8 +446,8 @@ sentinel = Sentinel(
 In proxy mode:
 
 - `protect()` adds `JWTAuthMiddleware` instead of `AuthzMiddleware`
-- The middleware validates a single Sentinel-issued JWT (`audience: sentinel:access`)
-- No IdP token handling on your side — Sentinel manages the entire OAuth flow
+- The middleware validates a single Duar-issued JWT (`audience: sentinel:access`)
+- No IdP token handling on your side — Duar manages the entire OAuth flow
 
 ### Everything else stays the same
 
@@ -456,4 +456,4 @@ In proxy mode:
 - Use cases, domain layer, testing — all the same
 - `PermissionClient` and `RoleClient` work the same way
 
-The only user-visible difference is how login works: in proxy mode, users authenticate through Sentinel's OAuth endpoints rather than directly with the IdP.
+The only user-visible difference is how login works: in proxy mode, users authenticate through Duar's OAuth endpoints rather than directly with the IdP.

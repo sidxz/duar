@@ -11,7 +11,7 @@ The three authorization tiers are asymmetric about groups. Entity ACLs already a
 
 ## Decisions (locked with user 2026-07-12)
 
-1. **Bind authority: Sentinel admin only.** The group↔role link is created/removed exclusively through the admin panel, mirroring `user_roles` today. Workspace admins control *who is in* a bound group (existing behavior) but never *what a group can do*.
+1. **Bind authority: Duar admin only.** The group↔role link is created/removed exclusively through the admin panel, mirroring `user_roles` today. Workspace admins control *who is in* a bound group (existing behavior) but never *what a group can do*.
 2. **Member display: direct members + groups list.** A role's expanded row shows two sections — direct user members (as today) and bound groups. No computed "effective members" view in v1.
 3. **Audit gap fixed with this feature.** Group create/delete/member-add/member-remove currently emit **no** activity events; once groups grant actions, a member-add is a privilege grant. This feature adds activity events for group mutations plus `role_group_added`/`role_group_removed`.
 

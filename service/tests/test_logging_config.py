@@ -55,7 +55,7 @@ def test_configure_emits_json_envelope(capsys, monkeypatch):
     rec = json.loads(line)
     assert rec["event"] == "test.event"
     assert rec["level"] == "info"
-    assert rec["service"] == "sentinel"
+    assert rec["service"] == "duar"
     assert rec["version"]
     assert rec["ts"]
     assert rec["foo"] == "bar"

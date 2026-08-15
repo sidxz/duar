@@ -1,12 +1,12 @@
 # Authentication Endpoints
 
-Sentinel supports two authentication modes: **AuthZ Mode** (token validation) and **Proxy Mode** (full OAuth flow).
+Duar supports two authentication modes: **AuthZ Mode** (token validation) and **Proxy Mode** (full OAuth flow).
 
 ---
 
 ## AuthZ Mode
 
-Your backend validates an IdP token directly with Sentinel and receives an authorization JWT. No browser redirects.
+Your backend validates an IdP token directly with Duar and receives an authorization JWT. No browser redirects.
 
 ### POST /authz/resolve
 
@@ -29,7 +29,7 @@ Validate an IdP token, provision the user (JIT), and return authorization contex
 | `idp_token` | string | Yes | Raw IdP token (OIDC ID token or OAuth access token) |
 | `provider` | string | Yes | Provider name: `google`, `github`, `entra_id` |
 | `workspace_id` | UUID | No | Workspace to authorize for. Omit to get workspace list. |
-| `nonce` | string | No | Replay-protection nonce. If provided, Sentinel requires the IdP token's `nonce` claim to match (OIDC providers only — ignored for GitHub opaque tokens). Browsers should pass the same nonce they set at login-start. |
+| `nonce` | string | No | Replay-protection nonce. If provided, Duar requires the IdP token's `nonce` claim to match (OIDC providers only — ignored for GitHub opaque tokens). Browsers should pass the same nonce they set at login-start. |
 
 **Response (with workspace_id):** `200 OK`
 
@@ -78,7 +78,7 @@ Server-side OAuth proxy for GitHub (GitHub does not support implicit flow, so th
 
 ### GET /authz/idp/github/callback
 
-Handles the GitHub OAuth callback. Sentinel exchanges the code for a GitHub access token, then redirects to `{redirect_uri}#id_token={token}&nonce={nonce}` (token in URL fragment). The `redirect_uri` is re-validated against `ServiceApp.allowed_origins` — an admin who removes an origin between login-start and callback will see this 400 out, not succeed.
+Handles the GitHub OAuth callback. Duar exchanges the code for a GitHub access token, then redirects to `{redirect_uri}#id_token={token}&nonce={nonce}` (token in URL fragment). The `redirect_uri` is re-validated against `ServiceApp.allowed_origins` — an admin who removes an origin between login-start and callback will see this 400 out, not succeed.
 
 **Rate limit:** 10/min on both endpoints.
 
@@ -117,7 +117,7 @@ Starts the OAuth flow. Redirects to the provider's consent screen.
 | Parameter | In | Required | Description |
 |---|---|---|---|
 | `provider` | path | Yes | Provider name (`google`, `github`, `entra_id`) |
-| `client_id` | query | Yes | ClientApp UUID. Sentinel validates `redirect_uri` against THIS client app only — not any active app. Prevents cross-app auth-code interception. |
+| `client_id` | query | Yes | ClientApp UUID. Duar validates `redirect_uri` against THIS client app only — not any active app. Prevents cross-app auth-code interception. |
 | `redirect_uri` | query | Yes | Must be listed on the client app's registered `redirect_uris` |
 | `code_challenge` | query | Yes | PKCE S256 challenge |
 | `code_challenge_method` | query | No | Only `S256` supported (default) |

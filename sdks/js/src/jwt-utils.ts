@@ -1,9 +1,9 @@
-import type { AuthzJWTPayload, JWTPayload, SentinelUser } from './types'
+import type { AuthzJWTPayload, JWTPayload, DuarUser } from './types'
 import type { UserIdentity } from './authz-types'
 
 /**
  * Decode a JWT payload without verifying the signature.
- * For browser-side use only — server-side code must use `verifyToken` from `@sentinel-auth/js/server`.
+ * For browser-side use only — server-side code must use `verifyToken` from `@duar-auth/js/server`.
  */
 export function parseJwt(token: string): JWTPayload {
   const parts = token.split('.')
@@ -27,8 +27,8 @@ export function isTokenExpired(token: string, bufferSeconds = 0): boolean {
   }
 }
 
-/** Map access token JWT claims to a SentinelUser object. */
-export function tokenToUser(token: string): SentinelUser {
+/** Map access token JWT claims to a DuarUser object. */
+export function tokenToUser(token: string): DuarUser {
   const p = parseJwt(token)
   return {
     userId: p.sub,
@@ -41,8 +41,8 @@ export function tokenToUser(token: string): SentinelUser {
   }
 }
 
-/** Map authz token claims + cached identity to a SentinelUser object. */
-export function authzTokenToUser(token: string, identity: UserIdentity | null): SentinelUser {
+/** Map authz token claims + cached identity to a DuarUser object. */
+export function authzTokenToUser(token: string, identity: UserIdentity | null): DuarUser {
   const p = parseJwt(token) as unknown as AuthzJWTPayload
   return {
     userId: p.sub,

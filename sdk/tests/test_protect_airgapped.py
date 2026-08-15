@@ -1,21 +1,21 @@
-"""Sentinel.protect() must accept the air-gapped authz config (idp_public_key only).
+"""Duar.protect() must accept the air-gapped authz config (idp_public_key only).
 
 Regression: AuthzMiddleware's constructor precondition only consulted
-sentinel_instance.idp_jwks_url, so protect() (which forwards no explicit keys)
-raised ValueError at startup even when the Sentinel instance held a valid
+duar_instance.idp_jwks_url, so protect() (which forwards no explicit keys)
+raised ValueError at startup even when the Duar instance held a valid
 idp_public_key.
 """
 
 from starlette.applications import Starlette
 from starlette.testclient import TestClient
 
-from sentinel_auth import Sentinel
+from duar_auth import Duar
 
 
 def test_protect_with_idp_public_key_only(rsa_keypair):
     _, public_pem = rsa_keypair
-    s = Sentinel(
-        base_url="https://sentinel.test",
+    s = Duar(
+        base_url="https://duar.test",
         service_name="reports",
         service_key="svc-key",
         idp_public_key=public_pem,

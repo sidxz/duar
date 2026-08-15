@@ -1,10 +1,10 @@
-# Team Notes — Sentinel AuthZ Mode Demo
+# Team Notes — Duar AuthZ Mode Demo
 
 > **Mode:** This demo uses **AuthZ mode** (default) where the client app authenticates
-> users directly with an IdP (e.g. Google Sign-In). Sentinel validates the IdP token
+> users directly with an IdP (e.g. Google Sign-In). Duar validates the IdP token
 > and issues an authorization-only JWT. The backend validates both tokens on every request.
 
-A note-taking API that demonstrates Sentinel's dual-token architecture:
+A note-taking API that demonstrates Duar's dual-token architecture:
 
 - **Dual-Token Auth** — IdP token (identity) + authz token (authorization) on every request
 - **Token Binding** — `idp_sub` in authz token must match `sub` in IdP token
@@ -20,7 +20,7 @@ A note-taking API that demonstrates Sentinel's dual-token architecture:
             +-------------+-------------+
             |             |             |
             v             v             v
-        Client App    Sentinel    Demo Backend
+        Client App    Duar    Demo Backend
             |             |             |
        authenticates  validates     validates
         with Google   IdP token     both tokens
@@ -30,19 +30,19 @@ A note-taking API that demonstrates Sentinel's dual-token architecture:
             v  v                        |
         Holds both tokens ----------> AuthzMiddleware:
         (IdP + authz)                 1. IdP token (Google's key)
-                                      2. Authz JWT (Sentinel's key)
+                                      2. Authz JWT (Duar's key)
                                       3. idp_sub binding check
 ```
 
 ## Prerequisites
 
-- Sentinel identity service running locally (`make start`)
+- Duar identity service running locally (`make start`)
 - Google OAuth credentials configured in `service/.env`
 - Python 3.12+
 
 ## Setup
 
-### 1. Start Sentinel
+### 1. Start Duar
 
 ```bash
 # From the repo root
@@ -52,7 +52,7 @@ make start    # Start on :9003
 
 ### 2. Register a Service App
 
-In the Sentinel admin panel (http://localhost:9004 -> Service Apps -> Register Service), create a service app with service name `team-notes`. Copy the generated API key.
+In the Duar admin panel (http://localhost:9004 -> Service Apps -> Register Service), create a service app with service name `team-notes`. Copy the generated API key.
 
 ### 3. Start the Demo Backend
 
@@ -133,9 +133,9 @@ curl -X POST http://localhost:9200/notes \
 
 | Feature | File | Usage |
 |---------|------|-------|
-| `Sentinel(mode="authz")` | `src/config.py` | AuthZ mode with IdP public key |
-| `AuthzMiddleware` | `src/main.py` | Validates dual tokens via `sentinel.protect()` |
-| `AuthzClient` | via `sentinel.authz` | Available for calling `/authz/resolve` |
+| `Duar(mode="authz")` | `src/config.py` | AuthZ mode with IdP public key |
+| `AuthzMiddleware` | `src/main.py` | Validates dual tokens via `duar.protect()` |
+| `AuthzClient` | via `duar.authz` | Available for calling `/authz/resolve` |
 | `get_current_user` | `src/routes.py` | Extracts user from validated tokens |
 | `get_workspace_id` | `src/routes.py` | Scopes note list to workspace |
 | `require_role()` | `src/routes.py` | Enforces editor/admin roles |
@@ -146,7 +146,7 @@ curl -X POST http://localhost:9200/notes \
 
 | Property | AuthZ Mode | Proxy Mode |
 |----------|-----------|------------|
-| Sentinel key compromise | Privilege escalation only | Full identity forgery |
+| Duar key compromise | Privilege escalation only | Full identity forgery |
 | Attacker needs real IdP account? | Yes | No |
 | Attacker traceable? | Yes (real IdP identity) | No |
-| Custom auth flow code in Sentinel | None | ~400 lines |
+| Custom auth flow code in Duar | None | ~400 lines |

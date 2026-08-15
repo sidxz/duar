@@ -18,15 +18,15 @@ setup: ## One-time setup: keys, TLS certs, env files, deps, dev containers
 	@if [ ! -f keys/tls/ca.crt ]; then \
 		openssl req -x509 -newkey rsa:2048 \
 			-keyout keys/tls/ca.key -out keys/tls/ca.crt \
-			-days 3650 -nodes -subj "/CN=Sentinel Internal CA" 2>/dev/null && \
+			-days 3650 -nodes -subj "/CN=Duar Internal CA" 2>/dev/null && \
 		openssl req -newkey rsa:2048 \
-			-keyout keys/tls/server.key -out /tmp/sentinel-server.csr \
-			-nodes -subj "/CN=sentinel-internal" 2>/dev/null && \
-		openssl x509 -req -in /tmp/sentinel-server.csr \
+			-keyout keys/tls/server.key -out /tmp/duar-server.csr \
+			-nodes -subj "/CN=duar-internal" 2>/dev/null && \
+		openssl x509 -req -in /tmp/duar-server.csr \
 			-CA keys/tls/ca.crt -CAkey keys/tls/ca.key -CAcreateserial \
 			-out keys/tls/server.crt -days 3650 \
 			-extfile <(printf "subjectAltName=DNS:localhost,DNS:postgres,DNS:redis,IP:127.0.0.1") 2>/dev/null && \
-		rm -f /tmp/sentinel-server.csr keys/tls/ca.srl && \
+		rm -f /tmp/duar-server.csr keys/tls/ca.srl && \
 		chmod 600 keys/tls/server.key keys/tls/ca.key && \
 		echo "✓ Generated TLS certs (keys/tls/)"; \
 	else \
@@ -73,7 +73,7 @@ setup: ## One-time setup: keys, TLS certs, env files, deps, dev containers
 	@echo ""
 	@echo "  Prod:"
 	@echo "    vim .env.prod   — set BASE_URL, ADMIN_URL, OAuth creds, ADMIN_EMAILS"
-	@echo "    docker stack deploy -c docker-compose.prod.yml sentinel"
+	@echo "    docker stack deploy -c docker-compose.prod.yml duar"
 
 start: ## Start identity service (:9003) — auto-migrates on boot
 	cd service && uv run uvicorn src.main:app --port 9003 --reload --no-server-header
@@ -145,6 +145,6 @@ ifeq ($(ARGS),stop)
 else
 	docker compose -f docker-compose.yml -f docker-compose.pentest.yml up -d kali
 	@echo ""
-	@echo "  Kali ready: docker exec -it sentinel-kali bash"
+	@echo "  Kali ready: docker exec -it duar-kali bash"
 	@echo "  Stop:       make pentest-kali ARGS=stop"
 endif

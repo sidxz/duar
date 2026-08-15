@@ -1,11 +1,11 @@
 """Team Notes API routes — AuthZ mode demo.
 
-Demonstrates all three authorization tiers using Sentinel's AuthZ mode:
+Demonstrates all three authorization tiers using Duar's AuthZ mode:
   - IdP token (Authorization: Bearer <idp_token>) — proves identity
   - Authz token (X-Authz-Token: <authz_token>) — proves authorization
 
 The client app handles IdP login directly (e.g. Google Sign-In) and calls
-Sentinel's /authz/resolve to get the authz token. Both tokens are sent
+Duar's /authz/resolve to get the authz token. Both tokens are sent
 to this backend on every request.
 """
 
@@ -14,9 +14,9 @@ from dataclasses import asdict
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sentinel_auth.types import AuthenticatedUser
+from duar_auth.types import AuthenticatedUser
 
-from src.config import sentinel
+from src.config import duar
 from src.deps import get_current_user, get_token, get_workspace_id, require_role
 from src.models import notes
 
@@ -66,7 +66,7 @@ async def my_actions(
     token: str = Depends(get_token),
 ):
     """List all RBAC actions available to the current user."""
-    actions = await sentinel.roles.get_user_actions(token, user.workspace_id)
+    actions = await duar.roles.get_user_actions(token, user.workspace_id)
     return {"actions": actions}
 
 
@@ -85,7 +85,7 @@ async def list_notes(workspace_id: uuid.UUID = Depends(get_workspace_id)):
 # ---------------------------------------------------------------------------
 @router.get("/notes/export")
 async def export_notes(
-    user: AuthenticatedUser = Depends(sentinel.require_action("notes:export")),
+    user: AuthenticatedUser = Depends(duar.require_action("notes:export")),
     workspace_id: uuid.UUID = Depends(get_workspace_id),
 ):
     """Export all workspace notes. Requires 'notes:export' RBAC action."""
@@ -115,7 +115,7 @@ async def create_note(
         owner_name=user.name,
     )
 
-    await sentinel.permissions.register_resource(
+    await duar.permissions.register_resource(
         resource_type="note",
         resource_id=note.id,
         workspace_id=user.workspace_id,
@@ -140,7 +140,7 @@ async def get_note(
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
 
-    allowed = await sentinel.permissions.can(
+    allowed = await duar.permissions.can(
         token=token,
         resource_type="note",
         resource_id=note_id,
@@ -167,7 +167,7 @@ async def update_note(
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
 
-    allowed = await sentinel.permissions.can(
+    allowed = await duar.permissions.can(
         token=token,
         resource_type="note",
         resource_id=note_id,
@@ -212,7 +212,7 @@ async def share_note(
         raise HTTPException(status_code=403, detail="Only the owner can share")
 
     try:
-        await sentinel.permissions.share(
+        await duar.permissions.share(
             token=token,
             resource_type="note",
             resource_id=note_id,

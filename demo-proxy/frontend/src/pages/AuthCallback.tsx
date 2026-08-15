@@ -1,12 +1,12 @@
 import { useNavigate } from "react-router-dom";
-import { AuthCallback as SentinelCallback } from "@sentinel-auth/react";
+import { AuthCallback as DuarCallback } from "@duar-auth/react";
 import { RoleBadge } from "../components/RoleBadge";
 
 export function AuthCallback() {
   const navigate = useNavigate();
 
   return (
-    <SentinelCallback
+    <DuarCallback
       onSuccess={() => navigate("/notes", { replace: true })}
       loadingComponent={
         <div className="flex h-screen items-center justify-center bg-zinc-950">

@@ -1,9 +1,9 @@
 # React Integration
 
-`@sentinel-auth/react` provides context providers, hooks, and components for React apps. This page covers authz mode (recommended). For proxy mode, the package also exports `SentinelAuthProvider`, `useAuth`, `AuthGuard`, and `AuthCallback`.
+`@duar-auth/react` provides context providers, hooks, and components for React apps. This page covers authz mode (recommended). For proxy mode, the package also exports `DuarAuthProvider`, `useAuth`, `AuthGuard`, and `AuthCallback`.
 
 ```bash
-npm install @sentinel-auth/js @sentinel-auth/react
+npm install @duar-auth/js @duar-auth/react
 ```
 
 ## AuthzProvider
@@ -11,13 +11,13 @@ npm install @sentinel-auth/js @sentinel-auth/react
 Wrap your app to provide auth context.
 
 ```tsx
-import { AuthzProvider } from '@sentinel-auth/react'
-import { IdpConfigs } from '@sentinel-auth/js'
+import { AuthzProvider } from '@duar-auth/react'
+import { IdpConfigs } from '@duar-auth/js'
 
 function App() {
   return (
     <AuthzProvider config={{
-      sentinelUrl: 'http://localhost:9003',
+      duarUrl: 'http://localhost:9003',
       mintEndpoint: '/api/auth/mint', // YOUR backend route — holds the service key
       idps: { google: IdpConfigs.google('your-google-client-id') },
     }}>
@@ -43,7 +43,7 @@ Full auth context. Throws if used outside `AuthzProvider`.
 
 ```tsx
 const {
-  user,             // SentinelUser | null
+  user,             // DuarUser | null
   isAuthenticated,  // boolean (authz token AND IdP token present)
   authState,        // 'authenticated' | 'needs_reauth' | 'unauthenticated'
   needsReauth,      // boolean — authz token survived a reload but IdP token is gone
@@ -56,13 +56,13 @@ const {
   logout,           // () => void
   fetch,            // dual-header fetch
   fetchJson,        // <T>(input, init?) => Promise<T>
-  client,           // SentinelAuthz instance
+  client,           // DuarAuthz instance
 } = useAuthz()
 ```
 
 ## Other hooks
 
-**useAuthzUser()** -- returns `SentinelUser`, throws if not authenticated.
+**useAuthzUser()** -- returns `DuarUser`, throws if not authenticated.
 
 ```tsx
 const user = useAuthzUser()
@@ -117,7 +117,7 @@ Handles the OAuth callback. Reads `id_token` from the URL hash, resolves workspa
 
 | Prop | Type | Description |
 |------|------|-------------|
-| `onSuccess` | `(user: SentinelUser, returnTo?: string \| null) => void` | Called after auth completes; `returnTo` is the same-origin path to restore after a silent re-auth |
+| `onSuccess` | `(user: DuarUser, returnTo?: string \| null) => void` | Called after auth completes; `returnTo` is the same-origin path to restore after a silent re-auth |
 | `onError` | `(error: Error) => void` | Called on error |
 | `onSilentReauthFailed` | `(returnTo: string \| null) => void` | Called when a silent (`prompt=none`) re-auth needs interaction. The stale session is already cleared — trigger interactive `login()`. Falls through to `onError` if omitted |
 | `loadingComponent` | `ReactNode` | Loading UI |
@@ -128,13 +128,13 @@ Handles the OAuth callback. Reads `id_token` from the URL hash, resolves workspa
 
 ```tsx
 import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom'
-import { AuthzProvider, AuthzGuard, AuthzCallback, useAuthz, useAuthzUser } from '@sentinel-auth/react'
-import { IdpConfigs } from '@sentinel-auth/js'
+import { AuthzProvider, AuthzGuard, AuthzCallback, useAuthz, useAuthzUser } from '@duar-auth/react'
+import { IdpConfigs } from '@duar-auth/js'
 
 function App() {
   return (
     <AuthzProvider autoReauth config={{
-      sentinelUrl: 'http://localhost:9003',
+      duarUrl: 'http://localhost:9003',
       idps: { google: IdpConfigs.google(import.meta.env.VITE_GOOGLE_CLIENT_ID) },
     }}>
       <BrowserRouter>

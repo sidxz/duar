@@ -63,8 +63,8 @@ describe('AuthzLocalStorageStore', () => {
     expect(store.getAuthzToken()).toBe('authz-jwt')
     expect(store.getProvider()).toBe('google')
     expect(store.getWorkspaceId()).toBe('ws-1')
-    expect(localStorage.getItem('sentinel_idp_token')).toBeNull()
-    expect(localStorage.getItem('sentinel_authz_token')).toBe('authz-jwt')
+    expect(localStorage.getItem('duar_idp_token')).toBeNull()
+    expect(localStorage.getItem('duar_authz_token')).toBe('authz-jwt')
   })
 
   it('loses IdP token when a fresh store reads from storage (simulated reload)', () => {
@@ -78,8 +78,8 @@ describe('AuthzLocalStorageStore', () => {
   it('stores and retrieves user identity', () => {
     store.setUserIdentity({ email: 'alice@acme.com', name: 'Alice' })
     expect(store.getUserIdentity()).toEqual({ email: 'alice@acme.com', name: 'Alice' })
-    expect(localStorage.setItem).toHaveBeenCalledWith('sentinel_user_email', 'alice@acme.com')
-    expect(localStorage.setItem).toHaveBeenCalledWith('sentinel_user_name', 'Alice')
+    expect(localStorage.setItem).toHaveBeenCalledWith('duar_user_email', 'alice@acme.com')
+    expect(localStorage.setItem).toHaveBeenCalledWith('duar_user_name', 'Alice')
   })
 
   it('getUserIdentity returns null when not set', () => {
@@ -90,18 +90,18 @@ describe('AuthzLocalStorageStore', () => {
     store.setTokens('idp-jwt', 'authz-jwt', 'google', 'ws-1')
     store.setUserIdentity({ email: 'alice@acme.com', name: 'Alice' })
     store.clear()
-    expect(localStorage.getItem('sentinel_idp_token')).toBeNull()
-    expect(localStorage.getItem('sentinel_authz_token')).toBeNull()
-    expect(localStorage.getItem('sentinel_user_email')).toBeNull()
-    expect(localStorage.getItem('sentinel_user_name')).toBeNull()
+    expect(localStorage.getItem('duar_idp_token')).toBeNull()
+    expect(localStorage.getItem('duar_authz_token')).toBeNull()
+    expect(localStorage.getItem('duar_user_email')).toBeNull()
+    expect(localStorage.getItem('duar_user_name')).toBeNull()
   })
 
-  it('uses sentinel_ prefix in localStorage keys (authz token + metadata only)', () => {
+  it('uses duar_ prefix in localStorage keys (authz token + metadata only)', () => {
     store.setTokens('idp-jwt', 'authz-jwt', 'google', 'ws-1')
     // Intentionally does NOT persist the IdP token — that stays in instance memory.
-    expect(localStorage.setItem).not.toHaveBeenCalledWith('sentinel_idp_token', 'idp-jwt')
-    expect(localStorage.setItem).toHaveBeenCalledWith('sentinel_authz_token', 'authz-jwt')
-    expect(localStorage.setItem).toHaveBeenCalledWith('sentinel_idp_provider', 'google')
-    expect(localStorage.setItem).toHaveBeenCalledWith('sentinel_workspace_id', 'ws-1')
+    expect(localStorage.setItem).not.toHaveBeenCalledWith('duar_idp_token', 'idp-jwt')
+    expect(localStorage.setItem).toHaveBeenCalledWith('duar_authz_token', 'authz-jwt')
+    expect(localStorage.setItem).toHaveBeenCalledWith('duar_idp_provider', 'google')
+    expect(localStorage.setItem).toHaveBeenCalledWith('duar_workspace_id', 'ws-1')
   })
 })

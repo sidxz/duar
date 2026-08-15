@@ -2,7 +2,7 @@ import { AuthzMemoryStore } from './authz-storage'
 import { authzTokenToUser, isTokenExpired, parseJwt } from './jwt-utils'
 import { warnIfInsecure } from './warn-insecure'
 import type {
-  SentinelAuthzConfig,
+  DuarAuthzConfig,
   AuthzTokenStore,
   AuthzResolveResponse,
   AuthState,
@@ -13,9 +13,9 @@ import type {
   GroupMemberInfo,
   UserProfile,
 } from './authz-types'
-import type { SentinelUser } from './types'
+import type { DuarUser } from './types'
 
-type AuthStateListener = (user: SentinelUser | null) => void
+type AuthStateListener = (user: DuarUser | null) => void
 
 // How long a silent (`prompt=none`) re-auth is considered "in flight". The marker
 // stores the attempt's start time; once it is older than this, the loop guard no
@@ -26,11 +26,11 @@ type AuthStateListener = (user: SentinelUser | null) => void
 const SILENT_TTL_MS = 60_000
 
 /**
- * Browser auth client for Sentinel AuthZ mode.
- * Manages dual tokens: IdP token (identity) + Sentinel authz token (authorization).
+ * Browser auth client for Duar AuthZ mode.
+ * Manages dual tokens: IdP token (identity) + Duar authz token (authorization).
  */
-export class SentinelAuthz {
-  private readonly sentinelUrl: string
+export class DuarAuthz {
+  private readonly duarUrl: string
   private readonly store: AuthzTokenStore
   private readonly autoRefresh: boolean
   private readonly refreshBuffer: number
@@ -41,12 +41,12 @@ export class SentinelAuthz {
   private refreshPromise: Promise<boolean> | null = null
   private listeners: Set<AuthStateListener> = new Set()
 
-  constructor(config: SentinelAuthzConfig) {
-    this.sentinelUrl = config.sentinelUrl.replace(/\/+$/, '')
+  constructor(config: DuarAuthzConfig) {
+    this.duarUrl = config.duarUrl.replace(/\/+$/, '')
     if (!config.mintEndpoint) {
       throw new Error(
-        'SentinelAuthz: mintEndpoint is required. Expose a backend route that ' +
-        'calls Sentinel\'s /authz/resolve with your service key (e.g. "/api/auth/mint"). ' +
+        'DuarAuthz: mintEndpoint is required. Expose a backend route that ' +
+        'calls Duar\'s /authz/resolve with your service key (e.g. "/api/auth/mint"). ' +
         'The browser must not mint authz tokens directly — it lacks a service key.',
       )
     }
@@ -57,7 +57,7 @@ export class SentinelAuthz {
     this.idps = config.idps ?? {}
     this.redirectUri = config.redirectUri
       ?? (typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : '')
-    warnIfInsecure(this.sentinelUrl, 'SentinelAuthz')
+    warnIfInsecure(this.duarUrl, 'DuarAuthz')
 
     if (this.autoRefresh && this.store.getAuthzToken()) {
       this.scheduleRefresh()
@@ -71,17 +71,17 @@ export class SentinelAuthz {
     const idp = this.idps[provider]
     if (!idp) {
       throw new Error(
-        `IdP "${provider}" not configured. Pass it via idps in SentinelAuthzConfig, ` +
+        `IdP "${provider}" not configured. Pass it via idps in DuarAuthzConfig, ` +
         `e.g. { idps: { google: IdpConfigs.google('your-client-id') } }`
       )
     }
 
     const nonce = crypto.randomUUID()
-    sessionStorage.setItem('sentinel_authz_nonce', nonce)
-    sessionStorage.setItem('sentinel_authz_provider', provider)
+    sessionStorage.setItem('duar_authz_nonce', nonce)
+    sessionStorage.setItem('duar_authz_provider', provider)
     // Interactive login supersedes any in-flight silent attempt so the callback
     // is not misclassified as silent (which would suppress real errors).
-    sessionStorage.removeItem('sentinel_authz_silent')
+    sessionStorage.removeItem('duar_authz_silent')
 
     const params = new URLSearchParams({
       client_id: idp.clientId,
@@ -122,7 +122,7 @@ export class SentinelAuthz {
     const error = params.get('error')
     const silent = this.isSilentAttempt()
     const storedProvider =
-      (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('sentinel_authz_provider')) || null
+      (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('duar_authz_provider')) || null
 
     if (error) {
       // Clean the URL, consume markers regardless of outcome.
@@ -149,7 +149,7 @@ export class SentinelAuthz {
     // callback did NOT originate from a flow we initiated — fail closed so an
     // attacker cannot inject an id_token by pointing the victim at the callback
     // URL directly.
-    const expectedNonce = sessionStorage.getItem('sentinel_authz_nonce')
+    const expectedNonce = sessionStorage.getItem('duar_authz_nonce')
     if (!expectedNonce) {
       throw new Error(
         'No login flow in progress — callback rejected. Start login from this tab.',
@@ -177,8 +177,8 @@ export class SentinelAuthz {
     // keep no-op'ing (React fires child effects before parent effects, so the
     // callback runs first — clearing the marker here would let the provider
     // fire a second redirect mid-resolve).
-    sessionStorage.removeItem('sentinel_authz_nonce')
-    sessionStorage.removeItem('sentinel_authz_provider')
+    sessionStorage.removeItem('duar_authz_nonce')
+    sessionStorage.removeItem('duar_authz_provider')
 
     return { status: 'success', idpToken, provider: storedProvider ?? 'google', returnTo }
   }
@@ -213,17 +213,17 @@ export class SentinelAuthz {
     const idp = this.idps[prov]
     if (!idp) {
       throw new Error(
-        `IdP "${prov}" not configured. Pass it via idps in SentinelAuthzConfig, ` +
+        `IdP "${prov}" not configured. Pass it via idps in DuarAuthzConfig, ` +
         `e.g. { idps: { google: IdpConfigs.google('your-client-id') } }`,
       )
     }
 
     const nonce = crypto.randomUUID()
-    sessionStorage.setItem('sentinel_authz_nonce', nonce)
-    sessionStorage.setItem('sentinel_authz_provider', prov)
+    sessionStorage.setItem('duar_authz_nonce', nonce)
+    sessionStorage.setItem('duar_authz_provider', prov)
     // Store the attempt start time (not a bare flag) so the loop guard can expire it.
-    sessionStorage.setItem('sentinel_authz_silent', String(Date.now()))
-    sessionStorage.setItem('sentinel_authz_return_to', window.location.pathname + window.location.search)
+    sessionStorage.setItem('duar_authz_silent', String(Date.now()))
+    sessionStorage.setItem('duar_authz_return_to', window.location.pathname + window.location.search)
 
     // Spread extraParams FIRST so the silent-flow essentials below (notably
     // prompt='none') always win — a configured extraParams.prompt (e.g. Google's
@@ -254,8 +254,8 @@ export class SentinelAuthz {
    */
   consumeReturnTo(): string | null {
     if (typeof sessionStorage === 'undefined') return null
-    const raw = sessionStorage.getItem('sentinel_authz_return_to')
-    sessionStorage.removeItem('sentinel_authz_return_to')
+    const raw = sessionStorage.getItem('duar_authz_return_to')
+    sessionStorage.removeItem('duar_authz_return_to')
     if (!raw) return null
     if (!raw.startsWith('/') || raw.startsWith('//')) return null
     if (raw.includes('://') || raw.includes('\\')) return null
@@ -265,7 +265,7 @@ export class SentinelAuthz {
   /** True if THIS callback is the result of a silent attempt we started (marker
    *  present, regardless of age — the redirect round-trip may exceed the TTL). */
   private isSilentAttempt(): boolean {
-    return typeof sessionStorage !== 'undefined' && sessionStorage.getItem('sentinel_authz_silent') != null
+    return typeof sessionStorage !== 'undefined' && sessionStorage.getItem('duar_authz_silent') != null
   }
 
   /** True only while a recent silent attempt is genuinely in flight (used by the
@@ -273,7 +273,7 @@ export class SentinelAuthz {
    *  start, which is what stops an abandoned attempt from wedging the session. */
   private silentInFlight(): boolean {
     if (typeof sessionStorage === 'undefined') return false
-    const raw = sessionStorage.getItem('sentinel_authz_silent')
+    const raw = sessionStorage.getItem('duar_authz_silent')
     if (raw == null) return false
     const startedAt = Number(raw)
     if (!Number.isFinite(startedAt)) return false
@@ -282,17 +282,17 @@ export class SentinelAuthz {
 
   private clearCallbackMarkers(): void {
     if (typeof sessionStorage === 'undefined') return
-    sessionStorage.removeItem('sentinel_authz_nonce')
-    sessionStorage.removeItem('sentinel_authz_provider')
-    sessionStorage.removeItem('sentinel_authz_silent')
-    sessionStorage.removeItem('sentinel_authz_return_to')
+    sessionStorage.removeItem('duar_authz_nonce')
+    sessionStorage.removeItem('duar_authz_provider')
+    sessionStorage.removeItem('duar_authz_silent')
+    sessionStorage.removeItem('duar_authz_return_to')
   }
 
   // ── Auth flow ───────────────────────────────────────────────────────
 
   /** Resolve an IdP token to discover the user's available workspaces. */
   async resolve(idpToken: string, provider: string): Promise<AuthzResolveResponse> {
-    const res = await fetch(`${this.sentinelUrl}/authz/resolve`, {
+    const res = await fetch(`${this.duarUrl}/authz/resolve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idp_token: idpToken, provider }),
@@ -305,11 +305,11 @@ export class SentinelAuthz {
   }
 
   /**
-   * Select a workspace and exchange the IdP token for a Sentinel authz token.
+   * Select a workspace and exchange the IdP token for a Duar authz token.
    *
    * The POST goes to the configured ``mintEndpoint`` on YOUR backend, not to
-   * Sentinel directly. Your backend must forward the request to Sentinel's
-   * ``/authz/resolve`` with ``X-Service-Key`` set. See SentinelAuthzConfig.
+   * Duar directly. Your backend must forward the request to Duar's
+   * ``/authz/resolve`` with ``X-Service-Key`` set. See DuarAuthzConfig.
    */
   async selectWorkspace(idpToken: string, provider: string, workspaceId: string): Promise<void> {
     const body: Record<string, string> = {
@@ -317,10 +317,10 @@ export class SentinelAuthz {
       provider,
       workspace_id: workspaceId,
     }
-    // Forward the login-flow nonce so the backend can pass it to Sentinel's
+    // Forward the login-flow nonce so the backend can pass it to Duar's
     // /authz/resolve, which enforces replay protection against the IdP token.
     const nonce = typeof sessionStorage !== 'undefined'
-      ? sessionStorage.getItem('sentinel_authz_nonce')
+      ? sessionStorage.getItem('duar_authz_nonce')
       : null
     if (nonce) body.nonce = nonce
 
@@ -347,7 +347,7 @@ export class SentinelAuthz {
     // The IdP token is now set, so the session is fully authenticated — release
     // the silent-reauth loop guard (see handleCallback's deferred clear).
     if (typeof sessionStorage !== 'undefined') {
-      sessionStorage.removeItem('sentinel_authz_silent')
+      sessionStorage.removeItem('duar_authz_silent')
     }
     this.notify()
     if (this.autoRefresh) this.scheduleRefresh()
@@ -371,8 +371,8 @@ export class SentinelAuthz {
     return 'authenticated'
   }
 
-  /** Parse the current authz token + cached identity into a SentinelUser, or null. */
-  getUser(): SentinelUser | null {
+  /** Parse the current authz token + cached identity into a DuarUser, or null. */
+  getUser(): DuarUser | null {
     if (this.getAuthState() !== 'authenticated') return null
     try {
       return authzTokenToUser(this.store.getAuthzToken()!, this.store.getUserIdentity())
@@ -490,8 +490,8 @@ export class SentinelAuthz {
     this.clearRefreshTimer()
     // Also drop any in-flight silent-reauth markers so a later mount starts clean.
     if (typeof sessionStorage !== 'undefined') {
-      sessionStorage.removeItem('sentinel_authz_silent')
-      sessionStorage.removeItem('sentinel_authz_return_to')
+      sessionStorage.removeItem('duar_authz_silent')
+      sessionStorage.removeItem('duar_authz_return_to')
     }
     this.notify()
   }
@@ -506,7 +506,7 @@ export class SentinelAuthz {
 
   /**
    * Search workspace members by name or email.
-   * Calls Sentinel's GET /workspaces/{id}/members?q=&limit= with dual-token auth.
+   * Calls Duar's GET /workspaces/{id}/members?q=&limit= with dual-token auth.
    */
   async searchMembers(query?: string, limit?: number): Promise<WorkspaceMember[]> {
     const user = this.getUser()
@@ -515,7 +515,7 @@ export class SentinelAuthz {
     if (query) params.set('q', query)
     if (limit !== undefined) params.set('limit', String(limit))
     const qs = params.toString()
-    const url = `${this.sentinelUrl}/workspaces/${user.workspaceId}/members${qs ? `?${qs}` : ''}`
+    const url = `${this.duarUrl}/workspaces/${user.workspaceId}/members${qs ? `?${qs}` : ''}`
     return this.fetchJson<WorkspaceMember[]>(url)
   }
 
@@ -528,7 +528,7 @@ export class SentinelAuthz {
   async listGroups(): Promise<GroupInfo[]> {
     const user = this.getUser()
     if (!user) throw new Error('Not authenticated')
-    return this.fetchJson<GroupInfo[]>(`${this.sentinelUrl}/workspaces/${user.workspaceId}/groups`)
+    return this.fetchJson<GroupInfo[]>(`${this.duarUrl}/workspaces/${user.workspaceId}/groups`)
   }
 
   /** List members of a group. */
@@ -536,13 +536,13 @@ export class SentinelAuthz {
     const user = this.getUser()
     if (!user) throw new Error('Not authenticated')
     return this.fetchJson<GroupMemberInfo[]>(
-      `${this.sentinelUrl}/workspaces/${user.workspaceId}/groups/${groupId}/members`,
+      `${this.duarUrl}/workspaces/${user.workspaceId}/groups/${groupId}/members`,
     )
   }
 
   /** Get current user's full profile (includes avatar_url). */
   async getProfile(): Promise<UserProfile> {
-    return this.fetchJson<UserProfile>(`${this.sentinelUrl}/users/me`)
+    return this.fetchJson<UserProfile>(`${this.duarUrl}/users/me`)
   }
 
   // ── Private ───────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { useAuthz, useAuthzUser } from "@sentinel-auth/react";
+import { useAuthz, useAuthzUser } from "@duar-auth/react";
 import { RoleBadge } from "./RoleBadge";
 
 export function Layout({ children }: { children: React.ReactNode }) {

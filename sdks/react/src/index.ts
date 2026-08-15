@@ -1,4 +1,4 @@
-export { SentinelAuthProvider, type SentinelAuthContextValue, type SentinelAuthProviderProps } from './provider'
+export { DuarAuthProvider, type DuarAuthContextValue, type DuarAuthProviderProps } from './provider'
 export { useAuth, useUser, useHasRole, useAuthFetch } from './hooks'
 export { AuthGuard, type AuthGuardProps } from './auth-guard'
 export { AuthCallback, type AuthCallbackProps, type WorkspaceSelectorProps } from './callback'
@@ -9,13 +9,13 @@ export { useAuthz, useAuthzUser, useAuthzHasRole, useAuthzFetch } from './authz-
 export { AuthzGuard, type AuthzGuardProps } from './authz-guard'
 export { AuthzCallback, type AuthzCallbackProps, type AuthzWorkspaceSelectorProps } from './authz-callback'
 
-// Re-export commonly used types from @sentinel-auth/js
+// Re-export commonly used types from @duar-auth/js
 export type {
-  SentinelConfig,
-  SentinelUser,
+  DuarConfig,
+  DuarUser,
   WorkspaceOption,
   WorkspaceRole,
-  SentinelAuthzConfig,
+  DuarAuthzConfig,
   AuthzTokenStore,
   AuthzResolveResponse,
   AuthState,
@@ -24,4 +24,4 @@ export type {
   GroupInfo,
   GroupMemberInfo,
   UserProfile,
-} from '@sentinel-auth/js'
+} from '@duar-auth/js'

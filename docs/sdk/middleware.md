@@ -1,22 +1,22 @@
 # Middleware
 
-The SDK provides two middleware classes. Use `AuthzMiddleware` in authz mode (dual-token) or `JWTAuthMiddleware` in proxy mode (single JWT). If you use the `Sentinel` class, `protect()` adds the correct one automatically.
+The SDK provides two middleware classes. Use `AuthzMiddleware` in authz mode (dual-token) or `JWTAuthMiddleware` in proxy mode (single JWT). If you use the `Duar` class, `protect()` adds the correct one automatically.
 
 ## AuthzMiddleware (AuthZ Mode)
 
-Validates both an IdP token and a Sentinel authorization token on each request. Checks that the `sub` claims match across tokens (binding verification).
+Validates both an IdP token and a Duar authorization token on each request. Checks that the `sub` claims match across tokens (binding verification).
 
 ### Headers
 
 | Header | Content |
 |--------|---------|
 | `Authorization` | `Bearer <idp_token>` |
-| `X-Authz-Token` | `<sentinel_authz_token>` |
+| `X-Authz-Token` | `<duar_authz_token>` |
 
 ### Setup
 
 ```python
-from sentinel_auth.authz_middleware import AuthzMiddleware
+from duar_auth.authz_middleware import AuthzMiddleware
 
 app.add_middleware(
     AuthzMiddleware,
@@ -24,15 +24,15 @@ app.add_middleware(
     idp_audience="123-abc.apps.googleusercontent.com",
     idp_issuer="https://accounts.google.com",
     idp_jwks_url="https://www.googleapis.com/oauth2/v3/certs",
-    sentinel_public_key=sentinel_pem,
+    duar_public_key=duar_pem,
     exclude_paths=["/health", "/docs", "/openapi.json"],
 )
 ```
 
-Or pass a `Sentinel` instance (keys are read lazily -- safe to call before lifespan). In that case `service_name`, `idp_audience`, and `idp_issuer` are picked up from the Sentinel instance:
+Or pass a `Duar` instance (keys are read lazily -- safe to call before lifespan). In that case `service_name`, `idp_audience`, and `idp_issuer` are picked up from the Duar instance:
 
 ```python
-sentinel.protect(app)  # preferred
+duar.protect(app)  # preferred
 ```
 
 ### Constructor Parameters
@@ -44,14 +44,14 @@ sentinel.protect(app)  # preferred
 | `idp_issuer` | `str \| None` | `None` | Expected IdP `iss` claim. Strongly recommended. |
 | `idp_public_key` | `str \| None` | `None` | PEM key for IdP token validation |
 | `idp_jwks_url` | `str \| None` | `None` | JWKS endpoint for IdP tokens (handles key rotation) |
-| `sentinel_public_key` | `str \| None` | `None` | PEM key for authz token validation |
-| `sentinel_instance` | `Sentinel \| None` | `None` | Sentinel instance (reads keys lazily) |
+| `duar_public_key` | `str \| None` | `None` | PEM key for authz token validation |
+| `duar_instance` | `Duar \| None` | `None` | Duar instance (reads keys lazily) |
 | `idp_algorithm` | `str` | `"RS256"` | IdP token signing algorithm |
-| `sentinel_algorithm` | `str` | `"RS256"` | Authz token signing algorithm |
-| `sentinel_audience` | `str` | `"sentinel:authz"` | Expected `aud` claim in authz token |
+| `duar_algorithm` | `str` | `"RS256"` | Authz token signing algorithm |
+| `duar_audience` | `str` | `"sentinel:authz"` | Expected `aud` claim in authz token |
 | `exclude_paths` | `list[str] \| None` | `["/health", "/docs", "/openapi.json"]` | Paths that bypass authentication |
 
-Either `sentinel_public_key` or `sentinel_instance` is required. For IdP validation, the middleware uses `idp_jwks_url` or `idp_public_key` (from the params or from the Sentinel instance).
+Either `duar_public_key` or `duar_instance` is required. For IdP validation, the middleware uses `idp_jwks_url` or `idp_public_key` (from the params or from the Duar instance).
 
 ### Request State
 
@@ -60,7 +60,7 @@ After successful validation, the middleware sets:
 | Attribute | Type | Description |
 |-----------|------|-------------|
 | `request.state.user` | `AuthenticatedUser` | User built from authz token claims + IdP email/name |
-| `request.state.token` | `str` | The Sentinel authz token |
+| `request.state.token` | `str` | The Duar authz token |
 | `request.state.idp_token` | `str` | The original IdP token |
 
 ### Validation Steps
@@ -79,17 +79,17 @@ OPTIONS requests are passed through without validation.
 
 ## JWTAuthMiddleware (Proxy Mode)
 
-Validates a single Sentinel-issued JWT. Used when Sentinel handles the full OAuth flow.
+Validates a single Duar-issued JWT. Used when Duar handles the full OAuth flow.
 
 ### Setup
 
 ```python
-from sentinel_auth.middleware import JWTAuthMiddleware
+from duar_auth.middleware import JWTAuthMiddleware
 
 # Recommended: fetch key from JWKS automatically
 app.add_middleware(
     JWTAuthMiddleware,
-    base_url="https://sentinel.example.com",
+    base_url="https://duar.example.com",
 )
 
 # Alternative: static PEM key
@@ -103,7 +103,7 @@ app.add_middleware(
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `base_url` | `str \| None` | `None` | Sentinel URL. JWKS endpoint derived as `{base_url}/.well-known/jwks.json` |
+| `base_url` | `str \| None` | `None` | Duar URL. JWKS endpoint derived as `{base_url}/.well-known/jwks.json` |
 | `public_key` | `str \| None` | `None` | RSA PEM key for air-gapped deployments |
 | `jwks_url` | `str \| None` | `None` | Explicit JWKS URL (non-standard paths only) |
 | `algorithm` | `str` | `"RS256"` | JWT signing algorithm |

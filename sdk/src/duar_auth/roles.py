@@ -4,8 +4,8 @@ import uuid
 
 import httpx
 
-from sentinel_auth._utils import warn_if_insecure
-from sentinel_auth.types import SentinelError
+from duar_auth._utils import warn_if_insecure
+from duar_auth.types import DuarError
 
 
 class RoleClient:
@@ -32,12 +32,12 @@ class RoleClient:
 
     @staticmethod
     def _check(response: httpx.Response) -> None:
-        """Raise SentinelError on non-2xx responses."""
+        """Raise DuarError on non-2xx responses."""
         try:
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
-            raise SentinelError(
-                f"Sentinel API error: {exc.response.status_code}",
+            raise DuarError(
+                f"Duar API error: {exc.response.status_code}",
                 status_code=exc.response.status_code,
             ) from exc
 

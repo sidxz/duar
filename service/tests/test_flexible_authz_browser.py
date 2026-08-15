@@ -1,10 +1,10 @@
 """Regression: get_current_user_flexible must accept the browser authz path.
 
-In authz mode the SPA holds only the IdP token and its Sentinel-minted authz
+In authz mode the SPA holds only the IdP token and its Duar-minted authz
 token — never a sentinel:access token and never a service key. The SDK's
-Sentinel-direct helpers (getProfile, searchMembers, listGroups, …) send the
+Duar-direct helpers (getProfile, searchMembers, listGroups, …) send the
 IdP token as Bearer plus the authz token in X-Authz-Token. The server must
-authenticate the X-Authz-Token (Sentinel-signed, short-TTL) — previously the
+authenticate the X-Authz-Token (Duar-signed, short-TTL) — previously the
 header was never read and every such call 401'd.
 
 Invariants preserved:

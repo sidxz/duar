@@ -12,7 +12,7 @@ from src.config import settings
 
 
 def test_dex_listed_among_providers_when_configured(monkeypatch):
-    monkeypatch.setattr(settings, "dex_client_id", "sentinel-prover")
+    monkeypatch.setattr(settings, "dex_client_id", "duar-prover")
     monkeypatch.setattr(
         settings,
         "dex_server_metadata_url",

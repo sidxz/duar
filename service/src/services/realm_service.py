@@ -26,7 +26,7 @@ async def create_realm(
     # same name serialize and the check below can't be raced.
     await db.execute(
         text("SELECT pg_advisory_xact_lock(hashtext(:k))"),
-        {"k": f"sentinel:scope:{slug}"},
+        {"k": f"duar:scope:{slug}"},
     )
     collision = await db.execute(
         select(ServiceApp.id).where(ServiceApp.service_name == slug).limit(1)

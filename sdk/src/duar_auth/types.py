@@ -31,8 +31,8 @@ class AuthenticatedUser:
 
     Example:
         ```python
-        from sentinel_auth.dependencies import get_current_user
-        from sentinel_auth.types import AuthenticatedUser
+        from duar_auth.dependencies import get_current_user
+        from duar_auth.types import AuthenticatedUser
 
         @router.get("/items")
         async def list_items(user: AuthenticatedUser = Depends(get_current_user)):
@@ -99,8 +99,8 @@ class WorkspaceContext:
     role: str
 
 
-class SentinelError(Exception):
-    """Raised when the Sentinel identity service returns an error or is unreachable."""
+class DuarError(Exception):
+    """Raised when the Duar identity service returns an error or is unreachable."""
 
     def __init__(self, message: str, status_code: int | None = None):
         self.status_code = status_code

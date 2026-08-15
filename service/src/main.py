@@ -245,7 +245,7 @@ class HealthExemptTrustedHostMiddleware(TrustedHostMiddleware):
 def create_app(tier: str) -> FastAPI:
     """Build a listener for the given tier. Same image, different surface."""
     app = FastAPI(
-        title=f"Sentinel Auth ({tier})",
+        title=f"Duar ({tier})",
         description="Authentication, workspace management, and permissions",
         version=__version__,
         lifespan=lifespan,

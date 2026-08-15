@@ -13,7 +13,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-from sentinel_auth.authz_middleware import AuthzMiddleware
+from duar_auth.authz_middleware import AuthzMiddleware
 
 
 @pytest.fixture(scope="module")
@@ -25,7 +25,7 @@ def idp_keypair():
 
 
 @pytest.fixture(scope="module")
-def sentinel_keypair():
+def duar_keypair():
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     return key, key.public_key().public_bytes(
         serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
@@ -37,9 +37,9 @@ TEST_SERVICE_NAME = "team-notes"
 
 
 @pytest.fixture()
-def dual_tokens(idp_keypair, sentinel_keypair):
+def dual_tokens(idp_keypair, duar_keypair):
     idp_priv, _ = idp_keypair
-    sentinel_priv, _ = sentinel_keypair
+    duar_priv, _ = duar_keypair
     now = datetime.datetime.now(datetime.UTC)
     user_id = uuid.uuid4()
     workspace_id = uuid.uuid4()
@@ -70,13 +70,13 @@ def dual_tokens(idp_keypair, sentinel_keypair):
             "iat": now,
             "exp": now + datetime.timedelta(minutes=5),
         },
-        sentinel_priv,
+        duar_priv,
         algorithm="RS256",
     )
     return idp_token, authz_token
 
 
-def _make_app(idp_pub_key: str, sentinel_pub_key: str) -> Starlette:
+def _make_app(idp_pub_key: str, duar_pub_key: str) -> Starlette:
     async def protected(request: Request) -> JSONResponse:
         user = request.state.user
         return JSONResponse({"email": user.email, "role": user.workspace_role})
@@ -87,17 +87,17 @@ def _make_app(idp_pub_key: str, sentinel_pub_key: str) -> Starlette:
         service_name=TEST_SERVICE_NAME,
         idp_audience=TEST_IDP_AUDIENCE,
         idp_public_key=idp_pub_key,
-        sentinel_public_key=sentinel_pub_key,
+        duar_public_key=duar_pub_key,
     )
     return app
 
 
 class TestAuthzMiddleware:
-    def test_valid_dual_tokens(self, idp_keypair, sentinel_keypair, dual_tokens):
+    def test_valid_dual_tokens(self, idp_keypair, duar_keypair, dual_tokens):
         _, idp_pub = idp_keypair
-        _, sentinel_pub = sentinel_keypair
+        _, duar_pub = duar_keypair
         idp_token, authz_token = dual_tokens
-        client = TestClient(_make_app(idp_pub, sentinel_pub))
+        client = TestClient(_make_app(idp_pub, duar_pub))
         resp = client.get(
             "/protected",
             headers={
@@ -109,17 +109,17 @@ class TestAuthzMiddleware:
         assert resp.json()["email"] == "alice@acme.com"
         assert resp.json()["role"] == "editor"
 
-    def test_missing_authz_token(self, idp_keypair, sentinel_keypair, dual_tokens):
+    def test_missing_authz_token(self, idp_keypair, duar_keypair, dual_tokens):
         _, idp_pub = idp_keypair
-        _, sentinel_pub = sentinel_keypair
+        _, duar_pub = duar_keypair
         idp_token, _ = dual_tokens
-        client = TestClient(_make_app(idp_pub, sentinel_pub))
+        client = TestClient(_make_app(idp_pub, duar_pub))
         resp = client.get("/protected", headers={"Authorization": f"Bearer {idp_token}"})
         assert resp.status_code == 401
 
-    def test_mismatched_idp_sub_rejected(self, idp_keypair, sentinel_keypair):
+    def test_mismatched_idp_sub_rejected(self, idp_keypair, duar_keypair):
         idp_priv, idp_pub = idp_keypair
-        sentinel_priv, sentinel_pub = sentinel_keypair
+        duar_priv, duar_pub = duar_keypair
         now = datetime.datetime.now(datetime.UTC)
 
         idp_token = pyjwt.encode(
@@ -146,10 +146,10 @@ class TestAuthzMiddleware:
                 "iat": now,
                 "exp": now + datetime.timedelta(minutes=5),
             },
-            sentinel_priv,
+            duar_priv,
             algorithm="RS256",
         )
-        client = TestClient(_make_app(idp_pub, sentinel_pub))
+        client = TestClient(_make_app(idp_pub, duar_pub))
         resp = client.get(
             "/protected",
             headers={"Authorization": f"Bearer {idp_token}", "X-Authz-Token": authz_token},
@@ -157,10 +157,10 @@ class TestAuthzMiddleware:
         assert resp.status_code == 401
         assert "binding" in resp.json()["detail"].lower()
 
-    def test_wrong_audience_rejected(self, idp_keypair, sentinel_keypair, dual_tokens):
+    def test_wrong_audience_rejected(self, idp_keypair, duar_keypair, dual_tokens):
         """An IdP token with the wrong aud must be rejected even if signature is valid."""
         idp_priv, idp_pub = idp_keypair
-        _, sentinel_pub = sentinel_keypair
+        _, duar_pub = duar_keypair
         _, authz_token = dual_tokens
         now = datetime.datetime.now(datetime.UTC)
 
@@ -176,7 +176,7 @@ class TestAuthzMiddleware:
             idp_priv,
             algorithm="RS256",
         )
-        client = TestClient(_make_app(idp_pub, sentinel_pub))
+        client = TestClient(_make_app(idp_pub, duar_pub))
         resp = client.get(
             "/protected",
             headers={
@@ -186,10 +186,10 @@ class TestAuthzMiddleware:
         )
         assert resp.status_code == 401
 
-    def test_wrong_svc_rejected(self, idp_keypair, sentinel_keypair):
+    def test_wrong_svc_rejected(self, idp_keypair, duar_keypair):
         """An authz token with a different svc claim must be rejected."""
         idp_priv, idp_pub = idp_keypair
-        sentinel_priv, sentinel_pub = sentinel_keypair
+        duar_priv, duar_pub = duar_keypair
         now = datetime.datetime.now(datetime.UTC)
         idp_sub = "google|12345"
 
@@ -218,10 +218,10 @@ class TestAuthzMiddleware:
                 "iat": now,
                 "exp": now + datetime.timedelta(minutes=5),
             },
-            sentinel_priv,
+            duar_priv,
             algorithm="RS256",
         )
-        client = TestClient(_make_app(idp_pub, sentinel_pub))
+        client = TestClient(_make_app(idp_pub, duar_pub))
         resp = client.get(
             "/protected",
             headers={"Authorization": f"Bearer {idp_token}", "X-Authz-Token": authz_token},
@@ -233,9 +233,9 @@ class TestAuthzMiddleware:
 class TestAuthzMiddlewareOrgClaims:
     """Org claims (oid/oslug/opub) are parsed from the authz-token payload."""
 
-    def test_org_claims_parsed(self, idp_keypair, sentinel_keypair):
+    def test_org_claims_parsed(self, idp_keypair, duar_keypair):
         idp_priv, idp_pub = idp_keypair
-        sentinel_priv, sentinel_pub = sentinel_keypair
+        duar_priv, duar_pub = duar_keypair
         now = datetime.datetime.now(datetime.UTC)
         idp_sub = "google|12345"
         org_id = uuid.uuid4()
@@ -267,7 +267,7 @@ class TestAuthzMiddlewareOrgClaims:
         authz_payload["oid"] = str(org_id)
         authz_payload["oslug"] = "abbvie"
         authz_payload["opub"] = True
-        authz_token = pyjwt.encode(authz_payload, sentinel_priv, algorithm="RS256")
+        authz_token = pyjwt.encode(authz_payload, duar_priv, algorithm="RS256")
 
         captured_user = None
 
@@ -282,7 +282,7 @@ class TestAuthzMiddlewareOrgClaims:
             service_name=TEST_SERVICE_NAME,
             idp_audience=TEST_IDP_AUDIENCE,
             idp_public_key=idp_pub,
-            sentinel_public_key=sentinel_pub,
+            duar_public_key=duar_pub,
         )
         client = TestClient(app)
         resp = client.get(
@@ -295,9 +295,9 @@ class TestAuthzMiddlewareOrgClaims:
         assert captured_user.org_slug == "abbvie"
         assert captured_user.org_is_public is True
 
-    def test_missing_org_claims_default_none(self, idp_keypair, sentinel_keypair, dual_tokens):
+    def test_missing_org_claims_default_none(self, idp_keypair, duar_keypair, dual_tokens):
         _, idp_pub = idp_keypair
-        _, sentinel_pub = sentinel_keypair
+        _, duar_pub = duar_keypair
         idp_token, authz_token = dual_tokens
 
         captured_user = None
@@ -313,7 +313,7 @@ class TestAuthzMiddlewareOrgClaims:
             service_name=TEST_SERVICE_NAME,
             idp_audience=TEST_IDP_AUDIENCE,
             idp_public_key=idp_pub,
-            sentinel_public_key=sentinel_pub,
+            duar_public_key=duar_pub,
         )
         client = TestClient(app)
         resp = client.get(
@@ -327,14 +327,14 @@ class TestAuthzMiddlewareOrgClaims:
         assert captured_user.org_is_public is False
 
 
-class _FakeSentinel:
-    """Minimal stand-in exposing what AuthzMiddleware reads from a Sentinel."""
+class _FakeDuar:
+    """Minimal stand-in exposing what AuthzMiddleware reads from a Duar."""
 
-    def __init__(self, base_url="http://sentinel"):
+    def __init__(self, base_url="http://duar"):
         self.base_url = base_url
         self.idp_public_key = None
         self.idp_jwks_url = None
-        self.sentinel_public_key = None
+        self.duar_public_key = None
 
 
 def _jwks_for(public_pem: str, kid: str) -> dict:
@@ -370,7 +370,7 @@ def _patch_jwks(monkeypatch, jwks: dict) -> None:
     monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: _FakeHTTPResponse(payload))
 
 
-def _signed_dual(idp_priv, sentinel_priv, kid):
+def _signed_dual(idp_priv, duar_priv, kid):
     now = datetime.datetime.now(datetime.UTC)
     idp_sub = "google|12345"
     idp_token = pyjwt.encode(
@@ -398,14 +398,14 @@ def _signed_dual(idp_priv, sentinel_priv, kid):
             "iat": now,
             "exp": now + datetime.timedelta(minutes=5),
         },
-        sentinel_priv,
+        duar_priv,
         algorithm="RS256",
         headers={"kid": kid},
     )
     return idp_token, authz_token
 
 
-def _make_instance_app(idp_pub, fake_sentinel) -> Starlette:
+def _make_instance_app(idp_pub, fake_duar) -> Starlette:
     async def protected(request: Request) -> JSONResponse:
         return JSONResponse({"email": request.state.user.email})
 
@@ -415,34 +415,34 @@ def _make_instance_app(idp_pub, fake_sentinel) -> Starlette:
         service_name=TEST_SERVICE_NAME,
         idp_audience=TEST_IDP_AUDIENCE,
         idp_public_key=idp_pub,
-        sentinel_instance=fake_sentinel,
+        duar_instance=fake_duar,
     )
     return app
 
 
 class TestAuthzKidPath:
-    """The authz-token key is resolved by kid via PyJWKClient against Sentinel's
+    """The authz-token key is resolved by kid via PyJWKClient against Duar's
     JWKS; we verify the delegation and the unknown-kid error mapping."""
 
-    def test_authz_token_resolved_by_kid_via_jwks(self, idp_keypair, sentinel_keypair, monkeypatch):
+    def test_authz_token_resolved_by_kid_via_jwks(self, idp_keypair, duar_keypair, monkeypatch):
         idp_priv, idp_pub = idp_keypair
-        sentinel_priv, sentinel_pub = sentinel_keypair
-        _patch_jwks(monkeypatch, _jwks_for(sentinel_pub, "s1"))
-        idp_token, authz_token = _signed_dual(idp_priv, sentinel_priv, "s1")
-        client = TestClient(_make_instance_app(idp_pub, _FakeSentinel()))
+        duar_priv, duar_pub = duar_keypair
+        _patch_jwks(monkeypatch, _jwks_for(duar_pub, "s1"))
+        idp_token, authz_token = _signed_dual(idp_priv, duar_priv, "s1")
+        client = TestClient(_make_instance_app(idp_pub, _FakeDuar()))
         resp = client.get(
             "/protected",
             headers={"Authorization": f"Bearer {idp_token}", "X-Authz-Token": authz_token},
         )
         assert resp.status_code == 200
 
-    def test_unknown_authz_kid_rejected_401(self, idp_keypair, sentinel_keypair, monkeypatch):
+    def test_unknown_authz_kid_rejected_401(self, idp_keypair, duar_keypair, monkeypatch):
         idp_priv, idp_pub = idp_keypair
-        sentinel_priv, sentinel_pub = sentinel_keypair
-        _patch_jwks(monkeypatch, _jwks_for(sentinel_pub, "s1"))
+        duar_priv, duar_pub = duar_keypair
+        _patch_jwks(monkeypatch, _jwks_for(duar_pub, "s1"))
         # authz token's kid is not published → PyJWKClient refetches, misses, raises.
-        idp_token, authz_token = _signed_dual(idp_priv, sentinel_priv, "other")
-        client = TestClient(_make_instance_app(idp_pub, _FakeSentinel()))
+        idp_token, authz_token = _signed_dual(idp_priv, duar_priv, "other")
+        client = TestClient(_make_instance_app(idp_pub, _FakeDuar()))
         resp = client.get(
             "/protected",
             headers={"Authorization": f"Bearer {idp_token}", "X-Authz-Token": authz_token},

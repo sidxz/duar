@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     )
 
     # Redis
-    redis_url: str = "rediss://:sentinel_dev@localhost:9002/0"
+    redis_url: str = "rediss://:duar_dev@localhost:9002/0"
     redis_tls_ca_cert: str = ""  # Path to CA cert for Redis TLS (e.g. keys/tls/ca.crt)
     redis_tls_verify: str = "none"  # "none" | "required" — set "required" in production
 
@@ -68,7 +68,7 @@ class Settings(BaseSettings):
         False  # Set True when behind a reverse proxy (nginx, ALB, etc.)
     )
     trusted_proxy_count: int = (
-        1  # Number of trusted reverse proxies between Sentinel and the internet.
+        1  # Number of trusted reverse proxies between Duar and the internet.
         # The client IP is read from the Nth-from-right X-Forwarded-For entry, so
         # client-controlled (leftmost) values cannot spoof the rate-limit bucket.
     )

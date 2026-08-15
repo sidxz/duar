@@ -10,8 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@sentinel-auth/js": "file:../../sdks/js",
-    "@sentinel-auth/react": "file:../../sdks/react",
+    "@duar-auth/js": "file:../../sdks/js",
+    "@duar-auth/react": "file:../../sdks/react",
     "@tailwindcss/vite": "^4.2.1",
     "@tanstack/react-query": "^5.90.21",
     "react": "^19.2.0",

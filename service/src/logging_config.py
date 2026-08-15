@@ -15,7 +15,7 @@ from src.version import __version__
 
 
 def _add_service_context(logger, method_name, event_dict: dict) -> dict:
-    event_dict.setdefault("service", "sentinel")
+    event_dict.setdefault("service", "duar")
     event_dict.setdefault("version", __version__)
     event_dict.setdefault("env", settings.environment)
     return event_dict

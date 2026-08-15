@@ -1,16 +1,16 @@
-"""Team Notes — demo app showcasing the Sentinel Auth SDK.
+"""Team Notes — demo app showcasing the Duar SDK.
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.config import sentinel, settings
+from src.config import duar, settings
 
 app = FastAPI(
     title="Team Notes",
-    description="Demo app showcasing the Sentinel Auth SDK — "
+    description="Demo app showcasing the Duar SDK — "
     "workspace isolation, role enforcement, entity ACLs, and custom RBAC.",
     version="0.1.0",
-    lifespan=sentinel.lifespan,
+    lifespan=duar.lifespan,
 )
 
 # CORS for the demo frontend
@@ -23,7 +23,7 @@ app.add_middleware(
 )
 
 # JWT authentication
-sentinel.protect(app, exclude_paths=["/health", "/docs", "/openapi.json", "/redoc"])
+duar.protect(app, exclude_paths=["/health", "/docs", "/openapi.json", "/redoc"])
 
 # Mount routes
 from src.routes import router  # noqa: E402
@@ -40,9 +40,9 @@ if __name__ == "__main__":
     import uvicorn
 
     print("\n" + "=" * 60)
-    print("TEAM NOTES — Sentinel Auth SDK Demo")
+    print("TEAM NOTES — Duar SDK Demo")
     print("=" * 60)
-    print(f"\nSentinel service: {settings.sentinel_url}")
+    print(f"\nDuar service: {settings.duar_url}")
     print(f"Demo backend:     http://localhost:{settings.port}")
     print(f"Demo frontend:    {settings.frontend_url}")
     print(f"\nAPI docs: http://localhost:{settings.port}/docs")
@@ -56,9 +56,9 @@ if __name__ == "__main__":
 # ═══════════════════════════════════════════════════════════════════════════
 #
 #   from contextlib import asynccontextmanager
-#   from sentinel_auth.middleware import JWTAuthMiddleware
-#   from sentinel_auth.permissions import PermissionClient
-#   from sentinel_auth.roles import RoleClient
+#   from duar_auth.middleware import JWTAuthMiddleware
+#   from duar_auth.permissions import PermissionClient
+#   from duar_auth.roles import RoleClient
 #
 #   @asynccontextmanager
 #   async def lifespan(app: FastAPI):
@@ -67,12 +67,12 @@ if __name__ == "__main__":
 #
 #       # Create SDK clients
 #       app.state.permissions = PermissionClient(
-#           base_url=settings.sentinel_url,
+#           base_url=settings.duar_url,
 #           service_name=settings.service_name,
 #           service_key=settings.service_api_key,
 #       )
 #       app.state.roles = RoleClient(
-#           base_url=settings.sentinel_url,
+#           base_url=settings.duar_url,
 #           service_name=settings.service_name,
 #           service_key=settings.service_api_key,
 #       )
@@ -92,7 +92,7 @@ if __name__ == "__main__":
 #
 #   app.add_middleware(
 #       JWTAuthMiddleware,
-#       base_url=settings.sentinel_url,
+#       base_url=settings.duar_url,
 #       exclude_paths=["/health", "/docs", "/openapi.json", "/redoc"],
 #       allowed_workspaces=set(settings.allowed_workspaces) or None,
 #   )

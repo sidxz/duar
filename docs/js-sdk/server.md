@@ -1,14 +1,14 @@
 # Server Utilities
 
-`@sentinel-auth/js/server` provides JWT verification, permission checks, and RBAC action checks for Node.js and Edge runtimes.
+`@duar-auth/js/server` provides JWT verification, permission checks, and RBAC action checks for Node.js and Edge runtimes.
 
 ```typescript
-import { verifyToken, payloadToUser, PermissionClient, RoleClient } from '@sentinel-auth/js/server'
+import { verifyToken, payloadToUser, PermissionClient, RoleClient } from '@duar-auth/js/server'
 ```
 
 ## verifyToken
 
-Verify a Sentinel JWT against a JWKS endpoint. Uses `jose` (Edge-compatible).
+Verify a Duar JWT against a JWKS endpoint. Uses `jose` (Edge-compatible).
 
 ```typescript
 const payload = await verifyToken(token, {
@@ -20,7 +20,7 @@ const user = payloadToUser(payload)
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `jwksUrl` | `string` | required | Sentinel JWKS endpoint |
+| `jwksUrl` | `string` | required | Duar JWKS endpoint |
 | `audience` | `string` | `"sentinel:access"` | Expected `aud` claim |
 | `issuer` | `string` | -- | Expected `iss` claim |
 
@@ -37,7 +37,7 @@ const permissions = new PermissionClient(
 ```
 
 !!! note "Which token?"
-    The `token` argument on every `PermissionClient` and `RoleClient` method must be a **Sentinel-signed** token: the access token in proxy mode, or the authz token (the `X-Authz-Token` request header) in [AuthZ mode](authz-client.md). In AuthZ mode the `Authorization` header carries the IdP token — Sentinel can't decode it, so passing it fails every call with a 401.
+    The `token` argument on every `PermissionClient` and `RoleClient` method must be a **Duar-signed** token: the access token in proxy mode, or the authz token (the `X-Authz-Token` request header) in [AuthZ mode](authz-client.md). In AuthZ mode the `Authorization` header carries the IdP token — Duar can't decode it, so passing it fails every call with a 401.
 
 **can(token, resourceType, resourceId, action)** -- single permission check.
 
@@ -114,7 +114,7 @@ const actions = await roles.getUserActions(token, workspaceId)
 
 ```typescript
 import express from 'express'
-import { verifyToken, payloadToUser, PermissionClient } from '@sentinel-auth/js/server'
+import { verifyToken, payloadToUser, PermissionClient } from '@duar-auth/js/server'
 
 const app = express()
 const permissions = new PermissionClient('http://localhost:9003', 'my-service', process.env.SERVICE_KEY)
@@ -142,12 +142,12 @@ app.get('/api/documents/:id', authenticate, async (req, res) => {
 
 ## Realm m2m (server only)
 
-For [realm](../guide/realms.md) members, `@sentinel-auth/js/server` adds the no-user m2m primitives for [Flow B](../guide/realms.md#flow-b-no-user). These are **server-entry only** — they hold the service key and must never reach a browser. (`@sentinel-auth/react` deliberately has no m2m surface.)
+For [realm](../guide/realms.md) members, `@duar-auth/js/server` adds the no-user m2m primitives for [Flow B](../guide/realms.md#flow-b-no-user). These are **server-entry only** — they hold the service key and must never reach a browser. (`@duar-auth/react` deliberately has no m2m surface.)
 
-The examples below point at `http://sentinel-internal:9010` — the unpublished [internal listener](../deployment/index.md#network-split-public--internal-listeners), not the public `:9003` URL browser flows use.
+The examples below point at `http://duar-internal:9010` — the unpublished [internal listener](../deployment/index.md#network-split-public--internal-listeners), not the public `:9003` URL browser flows use.
 
 ```typescript
-import { fetchWhoami, verifyM2mToken, M2mTokenClient } from '@sentinel-auth/js/server'
+import { fetchWhoami, verifyM2mToken, M2mTokenClient } from '@duar-auth/js/server'
 ```
 
 ### fetchWhoami
@@ -155,7 +155,7 @@ import { fetchWhoami, verifyM2mToken, M2mTokenClient } from '@sentinel-auth/js/s
 Self-discover this service's shared scope (standalone → `effective_scope === service_name`, `realm: null`).
 
 ```typescript
-const who = await fetchWhoami({ sentinelUrl: 'http://sentinel-internal:9010', serviceKey: process.env.SERVICE_KEY })
+const who = await fetchWhoami({ duarUrl: 'http://duar-internal:9010', serviceKey: process.env.SERVICE_KEY })
 // { service_name, effective_scope, realm: { slug, name } | null }
 ```
 
@@ -164,7 +164,7 @@ const who = await fetchWhoami({ sentinelUrl: 'http://sentinel-internal:9010', se
 Mints and caches m2m tokens for outbound system calls; re-mints only past ~80% of the TTL.
 
 ```typescript
-const m2m = new M2mTokenClient('http://sentinel-internal:9010', process.env.SERVICE_KEY)
+const m2m = new M2mTokenClient('http://duar-internal:9010', process.env.SERVICE_KEY)
 const token = await m2m.getToken()
 await fetch('http://app-b.internal/internal/reindex', {
   headers: { Authorization: `Bearer ${token}` },
@@ -177,7 +177,7 @@ Verifies an inbound m2m token and returns a `SystemAuth`. Throws on any failure 
 
 ```typescript
 const sys = await verifyM2mToken(token, {
-  jwksUrl: 'http://sentinel-internal:9010/.well-known/jwks.json',
+  jwksUrl: 'http://duar-internal:9010/.well-known/jwks.json',
   effectiveScope: 'acme-suite',   // the token's svc must equal this
   serviceName: 'reports',         // optional — checked against aud_target when set
 })
@@ -189,9 +189,9 @@ sys.can('search:reindex')   // true if actions includes "*" or the action
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `jwksUrl` | `string` | JWKS endpoint of the Sentinel that signs m2m tokens |
+| `jwksUrl` | `string` | JWKS endpoint of the Duar that signs m2m tokens |
 | `effectiveScope` | `string` | this service's realm slug; the token's `svc` must equal it |
 | `serviceName` | `string?` | checked against the token's `aud_target` when set |
 | `issuer` | `string?` | expected `iss` claim |
 
-Next.js apps get the same three helpers re-exported from `@sentinel-auth/nextjs/server`. See [Realms](../guide/realms.md) for the trust model and [API → Realms](../api/realms.md) for the wire format.
+Next.js apps get the same three helpers re-exported from `@duar-auth/nextjs/server`. See [Realms](../guide/realms.md) for the trust model and [API → Realms](../api/realms.md) for the wire format.

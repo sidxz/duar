@@ -5,7 +5,7 @@ rejected when the token was minted for a different scope.
 
 The authz token comes from the real create_authz_token minter (signed by the ambient
 key_provider). The IdP token is minted with an in-test keypair — AuthzMiddleware is a
-dual-token gate (IdP identity + Sentinel authz), so both are required.
+dual-token gate (IdP identity + Duar authz), so both are required.
 """
 
 import datetime
@@ -20,7 +20,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-from sentinel_auth.authz_middleware import AuthzMiddleware
+from duar_auth.authz_middleware import AuthzMiddleware
 from src.auth import key_provider
 from src.auth.jwt import create_authz_token
 
@@ -62,7 +62,7 @@ def _idp_token(idp_priv: str) -> str:
 
 
 def _real_authz_token(*, service_name: str) -> str:
-    """A REAL Sentinel authz token, svc=service_name, bound to the IdP identity."""
+    """A REAL Duar authz token, svc=service_name, bound to the IdP identity."""
     return create_authz_token(
         user_id=uuid.UUID(int=1),
         idp_sub=_IDP_SUB,
@@ -77,13 +77,13 @@ def _real_authz_token(*, service_name: str) -> str:
     )
 
 
-def _sentinel_pubpem(token: str) -> str:
+def _duar_pubpem(token: str) -> str:
     kid = pyjwt.get_unverified_header(token)["kid"]
     return key_provider.verification_keys()[kid]
 
 
 class _FakeInstance:
-    """Minimal Sentinel stand-in: supplies effective_scope; no JWKS (static-key mode)."""
+    """Minimal Duar stand-in: supplies effective_scope; no JWKS (static-key mode)."""
 
     idp_jwks_url = None
 
@@ -91,7 +91,7 @@ class _FakeInstance:
         self.effective_scope = effective_scope
 
 
-def _app(*, effective_scope: str, idp_pub: str, sentinel_pub: str) -> Starlette:
+def _app(*, effective_scope: str, idp_pub: str, duar_pub: str) -> Starlette:
     async def protected(request: Request) -> JSONResponse:
         return JSONResponse({"role": request.state.user.workspace_role})
 
@@ -101,8 +101,8 @@ def _app(*, effective_scope: str, idp_pub: str, sentinel_pub: str) -> Starlette:
         service_name="app-b",  # the member's own name — NOT the realm slug
         idp_audience=_IDP_AUD,
         idp_public_key=idp_pub,
-        sentinel_public_key=sentinel_pub,
-        sentinel_instance=_FakeInstance(effective_scope),
+        duar_public_key=duar_pub,
+        duar_instance=_FakeInstance(effective_scope),
     )
     return app
 
@@ -114,7 +114,7 @@ def test_flow_a_realm_member_accepts_realm_scoped_token():
         _app(
             effective_scope="acme-suite",
             idp_pub=idp_pub,
-            sentinel_pub=_sentinel_pubpem(authz),
+            duar_pub=_duar_pubpem(authz),
         )
     )
     resp = client.get(
@@ -135,7 +135,7 @@ def test_flow_a_member_rejects_token_minted_for_other_scope():
         _app(
             effective_scope="acme-suite",
             idp_pub=idp_pub,
-            sentinel_pub=_sentinel_pubpem(authz),
+            duar_pub=_duar_pubpem(authz),
         )
     )
     resp = client.get(

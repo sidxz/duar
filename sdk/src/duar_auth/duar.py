@@ -1,4 +1,4 @@
-"""Sentinel autoconfig — single entry point for integrating FastAPI apps."""
+"""Duar autoconfig — single entry point for integrating FastAPI apps."""
 
 from __future__ import annotations
 
@@ -11,35 +11,35 @@ import jwt
 from fastapi import FastAPI, HTTPException, Request
 from jwt.algorithms import RSAAlgorithm
 
-from sentinel_auth._utils import warn_if_insecure
-from sentinel_auth.auth import SystemAuth
-from sentinel_auth.authz import AuthzClient
-from sentinel_auth.authz_middleware import AuthzMiddleware
-from sentinel_auth.dependencies import get_current_user, get_request_auth_factory
-from sentinel_auth.dependencies import require_action as _require_action
-from sentinel_auth.middleware import JWTAuthMiddleware
-from sentinel_auth.permissions import PermissionClient
-from sentinel_auth.roles import RoleClient
-from sentinel_auth.types import SentinelError
+from duar_auth._utils import warn_if_insecure
+from duar_auth.auth import SystemAuth
+from duar_auth.authz import AuthzClient
+from duar_auth.authz_middleware import AuthzMiddleware
+from duar_auth.dependencies import get_current_user, get_request_auth_factory
+from duar_auth.dependencies import require_action as _require_action
+from duar_auth.middleware import JWTAuthMiddleware
+from duar_auth.permissions import PermissionClient
+from duar_auth.roles import RoleClient
+from duar_auth.types import DuarError
 
 _AUD_M2M = "sentinel:m2m"
 
 
-class Sentinel:
-    """One-line integration with the Sentinel identity service.
+class Duar:
+    """One-line integration with the Duar identity service.
 
     Operates in two modes:
 
     **AuthZ mode** (default): Client apps authenticate users directly with
-    their IdP. Sentinel validates the IdP token and issues an authorization-only
+    their IdP. Duar validates the IdP token and issues an authorization-only
     JWT. The SDK middleware validates both tokens on each request.
 
-    **Proxy mode**: Sentinel handles the entire OAuth flow and issues a single
+    **Proxy mode**: Duar handles the entire OAuth flow and issues a single
     JWT containing both identity and authorization claims.
 
     Args:
-        base_url: Root URL of the Sentinel identity service.
-        service_name: The service name registered in Sentinel.
+        base_url: Root URL of the Duar identity service.
+        service_name: The service name registered in Duar.
         service_key: Service API key (from admin panel).
         mode: ``"authz"`` (default) or ``"proxy"``.
         idp_public_key: PEM-encoded public key for validating IdP tokens.
@@ -74,7 +74,7 @@ class Sentinel:
     ):
         if not service_key:
             raise ValueError(
-                "service_key is required. Create a service app in the Sentinel "
+                "service_key is required. Create a service app in the Duar "
                 "admin panel (/admin/service-apps) and pass the key here."
             )
         if mode not in ("authz", "proxy"):
@@ -90,7 +90,7 @@ class Sentinel:
                 )
 
         self.base_url = base_url.rstrip("/")
-        warn_if_insecure(self.base_url, "Sentinel")
+        warn_if_insecure(self.base_url, "Duar")
         self.service_name = service_name
         self.service_key = service_key
         self.mode = mode
@@ -105,19 +105,19 @@ class Sentinel:
         self._permissions: PermissionClient | None = None
         self._roles: RoleClient | None = None
         self._authz: AuthzClient | None = None
-        self._sentinel_public_key: str | None = None
+        self._duar_public_key: str | None = None
         self._effective_scope: str | None = None
         self._realm: dict | None = None
         self._m2m_token: str | None = None
         self._m2m_refresh_at: float = 0.0
 
     def __repr__(self) -> str:
-        return f"Sentinel(base_url={self.base_url!r}, service_name={self.service_name!r})"
+        return f"Duar(base_url={self.base_url!r}, service_name={self.service_name!r})"
 
     @property
-    def sentinel_public_key(self) -> str | None:
-        """Sentinel's public key, fetched during lifespan startup."""
-        return self._sentinel_public_key
+    def duar_public_key(self) -> str | None:
+        """Duar's public key, fetched during lifespan startup."""
+        return self._duar_public_key
 
     @property
     def effective_scope(self) -> str:
@@ -163,17 +163,17 @@ class Sentinel:
         return self._authz
 
     def proxy_router(self, timeout: float = 10.0):
-        """Reverse-proxy router for private-network Sentinel deployments.
+        """Reverse-proxy router for private-network Duar deployments.
 
-        Forwards the browser-facing Sentinel surface (discovery/mint via
+        Forwards the browser-facing Duar surface (discovery/mint via
         ``/authz/resolve`` with the service key injected, plus the read-only
         workspace-directory endpoints with the caller's tokens passed through)
-        so the frontend can use a same-origin ``sentinelUrl``. See
-        :mod:`sentinel_auth.proxy`.
+        so the frontend can use a same-origin ``duarUrl``. See
+        :mod:`duar_auth.proxy`.
 
-        Usage: ``app.include_router(sentinel.proxy_router(), prefix="/api/sentinel")``
+        Usage: ``app.include_router(duar.proxy_router(), prefix="/api/duar")``
         """
-        from sentinel_auth.proxy import create_proxy_router
+        from duar_auth.proxy import create_proxy_router
 
         return create_proxy_router(self.base_url, self.service_key, timeout=timeout)
 
@@ -187,16 +187,16 @@ class Sentinel:
         """Add authentication middleware to the app.
 
         In authz mode: adds ``AuthzMiddleware`` (validates IdP + authz tokens).
-        In proxy mode: adds ``JWTAuthMiddleware`` (validates Sentinel JWT).
+        In proxy mode: adds ``JWTAuthMiddleware`` (validates Duar JWT).
 
-        In authz mode, the middleware reads keys lazily from this ``Sentinel``
+        In authz mode, the middleware reads keys lazily from this ``Duar``
         instance, so ``protect()`` can safely be called at module level before
-        the lifespan fetches Sentinel's public key.
+        the lifespan fetches Duar's public key.
         """
         if self.mode == "authz":
             app.add_middleware(
                 AuthzMiddleware,
-                sentinel_instance=self,
+                duar_instance=self,
                 service_name=self.service_name,
                 idp_audience=self.idp_audience,
                 idp_issuer=self.idp_issuer,
@@ -210,14 +210,14 @@ class Sentinel:
                 allowed_workspaces=self.allowed_workspaces,
             )
 
-    async def fetch_sentinel_public_key(self) -> str:
-        """Fetch Sentinel's public key from its JWKS endpoint."""
+    async def fetch_duar_public_key(self) -> str:
+        """Fetch Duar's public key from its JWKS endpoint."""
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(f"{self.base_url}/.well-known/jwks.json")
             resp.raise_for_status()
             jwks = resp.json()
         if not jwks.get("keys"):
-            raise RuntimeError("No keys found in Sentinel JWKS response")
+            raise RuntimeError("No keys found in Duar JWKS response")
         key_data = jwks["keys"][0]
         pub_key = RSAAlgorithm.from_jwk(key_data)
         from cryptography.hazmat.primitives.serialization import (
@@ -225,14 +225,14 @@ class Sentinel:
             PublicFormat,
         )
 
-        self._sentinel_public_key = pub_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode()
-        return self._sentinel_public_key
+        self._duar_public_key = pub_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode()
+        return self._duar_public_key
 
     async def fetch_whoami(self) -> dict | None:
-        """Self-discover the shared realm scope from Sentinel — no app-side config.
+        """Self-discover the shared realm scope from Duar — no app-side config.
 
         Sets ``effective_scope`` to the realm slug when this service is a realm
-        member, else leaves it as ``service_name``. Tolerant of a pre-realm Sentinel
+        member, else leaves it as ``service_name``. Tolerant of a pre-realm Duar
         (``/realm`` absent → 404) or an unreachable internal listener: returns
         ``None`` and stays standalone, so older/partial deployments keep working.
         """
@@ -268,7 +268,7 @@ class Sentinel:
         """Return an async context manager factory for ``FastAPI(lifespan=...)``.
 
         On startup:
-        - In authz mode: fetches Sentinel's public key from JWKS endpoint.
+        - In authz mode: fetches Duar's public key from JWKS endpoint.
         - Registers RBAC actions (if any were provided).
         On shutdown: closes HTTP clients.
         """
@@ -276,7 +276,7 @@ class Sentinel:
         @asynccontextmanager
         async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
             if self.mode == "authz":
-                await self.fetch_sentinel_public_key()
+                await self.fetch_duar_public_key()
             await self.fetch_whoami()
             if self.actions:
                 await self.roles.register_actions(self.actions)
@@ -315,8 +315,8 @@ class Sentinel:
         """Verify an inbound no-user realm token and return its ``SystemAuth``.
 
         Receiver side of Flow B: App B calls this on a token App A minted via
-        ``mint_m2m_token``. Trust is rooted entirely in Sentinel's RS256 signature
-        (only Sentinel holds the private key) plus aud/type/svc binding — never
+        ``mint_m2m_token``. Trust is rooted entirely in Duar's RS256 signature
+        (only Duar holds the private key) plus aud/type/svc binding — never
         app↔app trust. The token's ``svc`` must equal this service's
         ``effective_scope``, so a token minted for another realm cannot be replayed.
 
@@ -324,13 +324,13 @@ class Sentinel:
         ``exclude_paths``): an m2m call carries no IdP token, so the dual-token
         middleware would 401 it. Gate it with ``require_system`` instead.
 
-        Raises ``SentinelError`` (``status_code`` 401 for bad/expired/wrong-type,
+        Raises ``DuarError`` (``status_code`` 401 for bad/expired/wrong-type,
         403 for wrong realm / wrong target).
         """
-        key = self._sentinel_public_key
+        key = self._duar_public_key
         if not key:
-            raise SentinelError(
-                "Sentinel public key not available; run the app under sentinel.lifespan so it is fetched at startup.",
+            raise DuarError(
+                "Duar public key not available; run the app under duar.lifespan so it is fetched at startup.",
                 503,
             )
         try:
@@ -341,16 +341,16 @@ class Sentinel:
             # rotation must not interrupt m2m acceptance.
             payload = jwt.decode(token, key, algorithms=["RS256"], audience=_AUD_M2M)
         except jwt.ExpiredSignatureError as exc:
-            raise SentinelError("m2m token expired", 401) from exc
+            raise DuarError("m2m token expired", 401) from exc
         except jwt.InvalidTokenError as exc:
-            raise SentinelError("Invalid m2m token", 401) from exc
+            raise DuarError("Invalid m2m token", 401) from exc
         if payload.get("type") != "m2m":
-            raise SentinelError("Not an m2m token", 401)
+            raise DuarError("Not an m2m token", 401)
         if payload.get("svc") != self.effective_scope:
-            raise SentinelError("m2m token was issued for a different realm", 403)
+            raise DuarError("m2m token was issued for a different realm", 403)
         aud_target = payload.get("aud_target")
         if aud_target is not None and aud_target != self.service_name:
-            raise SentinelError("m2m token targets a different service", 403)
+            raise DuarError("m2m token targets a different service", 403)
         return SystemAuth(
             caller=payload.get("caller", ""),
             actions=list(payload.get("actions") or []),
@@ -363,8 +363,8 @@ class Sentinel:
         Sender side of Flow B: App A calls this, then forwards the token in
         ``Authorization: Bearer`` on its call to App B. The token is cached and only
         re-minted once it passes ~80% of its TTL, so a tight background loop doesn't
-        hammer Sentinel. Requires this service to be an active member of an active
-        realm (Sentinel rejects a standalone caller with 403).
+        hammer Duar. Requires this service to be an active member of an active
+        realm (Duar rejects a standalone caller with 403).
         """
         if self._m2m_token is not None and time.monotonic() < self._m2m_refresh_at:
             return self._m2m_token
@@ -375,7 +375,7 @@ class Sentinel:
                 headers={"X-Service-Key": self.service_key},
             )
         if resp.status_code != 200:
-            raise SentinelError(f"m2m mint failed: {resp.status_code}", resp.status_code)
+            raise DuarError(f"m2m mint failed: {resp.status_code}", resp.status_code)
         data = resp.json()
         self._m2m_token = data["token"]
         self._m2m_refresh_at = time.monotonic() + data["expires_in"] * 0.8
@@ -395,7 +395,7 @@ class Sentinel:
                 raise HTTPException(status_code=401, detail="Missing m2m token")
             try:
                 return self.verify_m2m_token(auth.removeprefix("Bearer "))
-            except SentinelError as exc:
+            except DuarError as exc:
                 raise HTTPException(status_code=exc.status_code or 401, detail=str(exc))
 
         return dependency

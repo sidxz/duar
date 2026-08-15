@@ -1,18 +1,18 @@
 # RoleClient
 
-Async HTTP client for Sentinel's RBAC role/action API. Handles action registration, permission checks, and user action queries.
+Async HTTP client for Duar's RBAC role/action API. Handles action registration, permission checks, and user action queries.
 
-Usually accessed via `sentinel.roles`:
+Usually accessed via `duar.roles`:
 
 ```python
-sentinel = Sentinel(base_url="...", service_name="my-service", service_key="sk_...")
-roles = sentinel.roles
+duar = Duar(base_url="...", service_name="my-service", service_key="sk_...")
+roles = duar.roles
 ```
 
 Or create directly:
 
 ```python
-from sentinel_auth.roles import RoleClient
+from duar_auth.roles import RoleClient
 
 roles = RoleClient(
     base_url="http://localhost:9003",
@@ -23,7 +23,7 @@ roles = RoleClient(
 
 ## `register_actions()`
 
-Register actions for this service. Uses service key only (no user JWT). Typically called once on startup via the `Sentinel` class `actions` parameter.
+Register actions for this service. Uses service key only (no user JWT). Typically called once on startup via the `Duar` class `actions` parameter.
 
 ```python
 async def register_actions(actions: list[dict]) -> dict
@@ -39,10 +39,10 @@ await roles.register_actions([
 ])
 ```
 
-Or pass `actions` to the Sentinel constructor for automatic registration on startup:
+Or pass `actions` to the Duar constructor for automatic registration on startup:
 
 ```python
-sentinel = Sentinel(
+duar = Duar(
     ...,
     actions=[
         {"action": "reports:export", "description": "Export reports"},
@@ -64,7 +64,7 @@ if not allowed:
     raise HTTPException(403, "Not permitted")
 ```
 
-For route-level enforcement, use `require_action()` or `sentinel.require_action()` instead of calling this directly. See [FastAPI Dependencies](dependencies.md#require_actionrole_client-action).
+For route-level enforcement, use `require_action()` or `duar.require_action()` instead of calling this directly. See [FastAPI Dependencies](dependencies.md#require_actionrole_client-action).
 
 ## `get_user_actions()`
 
@@ -83,7 +83,7 @@ Useful for building UI permission flags -- fetch once and use client-side to sho
 
 ## `close()`
 
-Close the underlying `httpx.AsyncClient`. Called automatically by `Sentinel.lifespan` on shutdown.
+Close the underlying `httpx.AsyncClient`. Called automatically by `Duar.lifespan` on shutdown.
 
 ```python
 await roles.close()
@@ -98,13 +98,13 @@ async with RoleClient(base_url="...", service_name="...", service_key="...") as 
 
 ## Error Handling
 
-All methods raise `SentinelError` on non-2xx responses:
+All methods raise `DuarError` on non-2xx responses:
 
 ```python
-from sentinel_auth.types import SentinelError
+from duar_auth.types import DuarError
 
 try:
     await roles.check_action(token, "reports:export", workspace_id)
-except SentinelError as e:
+except DuarError as e:
     print(e.status_code)
 ```

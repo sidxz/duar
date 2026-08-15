@@ -1,10 +1,10 @@
-# Team Notes — Sentinel Auth SDK Demo (Proxy Mode)
+# Team Notes — Duar SDK Demo (Proxy Mode)
 
-> **Mode:** This demo uses **proxy mode** (`mode="proxy"`) where Sentinel handles
+> **Mode:** This demo uses **proxy mode** (`mode="proxy"`) where Duar handles
 > the entire OAuth flow — redirect, callback, token exchange, JWT issuance.
 > For the recommended AuthZ mode, see [`demo-authz/`](../demo-authz/).
 
-A simple note-taking app that demonstrates all features of the Sentinel Auth SDK:
+A simple note-taking app that demonstrates all features of the Duar SDK:
 
 - **JWT Authentication** — middleware validates RS256 tokens on every request
 - **Workspace Isolation** — notes are scoped to the active workspace
@@ -51,7 +51,7 @@ make start    # Start the identity service on :9003
 
 ### 3. Register a Service App (optional)
 
-In the Sentinel admin panel ([http://localhost:9004](http://localhost:9004) → Service Apps → Register Service), create a service app with service name `team-notes`. Copy the generated API key.
+In the Duar admin panel ([http://localhost:9004](http://localhost:9004) → Service Apps → Register Service), create a service app with service name `team-notes`. Copy the generated API key.
 
 ### 4. Start the Demo Backend
 
@@ -66,7 +66,7 @@ uv run python -m src.main
 uv run uvicorn src.main:app --port 9100 --reload
 ```
 
-The backend fetches the signing key automatically from Sentinel's JWKS endpoint — no PEM file distribution needed.
+The backend fetches the signing key automatically from Duar's JWKS endpoint — no PEM file distribution needed.
 
 ### 5. Start the Demo Frontend
 

@@ -3,15 +3,15 @@ import { MemoryStore } from './storage'
 import { isTokenExpired, tokenToUser } from './jwt-utils'
 import { warnIfInsecure } from './warn-insecure'
 import type {
-  SentinelConfig,
-  SentinelUser,
+  DuarConfig,
+  DuarUser,
   TokenResponse,
   TokenStore,
   WorkspaceOption,
 } from './types'
 
-const PKCE_KEY = 'sentinel_pkce_verifier'
-const STATE_KEY = 'sentinel_oauth_state'
+const PKCE_KEY = 'duar_pkce_verifier'
+const STATE_KEY = 'duar_oauth_state'
 
 // Cap on how long to wait for the cross-tab refresh lock before giving up and
 // refreshing unlocked — a stuck lock must never wedge auth forever.
@@ -22,7 +22,7 @@ const REFRESH_LOCK_TIMEOUT_MS = 5000
 // Subtracted (never added) so a token is never left to expire.
 const REFRESH_JITTER_MS = 5000
 
-type AuthStateListener = (user: SentinelUser | null) => void
+type AuthStateListener = (user: DuarUser | null) => void
 
 interface LockManagerLike {
   request(
@@ -33,10 +33,10 @@ interface LockManagerLike {
 }
 
 /**
- * Browser auth client for Sentinel. Handles PKCE, token storage, refresh, and
+ * Browser auth client for Duar. Handles PKCE, token storage, refresh, and
  * the non-standard workspace-selection auth flow.
  */
-export class SentinelAuth {
+export class DuarAuth {
   private readonly url: string
   private readonly clientId: string
   private readonly redirectUri: string
@@ -49,11 +49,11 @@ export class SentinelAuth {
   private readonly refreshLockName: string
   private channel: BroadcastChannel | null = null
 
-  constructor(config: SentinelConfig) {
-    this.url = config.sentinelUrl.replace(/\/+$/, '')
+  constructor(config: DuarConfig) {
+    this.url = config.duarUrl.replace(/\/+$/, '')
     if (!config.clientId) {
       throw new Error(
-        'SentinelAuth: clientId is required — obtain it from the Sentinel admin panel.',
+        'DuarAuth: clientId is required — obtain it from the Duar admin panel.',
       )
     }
     this.clientId = config.clientId
@@ -71,10 +71,10 @@ export class SentinelAuth {
     // Cross-tab auth events (logout / refreshed) so other tabs of this app
     // react immediately instead of only on their own next timer or request.
     if (typeof BroadcastChannel !== 'undefined') {
-      this.channel = new BroadcastChannel(`sentinel:auth:${this.clientId}`)
+      this.channel = new BroadcastChannel(`duar:auth:${this.clientId}`)
       this.channel.onmessage = (e: MessageEvent) => this.onBroadcast(e.data)
     }
-    warnIfInsecure(this.url, 'SentinelAuth')
+    warnIfInsecure(this.url, 'DuarAuth')
 
     // Schedule a refresh if we already have a valid token
     if (this.autoRefresh && this.store.getAccessToken()) {
@@ -299,8 +299,8 @@ export class SentinelAuth {
     return this.store.getAccessToken()
   }
 
-  /** Parse the current access token into a SentinelUser, or null. */
-  getUser(): SentinelUser | null {
+  /** Parse the current access token into a DuarUser, or null. */
+  getUser(): DuarUser | null {
     const token = this.store.getAccessToken()
     if (!token) return null
     try {

@@ -1,7 +1,7 @@
 [project]
-name = "sentinel-auth"
+name = "duar-service"
 version = "0.20.1"
-description = "Sentinel Auth — FastAPI microservice"
+description = "Duar — FastAPI microservice"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",

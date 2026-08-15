@@ -1,14 +1,14 @@
 [project]
 name = "demo-team-notes"
 version = "0.1.0"
-description = "Team Notes — demo app showcasing the Sentinel Auth SDK"
+description = "Team Notes — demo app showcasing the Duar SDK"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.34.0",
     "pydantic-settings>=2.7.0",
-    "sentinel-auth-sdk",
+    "duar-auth",
 ]
 
 [tool.uv.sources]
-sentinel-auth-sdk = { path = "../../sdk", editable = true }
+duar-auth = { path = "../../sdk", editable = true }

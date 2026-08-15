@@ -1,25 +1,25 @@
 'use client'
 export {
-  SentinelAuthProvider,
+  DuarAuthProvider,
   useAuth,
   useUser,
   useHasRole,
   useAuthFetch,
   AuthGuard,
   AuthCallback,
-} from '@sentinel-auth/react'
+} from '@duar-auth/react'
 
 export type {
-  SentinelAuthProviderProps,
-  SentinelAuthContextValue,
+  DuarAuthProviderProps,
+  DuarAuthContextValue,
   AuthGuardProps,
   AuthCallbackProps,
   WorkspaceSelectorProps,
-  SentinelConfig,
-  SentinelUser,
+  DuarConfig,
+  DuarUser,
   WorkspaceOption,
   WorkspaceRole,
-} from '@sentinel-auth/react'
+} from '@duar-auth/react'
 
 // Authz-mode components, hooks, and types
 export {
@@ -30,7 +30,7 @@ export {
   useAuthzFetch,
   AuthzGuard,
   AuthzCallback,
-} from '@sentinel-auth/react'
+} from '@duar-auth/react'
 
 export type {
   AuthzProviderProps,
@@ -38,7 +38,7 @@ export type {
   AuthzGuardProps,
   AuthzCallbackProps,
   AuthzWorkspaceSelectorProps,
-  SentinelAuthzConfig,
+  DuarAuthzConfig,
   AuthzTokenStore,
   AuthzResolveResponse,
   AuthState,
@@ -47,4 +47,4 @@ export type {
   GroupInfo,
   GroupMemberInfo,
   UserProfile,
-} from '@sentinel-auth/react'
+} from '@duar-auth/react'

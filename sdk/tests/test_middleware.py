@@ -9,7 +9,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-from sentinel_auth.middleware import JWTAuthMiddleware
+from duar_auth.middleware import JWTAuthMiddleware
 
 
 def _make_app(public_key: str) -> Starlette:
@@ -221,7 +221,7 @@ class TestJWKSPath:
         priv, pub = rsa_keypair
         _patch_jwks(monkeypatch, _jwks_for(pub, "k1"))
         token = pyjwt.encode(jwt_payload, priv, algorithm="RS256", headers={"kid": "k1"})
-        client = TestClient(_make_jwks_app("http://sentinel"))
+        client = TestClient(_make_jwks_app("http://duar"))
         resp = client.get("/protected", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200
 
@@ -232,6 +232,6 @@ class TestJWKSPath:
         _patch_jwks(monkeypatch, _jwks_for(pub, "k1"))
         # Token's kid is not published → PyJWKClient refetches, still misses, raises.
         token = pyjwt.encode(jwt_payload, priv, algorithm="RS256", headers={"kid": "other"})
-        client = TestClient(_make_jwks_app("http://sentinel"))
+        client = TestClient(_make_jwks_app("http://duar"))
         resp = client.get("/protected", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 401

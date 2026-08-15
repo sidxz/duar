@@ -1,6 +1,6 @@
 """SystemAuth — the no-user (m2m) in-realm caller context."""
 
-from sentinel_auth import SystemAuth
+from duar_auth import SystemAuth
 
 
 def test_full_trust_actions_star_allows_anything():

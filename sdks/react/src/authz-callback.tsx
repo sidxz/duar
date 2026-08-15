@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import type { AuthzWorkspaceOption, SentinelUser } from '@sentinel-auth/js'
+import type { AuthzWorkspaceOption, DuarUser } from '@duar-auth/js'
 import { useAuthz } from './authz-hooks'
 
 export interface AuthzWorkspaceSelectorProps {
@@ -14,7 +14,7 @@ export interface AuthzCallbackProps {
    * the user was on before a silent re-auth redirect (null if none) — navigate
    * there to restore their place.
    */
-  onSuccess: (user: SentinelUser, returnTo?: string | null) => void
+  onSuccess: (user: DuarUser, returnTo?: string | null) => void
   /** Called on error. */
   onError?: (error: Error) => void
   /**

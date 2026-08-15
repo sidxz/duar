@@ -8,7 +8,7 @@ workspaces restrict which orgs can be members.
 
 ## Problem
 
-Today **anyone** with a verified IdP email can create a Sentinel account.
+Today **anyone** with a verified IdP email can create a Duar account.
 `find_or_create_user` (`service/src/services/auth_service.py:37`) applies no
 allowlist or domain restriction; the only real gate is downstream — a user with
 no workspace membership cannot obtain tokens (`issue_tokens`,
@@ -156,7 +156,7 @@ service-to-service flows. Callers thread the resolved org through (it is already
 on `user.organization_id`).
 
 **SDKs**: surface `org` (id, slug, is_public) on the decoded-claims / user object —
-Python SDK (`sdk/src/sentinel_auth/`) and JS SDKs (`@sentinel-auth/js` claim
+Python SDK (`sdk/src/duar_auth/`) and JS SDKs (`@duar-auth/js` claim
 types, react/nextjs re-exports). No verification-logic change; additive claims.
 
 ### 5. Workspace org-enforcement (two checkpoints)

@@ -4,9 +4,9 @@ requires-python = ">=3.12"
 
 [manifest]
 members = [
-    "daikon-sentinel",
-    "sentinel-auth",
-    "sentinel-auth-sdk",
+    "duar",
+    "duar-auth",
+    "duar-service",
 ]
 
 [[package]]
@@ -433,12 +433,24 @@ wheels = [
 ]
 
 [[package]]
-name = "daikon-sentinel"
+name = "deprecated"
+version = "1.3.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "wrapt" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/49/85/12f0a49a7c4ffb70572b6c2ef13c90c88fd190debda93b23f026b25f9634/deprecated-1.3.1.tar.gz", hash = "sha256:b1b50e0ff0c1fddaa5708a2c6b0a6588bb09b892825ab2b214ac9ea9d92a5223", size = 2932523, upload-time = "2025-10-30T08:19:02.757Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/84/d0/205d54408c08b13550c733c4b85429e7ead111c7f0014309637425520a9a/deprecated-1.3.1-py2.py3-none-any.whl", hash = "sha256:597bfef186b6f60181535a29fbe44865ce137a5079f295b479886c82729d5f3f", size = 11298, upload-time = "2025-10-30T08:19:00.758Z" },
+]
+
+[[package]]
+name = "duar"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "sentinel-auth" },
-    { name = "sentinel-auth-sdk" },
+    { name = "duar-auth" },
+    { name = "duar-service" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -461,6 +473,8 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "aiosqlite", marker = "extra == 'dev'", specifier = ">=0.21" },
+    { name = "duar-auth", editable = "sdk" },
+    { name = "duar-service", editable = "service" },
     { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6" },
     { name = "mkdocs-glightbox", marker = "extra == 'docs'", specifier = ">=0.4" },
     { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.5" },
@@ -470,23 +484,105 @@ requires-dist = [
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=1.4" },
     { name = "respx", marker = "extra == 'dev'", specifier = ">=0.22" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8" },
-    { name = "sentinel-auth", editable = "service" },
-    { name = "sentinel-auth-sdk", editable = "sdk" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.0" },
 ]
 provides-extras = ["dev", "docs"]
 
 [[package]]
-name = "deprecated"
-version = "1.3.1"
-source = { registry = "https://pypi.org/simple" }
+name = "duar-auth"
+version = "0.20.1"
+source = { editable = "sdk" }
 dependencies = [
-    { name = "wrapt" },
+    { name = "cryptography" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "pyjwt", extra = ["crypto"] },
+    { name = "starlette" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/49/85/12f0a49a7c4ffb70572b6c2ef13c90c88fd190debda93b23f026b25f9634/deprecated-1.3.1.tar.gz", hash = "sha256:b1b50e0ff0c1fddaa5708a2c6b0a6588bb09b892825ab2b214ac9ea9d92a5223", size = 2932523, upload-time = "2025-10-30T08:19:02.757Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/84/d0/205d54408c08b13550c733c4b85429e7ead111c7f0014309637425520a9a/deprecated-1.3.1-py2.py3-none-any.whl", hash = "sha256:597bfef186b6f60181535a29fbe44865ce137a5079f295b479886c82729d5f3f", size = 11298, upload-time = "2025-10-30T08:19:00.758Z" },
+
+[package.optional-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "respx" },
+    { name = "ruff" },
 ]
+
+[package.metadata]
+requires-dist = [
+    { name = "cryptography", specifier = ">=44.0.0" },
+    { name = "fastapi", specifier = ">=0.115.0" },
+    { name = "httpx", specifier = ">=0.28.0" },
+    { name = "pydantic", specifier = ">=2.10.0" },
+    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.10.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.0" },
+    { name = "respx", marker = "extra == 'dev'", specifier = ">=0.22" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.9.0" },
+    { name = "starlette", specifier = ">=0.40.0" },
+]
+provides-extras = ["dev"]
+
+[[package]]
+name = "duar-service"
+version = "0.20.1"
+source = { editable = "service" }
+dependencies = [
+    { name = "alembic" },
+    { name = "asyncpg" },
+    { name = "authlib" },
+    { name = "fastapi" },
+    { name = "geoip2fast" },
+    { name = "httpx" },
+    { name = "itsdangerous" },
+    { name = "nh3" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "pyjwt", extra = ["crypto"] },
+    { name = "python-multipart" },
+    { name = "redis" },
+    { name = "slowapi" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "structlog" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "aiosqlite" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "respx" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiosqlite", marker = "extra == 'dev'", specifier = ">=0.21" },
+    { name = "alembic", specifier = ">=1.14.0" },
+    { name = "asyncpg", specifier = ">=0.30.0" },
+    { name = "authlib", specifier = ">=1.4.0" },
+    { name = "fastapi", specifier = ">=0.115.0" },
+    { name = "geoip2fast", specifier = ">=1.2.2" },
+    { name = "httpx", specifier = ">=0.28.0" },
+    { name = "itsdangerous", specifier = ">=2.2.0" },
+    { name = "nh3", specifier = ">=0.2.14" },
+    { name = "pydantic", specifier = ">=2.10.0" },
+    { name = "pydantic-settings", specifier = ">=2.7.0" },
+    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.10.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=1.4" },
+    { name = "python-multipart", specifier = ">=0.0.9" },
+    { name = "redis", specifier = ">=5.2.0" },
+    { name = "respx", marker = "extra == 'dev'", specifier = ">=0.22" },
+    { name = "slowapi", specifier = ">=0.1.9" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.36" },
+    { name = "structlog", specifier = ">=24.4.0" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.0" },
+]
+provides-extras = ["dev"]
 
 [[package]]
 name = "fastapi"
@@ -1459,102 +1555,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/5b/e5/8fbe188c6c2aa41e10bd83b46e0498b60ed36584f9ce0a7796ca7f7cd34e/selectolax-0.4.10-cp314-cp314t-win_amd64.whl", hash = "sha256:9c4c9afbd28b81892806e9699ecd323656e1eff7318c1245e80cd6bb78566a99", size = 2039696, upload-time = "2026-05-26T15:42:49.456Z" },
     { url = "https://files.pythonhosted.org/packages/1b/02/e511474facfd324529509626097f981986b7adc935fb4eb436c0812c540f/selectolax-0.4.10-cp314-cp314t-win_arm64.whl", hash = "sha256:68e1ef717b47f5cdcd1b151b2176d7184c38cb3772f8964509979840575203ef", size = 1944297, upload-time = "2026-05-26T15:42:50.906Z" },
 ]
-
-[[package]]
-name = "sentinel-auth"
-version = "0.20.1"
-source = { editable = "service" }
-dependencies = [
-    { name = "alembic" },
-    { name = "asyncpg" },
-    { name = "authlib" },
-    { name = "fastapi" },
-    { name = "geoip2fast" },
-    { name = "httpx" },
-    { name = "itsdangerous" },
-    { name = "nh3" },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "pyjwt", extra = ["crypto"] },
-    { name = "python-multipart" },
-    { name = "redis" },
-    { name = "slowapi" },
-    { name = "sqlalchemy", extra = ["asyncio"] },
-    { name = "structlog" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "aiosqlite" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "respx" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiosqlite", marker = "extra == 'dev'", specifier = ">=0.21" },
-    { name = "alembic", specifier = ">=1.14.0" },
-    { name = "asyncpg", specifier = ">=0.30.0" },
-    { name = "authlib", specifier = ">=1.4.0" },
-    { name = "fastapi", specifier = ">=0.115.0" },
-    { name = "geoip2fast", specifier = ">=1.2.2" },
-    { name = "httpx", specifier = ">=0.28.0" },
-    { name = "itsdangerous", specifier = ">=2.2.0" },
-    { name = "nh3", specifier = ">=0.2.14" },
-    { name = "pydantic", specifier = ">=2.10.0" },
-    { name = "pydantic-settings", specifier = ">=2.7.0" },
-    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.10.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=1.4" },
-    { name = "python-multipart", specifier = ">=0.0.9" },
-    { name = "redis", specifier = ">=5.2.0" },
-    { name = "respx", marker = "extra == 'dev'", specifier = ">=0.22" },
-    { name = "slowapi", specifier = ">=0.1.9" },
-    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.36" },
-    { name = "structlog", specifier = ">=24.4.0" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.0" },
-]
-provides-extras = ["dev"]
-
-[[package]]
-name = "sentinel-auth-sdk"
-version = "0.20.1"
-source = { editable = "sdk" }
-dependencies = [
-    { name = "cryptography" },
-    { name = "fastapi" },
-    { name = "httpx" },
-    { name = "pydantic" },
-    { name = "pyjwt", extra = ["crypto"] },
-    { name = "starlette" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "respx" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "cryptography", specifier = ">=44.0.0" },
-    { name = "fastapi", specifier = ">=0.115.0" },
-    { name = "httpx", specifier = ">=0.28.0" },
-    { name = "pydantic", specifier = ">=2.10.0" },
-    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.10.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.0" },
-    { name = "respx", marker = "extra == 'dev'", specifier = ">=0.22" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.9.0" },
-    { name = "starlette", specifier = ">=0.40.0" },
-]
-provides-extras = ["dev"]
 
 [[package]]
 name = "six"

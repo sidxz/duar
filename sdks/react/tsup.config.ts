@@ -5,7 +5,7 @@ export default defineConfig({
   format: ['esm', 'cjs'],
   dts: true,
   clean: true,
-  external: ['react', 'react-dom', '@sentinel-auth/js'],
+  external: ['react', 'react-dom', '@duar-auth/js'],
   banner: {
     js: "'use client';",
   },

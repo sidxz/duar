@@ -1,9 +1,9 @@
-"""Team Notes (AuthZ Mode) — demo app showcasing Sentinel dual-token auth.
+"""Team Notes (AuthZ Mode) — demo app showcasing Duar dual-token auth.
 
 In this mode:
   1. The client app authenticates users directly with an IdP (e.g. Google)
-  2. The client calls Sentinel's /authz/resolve with the IdP token
-  3. Sentinel validates the IdP token and returns an authorization JWT
+  2. The client calls Duar's /authz/resolve with the IdP token
+  3. Duar validates the IdP token and returns an authorization JWT
   4. The client sends BOTH tokens to this backend on every request
   5. AuthzMiddleware validates both tokens and checks idp_sub binding
 """
@@ -11,7 +11,7 @@ In this mode:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.config import sentinel, settings
+from src.config import duar, settings
 
 if not settings.frontend_url or settings.frontend_url.strip() in {"", "*"}:
     raise RuntimeError(
@@ -21,17 +21,17 @@ if not settings.frontend_url or settings.frontend_url.strip() in {"", "*"}:
 
 app = FastAPI(
     title="Team Notes (AuthZ Mode)",
-    description="Demo app showcasing Sentinel AuthZ mode — dual-token validation, "
+    description="Demo app showcasing Duar AuthZ mode — dual-token validation, "
     "workspace roles, entity ACLs, and custom RBAC.",
     version="0.1.0",
-    lifespan=sentinel.lifespan,
+    lifespan=duar.lifespan,
 )
 
-# Dual-token authentication (IdP token + Sentinel authz token).
+# Dual-token authentication (IdP token + Duar authz token).
 # /auth/mint is excluded: it's the login step, hit BEFORE the user has an
 # authz token, so dual-token validation must not apply. The mint route itself
-# proxies to Sentinel's /authz/resolve using the backend's service key.
-sentinel.protect(
+# proxies to Duar's /authz/resolve using the backend's service key.
+duar.protect(
     app,
     exclude_paths=[
         "/health",
@@ -71,9 +71,9 @@ if __name__ == "__main__":
     import uvicorn
 
     print("\n" + "=" * 60)
-    print("TEAM NOTES — Sentinel AuthZ Mode Demo")
+    print("TEAM NOTES — Duar AuthZ Mode Demo")
     print("=" * 60)
-    print(f"\nSentinel service: {settings.sentinel_url}")
+    print(f"\nDuar service: {settings.duar_url}")
     print(f"Demo backend:     http://localhost:{settings.port}")
     print(f"Demo frontend:    {settings.frontend_url}")
     print(f"\nMode: authz (dual-token)")

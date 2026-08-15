@@ -17,7 +17,7 @@ function getJWKS(url: string) {
 /**
  * Verify an inbound no-user realm token (server entry only — never the browser).
  *
- * Receiver side of Flow B. Trust is rooted in Sentinel's RS256 signature plus
+ * Receiver side of Flow B. Trust is rooted in Duar's RS256 signature plus
  * aud/type/svc binding — never app↔app trust. The token's `svc` must equal this
  * service's `effectiveScope`, so a token minted for another realm cannot be
  * replayed here. Throws on any failure.
@@ -54,14 +54,14 @@ export async function verifyM2mToken(
 }
 
 /**
- * Self-discover this service's shared scope from Sentinel (server entry only).
+ * Self-discover this service's shared scope from Duar (server entry only).
  * Standalone services get `effective_scope === service_name` and `realm: null`.
  */
 export async function fetchWhoami(opts: {
-  sentinelUrl: string
+  duarUrl: string
   serviceKey: string
 }): Promise<WhoamiResponse> {
-  const base = opts.sentinelUrl.replace(/\/+$/, '')
+  const base = opts.duarUrl.replace(/\/+$/, '')
   const res = await fetch(`${base}/realm/whoami`, {
     headers: { 'X-Service-Key': opts.serviceKey },
   })
@@ -81,8 +81,8 @@ export class M2mTokenClient {
   private refreshAt = 0
   private mintPromise: Promise<string> | null = null
 
-  constructor(sentinelUrl: string, serviceKey: string) {
-    this.base = sentinelUrl.replace(/\/+$/, '')
+  constructor(duarUrl: string, serviceKey: string) {
+    this.base = duarUrl.replace(/\/+$/, '')
     this.serviceKey = serviceKey
   }
 
@@ -90,7 +90,7 @@ export class M2mTokenClient {
   async getToken(): Promise<string> {
     if (this.token && Date.now() < this.refreshAt) return this.token
     // Share one in-flight mint across concurrent callers (same pattern as
-    // SentinelAuth.refresh) so N parallel calls don't issue N mint requests.
+    // DuarAuth.refresh) so N parallel calls don't issue N mint requests.
     if (!this.mintPromise) {
       this.mintPromise = this.mint().finally(() => {
         this.mintPromise = null

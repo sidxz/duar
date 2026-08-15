@@ -13,8 +13,8 @@ import httpx
 from fastapi import FastAPI
 from jwt.exceptions import PyJWKClientError
 
-from sentinel_auth.authz_middleware import AuthzMiddleware
-from sentinel_auth.middleware import JWTAuthMiddleware
+from duar_auth.authz_middleware import AuthzMiddleware
+from duar_auth.middleware import JWTAuthMiddleware
 
 _SLEEP = 0.25
 _MIN_TICKS = 5  # the loop must keep turning while the "fetch" sleeps
@@ -49,7 +49,7 @@ async def test_jwt_middleware_key_fetch_off_loop(monkeypatch):
 
     monkeypatch.setattr(JWTAuthMiddleware, "_signing_key", _slow_key)
     app = FastAPI()
-    app.add_middleware(JWTAuthMiddleware, jwks_url="https://sentinel.test/jwks.json")
+    app.add_middleware(JWTAuthMiddleware, jwks_url="https://duar.test/jwks.json")
 
     ticks, resp = await _request_while_ticking(app)
     assert resp.status_code == 401
@@ -68,7 +68,7 @@ async def test_authz_middleware_idp_decode_off_loop(monkeypatch):
         service_name="svc",
         idp_audience="aud",
         idp_jwks_url="https://idp.test/jwks.json",
-        sentinel_public_key="dummy-pem",  # decode paths are monkeypatched
+        duar_public_key="dummy-pem",  # decode paths are monkeypatched
     )
 
     ticks, resp = await _request_while_ticking(app)
@@ -76,7 +76,7 @@ async def test_authz_middleware_idp_decode_off_loop(monkeypatch):
     assert ticks >= _MIN_TICKS, f"event loop was blocked (ticks={ticks})"
 
 
-async def test_authz_middleware_sentinel_decode_off_loop(monkeypatch):
+async def test_authz_middleware_duar_decode_off_loop(monkeypatch):
     def _fast_idp(self, token):
         return {"sub": "abc"}
 
@@ -92,7 +92,7 @@ async def test_authz_middleware_sentinel_decode_off_loop(monkeypatch):
         service_name="svc",
         idp_audience="aud",
         idp_jwks_url="https://idp.test/jwks.json",
-        sentinel_public_key="dummy-pem",  # decode paths are monkeypatched
+        duar_public_key="dummy-pem",  # decode paths are monkeypatched
     )
 
     ticks, resp = await _request_while_ticking(app)

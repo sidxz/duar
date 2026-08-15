@@ -1,6 +1,6 @@
 """Dual-token middleware for AuthZ mode.
 
-Validates both an IdP token (identity) and a Sentinel authz token
+Validates both an IdP token (identity) and a Duar authz token
 (authorization), checking that the idp_sub claims match.
 """
 
@@ -18,14 +18,14 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp
 
-from sentinel_auth.types import AuthenticatedUser
+from duar_auth.types import AuthenticatedUser
 
 if TYPE_CHECKING:
-    from sentinel_auth.sentinel import Sentinel
+    from duar_auth.duar import Duar
 
 
 class AuthzMiddleware(BaseHTTPMiddleware):
-    """Validates IdP token + Sentinel authz token on each request.
+    """Validates IdP token + Duar authz token on each request.
 
     IdP token: ``Authorization: Bearer <idp_token>``
     Authz token: ``X-Authz-Token: <authz_token>``
@@ -46,11 +46,11 @@ class AuthzMiddleware(BaseHTTPMiddleware):
 
     **Offline by design — no revocation check.** Validation is purely local
     (signature, audience, expiry, ``idp_sub``/``svc`` bindings); the middleware
-    does NOT call Sentinel to consult the token denylist or the user-deactivation
+    does NOT call Duar to consult the token denylist or the user-deactivation
     flag. A deactivated user's already-issued authz token therefore stays accepted
     here until it expires naturally. Authz tokens are short-lived (default 5 min)
     to bound this window — keep ``AUTHZ_TOKEN_EXPIRE_MINUTES`` small. For
-    revocation-sensitive operations, gate them with a Sentinel ``PermissionClient``
+    revocation-sensitive operations, gate them with a Duar ``PermissionClient``
     / ``RoleClient`` call rather than relying on this middleware alone.
     """
 
@@ -63,11 +63,11 @@ class AuthzMiddleware(BaseHTTPMiddleware):
         idp_public_key: str | None = None,
         idp_jwks_url: str | None = None,
         idp_issuer: str | None = None,
-        sentinel_public_key: str | None = None,
-        sentinel_instance: Sentinel | None = None,
+        duar_public_key: str | None = None,
+        duar_instance: Duar | None = None,
         idp_algorithm: str = "RS256",
-        sentinel_algorithm: str = "RS256",
-        sentinel_audience: str = "sentinel:authz",
+        duar_algorithm: str = "RS256",
+        duar_audience: str = "sentinel:authz",
         exclude_paths: list[str] | None = None,
     ):
         super().__init__(app)
@@ -75,14 +75,14 @@ class AuthzMiddleware(BaseHTTPMiddleware):
             raise ValueError("AuthzMiddleware requires service_name")
         if not idp_audience:
             raise ValueError("AuthzMiddleware requires idp_audience")
-        if not sentinel_public_key and not sentinel_instance:
+        if not duar_public_key and not duar_instance:
             raise ValueError(
-                "AuthzMiddleware requires either sentinel_public_key or sentinel_instance for authz token verification"
+                "AuthzMiddleware requires either duar_public_key or duar_instance for authz token verification"
             )
         if (
             not idp_public_key
             and not idp_jwks_url
-            and not (sentinel_instance and (sentinel_instance.idp_jwks_url or sentinel_instance.idp_public_key))
+            and not (duar_instance and (duar_instance.idp_jwks_url or duar_instance.idp_public_key))
         ):
             raise ValueError("AuthzMiddleware requires idp_public_key or idp_jwks_url for IdP token verification")
 
@@ -91,47 +91,43 @@ class AuthzMiddleware(BaseHTTPMiddleware):
         self.idp_issuer = idp_issuer
         self._idp_public_key = idp_public_key
         self._idp_jwks_url = idp_jwks_url
-        self._sentinel_public_key = sentinel_public_key
-        self._sentinel_instance = sentinel_instance
+        self._duar_public_key = duar_public_key
+        self._duar_instance = duar_instance
         self.idp_algorithm = idp_algorithm
-        self.sentinel_algorithm = sentinel_algorithm
-        self.sentinel_audience = sentinel_audience
+        self.duar_algorithm = duar_algorithm
+        self.duar_audience = duar_audience
         self.exclude_paths = exclude_paths or ["/health", "/docs", "/openapi.json"]
 
-        jwks_url = idp_jwks_url or (sentinel_instance.idp_jwks_url if sentinel_instance else None)
-        # The fetch is sync urllib (like the Sentinel one): dispatch runs it via
+        jwks_url = idp_jwks_url or (duar_instance.idp_jwks_url if duar_instance else None)
+        # The fetch is sync urllib (like the Duar one): dispatch runs it via
         # asyncio.to_thread, and the timeout bounds the worker-thread stall.
         self._idp_jwks_client: PyJWKClient | None = PyJWKClient(jwks_url, timeout=10) if jwks_url else None
 
-        # Sentinel (authz token) key resolution. Static sentinel_public_key pins
+        # Duar (authz token) key resolution. Static duar_public_key pins
         # one key (air-gapped); otherwise resolve by kid via PyJWKClient against
-        # Sentinel's JWKS — same battle-tested path as IdP tokens, handles rotation.
-        sentinel_jwks_url = (
-            f"{sentinel_instance.base_url}/.well-known/jwks.json"
-            if (sentinel_instance and not sentinel_public_key)
-            else None
+        # Duar's JWKS — same battle-tested path as IdP tokens, handles rotation.
+        duar_jwks_url = (
+            f"{duar_instance.base_url}/.well-known/jwks.json" if (duar_instance and not duar_public_key) else None
         )
-        self._sentinel_jwk_client: PyJWKClient | None = (
-            PyJWKClient(sentinel_jwks_url, timeout=5) if sentinel_jwks_url else None
-        )
+        self._duar_jwk_client: PyJWKClient | None = PyJWKClient(duar_jwks_url, timeout=5) if duar_jwks_url else None
 
     @property
     def idp_public_key(self) -> str:
         if self._idp_public_key:
             return self._idp_public_key
-        if self._sentinel_instance:
-            return self._sentinel_instance.idp_public_key or ""
+        if self._duar_instance:
+            return self._duar_instance.idp_public_key or ""
         return ""
 
     @property
-    def sentinel_public_key(self) -> str:
-        key = self._sentinel_public_key
-        if not key and self._sentinel_instance:
-            key = self._sentinel_instance.sentinel_public_key or ""
+    def duar_public_key(self) -> str:
+        key = self._duar_public_key
+        if not key and self._duar_instance:
+            key = self._duar_instance.duar_public_key or ""
         if not key:
             raise RuntimeError(
-                "Sentinel public key not available. Ensure sentinel_instance.lifespan() has run "
-                "or provide sentinel_public_key directly."
+                "Duar public key not available. Ensure duar_instance.lifespan() has run "
+                "or provide duar_public_key directly."
             )
         return key
 
@@ -139,14 +135,14 @@ class AuthzMiddleware(BaseHTTPMiddleware):
     def effective_scope(self) -> str:
         """The shared scope an incoming authz token's ``svc`` must match.
 
-        A realm member resolves this from its Sentinel instance (discovered via
+        A realm member resolves this from its Duar instance (discovered via
         ``whoami`` at startup); standalone services and static-key (air-gapped) mode
         fall back to ``service_name`` — today's behavior, unchanged.
         """
-        if self._sentinel_instance is not None:
-            # ponytail: getattr because _FakeSentinel in test_authz_middleware.py predates this
-            # attribute and cannot be edited (frozen test). Real Sentinel always has it post-A2.
-            return getattr(self._sentinel_instance, "effective_scope", self.service_name)
+        if self._duar_instance is not None:
+            # ponytail: getattr because _FakeDuar in test_authz_middleware.py predates this
+            # attribute and cannot be edited (frozen test). Real Duar always has it post-A2.
+            return getattr(self._duar_instance, "effective_scope", self.service_name)
         return self.service_name
 
     def _decode_idp_token(self, token: str) -> dict:
@@ -168,20 +164,20 @@ class AuthzMiddleware(BaseHTTPMiddleware):
         return jwt.decode(token, self.idp_public_key, **decode_kwargs)
 
     def _decode_authz(self, token: str) -> dict:
-        """Verify a Sentinel authz token.
+        """Verify a Duar authz token.
 
-        Static ``sentinel_public_key`` mode pins one key (air-gapped, not
+        Static ``duar_public_key`` mode pins one key (air-gapped, not
         rotation-capable). Otherwise the key is resolved by ``kid`` via
-        ``PyJWKClient``, which refetches Sentinel's JWKS on a rotated-in kid.
+        ``PyJWKClient``, which refetches Duar's JWKS on a rotated-in kid.
         """
-        key = self._sentinel_public_key
+        key = self._duar_public_key
         if not key:
-            key = self._sentinel_jwk_client.get_signing_key_from_jwt(token).key
+            key = self._duar_jwk_client.get_signing_key_from_jwt(token).key
         return jwt.decode(
             token,
             key,
-            algorithms=[self.sentinel_algorithm],
-            audience=self.sentinel_audience,
+            algorithms=[self.duar_algorithm],
+            audience=self.duar_audience,
         )
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:

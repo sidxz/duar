@@ -291,22 +291,22 @@ async def test_another_issuer_cannot_borrow_entras_exemption(
 @pytest.fixture
 def github_app_creds(monkeypatch):
     """Point settings at a known client_id/secret for the GitHub app check."""
-    monkeypatch.setattr(settings, "github_client_id", "sentinel-client-id")
-    monkeypatch.setattr(settings, "github_client_secret", "sentinel-secret")
+    monkeypatch.setattr(settings, "github_client_id", "duar-client-id")
+    monkeypatch.setattr(settings, "github_client_secret", "duar-secret")
 
 
 @pytest.mark.asyncio
-async def test_github_token_rejected_when_not_bound_to_sentinel_app(github_app_creds):
-    """A GitHub token valid at /user but not issued to Sentinel's OAuth app is rejected.
+async def test_github_token_rejected_when_not_bound_to_duar_app(github_app_creds):
+    """A GitHub token valid at /user but not issued to Duar's OAuth app is rejected.
 
     Attack path: attacker registers "EVIL-APP", phishes victim to authorize it,
     captures the resulting access token, submits it to /authz/resolve. GitHub's
     /user returns the victim's profile (the token IS valid), but GitHub's
-    app-scoped introspection returns 404 (the token was not issued to Sentinel's
-    app). Sentinel must fail closed here.
+    app-scoped introspection returns 404 (the token was not issued to Duar's
+    app). Duar must fail closed here.
     """
     with respx.mock(assert_all_called=False) as mock:
-        mock.post("https://api.github.com/applications/sentinel-client-id/token").mock(
+        mock.post("https://api.github.com/applications/duar-client-id/token").mock(
             return_value=httpx.Response(404)
         )
         mock.get("https://api.github.com/user").mock(
@@ -326,10 +326,10 @@ async def test_github_token_rejected_when_not_bound_to_sentinel_app(github_app_c
 
 
 @pytest.mark.asyncio
-async def test_github_token_accepted_when_bound_to_sentinel_app(github_app_creds):
+async def test_github_token_accepted_when_bound_to_duar_app(github_app_creds):
     """A GitHub token that passes the app-binding check authenticates normally."""
     with respx.mock(assert_all_called=False) as mock:
-        mock.post("https://api.github.com/applications/sentinel-client-id/token").mock(
+        mock.post("https://api.github.com/applications/duar-client-id/token").mock(
             return_value=httpx.Response(200, json={"id": 42, "login": "user"})
         )
         mock.get("https://api.github.com/user").mock(
@@ -350,7 +350,7 @@ async def test_github_token_accepted_when_bound_to_sentinel_app(github_app_creds
             )
         )
 
-        result = await validate_idp_token("legit-sentinel-bound-token", "github")
+        result = await validate_idp_token("legit-duar-bound-token", "github")
 
         assert result["sub"] == "github|42"
         assert result["email"] == "user@example.com"
@@ -377,7 +377,7 @@ async def test_github_token_binding_uses_basic_auth_with_client_secret(
         return httpx.Response(200, json={"id": 1, "login": "u"})
 
     with respx.mock(assert_all_called=False) as mock:
-        mock.post("https://api.github.com/applications/sentinel-client-id/token").mock(
+        mock.post("https://api.github.com/applications/duar-client-id/token").mock(
             side_effect=_record_auth
         )
         mock.get("https://api.github.com/user").mock(
@@ -391,9 +391,7 @@ async def test_github_token_binding_uses_basic_auth_with_client_secret(
 
         await validate_idp_token("t", "github")
 
-    expected = (
-        "Basic " + base64.b64encode(b"sentinel-client-id:sentinel-secret").decode()
-    )
+    expected = "Basic " + base64.b64encode(b"duar-client-id:duar-secret").decode()
     assert captured_auth["header"] == expected, (
         "Binding check must authenticate as the OAuth app via HTTP Basic; "
         "otherwise GitHub rejects the request regardless of token validity."

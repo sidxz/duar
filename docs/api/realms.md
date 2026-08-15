@@ -38,7 +38,7 @@ A standalone service:
 ```
 
 ```bash
-curl http://sentinel-internal:9010/realm/whoami \
+curl http://duar-internal:9010/realm/whoami \
   -H "X-Service-Key: sk_your_key"
 ```
 
@@ -67,7 +67,7 @@ Mints a short-lived no-user m2m token (sender side of [Flow B](../guide/realms.m
 **Errors:** `403` — caller is standalone, or its realm is inactive.
 
 ```bash
-curl -X POST http://sentinel-internal:9010/realm/m2m-token \
+curl -X POST http://duar-internal:9010/realm/m2m-token \
   -H "X-Service-Key: sk_your_key" -H "Content-Type: application/json" -d '{}'
 ```
 

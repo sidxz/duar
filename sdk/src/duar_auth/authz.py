@@ -4,12 +4,12 @@ import uuid
 
 import httpx
 
-from sentinel_auth._utils import warn_if_insecure
-from sentinel_auth.types import SentinelError
+from duar_auth._utils import warn_if_insecure
+from duar_auth.types import DuarError
 
 
 class AuthzClient:
-    """Client for Sentinel's AuthZ mode endpoints.
+    """Client for Duar's AuthZ mode endpoints.
 
     Validates IdP tokens and retrieves authorization context
     (workspace roles, RBAC actions, signed authz JWT).
@@ -45,7 +45,7 @@ class AuthzClient:
             idp_token: Raw token from the IdP (OIDC ID token or OAuth access token).
             provider: IdP provider name ("google", "github", "entra_id").
             workspace_id: Optional workspace to authorize for.
-            nonce: Optional replay-protection nonce. When provided, Sentinel
+            nonce: Optional replay-protection nonce. When provided, Duar
                 requires the IdP token's ``nonce`` claim (OIDC only) to match.
 
         Returns:
@@ -64,7 +64,7 @@ class AuthzClient:
             headers=self._headers(),
         )
         if resp.status_code != 200:
-            raise SentinelError(f"Sentinel API error: {resp.status_code}", resp.status_code)
+            raise DuarError(f"Duar API error: {resp.status_code}", resp.status_code)
         return resp.json()
 
     async def close(self) -> None:
