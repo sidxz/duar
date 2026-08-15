@@ -3,14 +3,22 @@
 All notable changes to Duar (service, Python SDK, JS SDKs) are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
-project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) —
-note that while the version is below `1.0.0`, **minor bumps may contain breaking
-changes** (SemVer 0.x rule). Check the `Breaking changes` section before
-upgrading.
+project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+Check the `Breaking changes` section before upgrading.
 
 For versions prior to `0.11.0`, see the git tag history (`git log --oneline -- service/ sdk/ sdks/`).
 
 ## [Unreleased]
+
+<!-- Add next-version entries here -->
+
+---
+
+## [1.0.0] - 2026-08-15 — Renamed to Duar
+
+First release under the new name. Functionally identical to 0.20.1 apart from
+the rename below; version reset to 1.0.0 because every package, image and import
+path is new.
 
 ### Breaking changes — project renamed Sentinel → **Duar**
 

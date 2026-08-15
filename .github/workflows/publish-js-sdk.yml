@@ -12,6 +12,12 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # NPM_TOKEN: granular token with read/write on the @duar-auth scope. Needed
+    # because npm Trusted Publishing can only be configured on packages that
+    # already exist; once 1.0.0 is up, add sidxz/duar + this workflow as the
+    # trusted publisher on each package, delete the token, and drop this env.
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
