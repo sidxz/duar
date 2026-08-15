@@ -1,5 +1,5 @@
 ---
-title: Duar
+title: Overview
 description: Authentication proxy and authorization microservice for your applications
 ---
 
