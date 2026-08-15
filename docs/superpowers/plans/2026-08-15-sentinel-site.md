@@ -1,0 +1,2052 @@
+# Sentinel Product Site Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Build and deploy `sidxz/sentinel-site` — a single-page product site for Sentinel Auth in docustore-site's white/ink visual system with Sentinel red as the one accent, linking out to the existing docs.
+
+**Architecture:** A fresh Next 16 App Router project with `output: "export"`, Tailwind v4 (CSS-first), self-hosted IBM Plex fonts, and hand-authored SVG art. One route (`/`), a navbar/footer layout, and ~7 marketing components. Deployed to GitHub Pages via Actions under `/sentinel-site` (env-driven `basePath`), ready to flip to `sentinel-auth.com`.
+
+**Tech Stack:** pnpm 10, Next 16.2.1, React 19.2.4, Tailwind 4, lucide-react, TypeScript 5. No shadcn, no fumadocs, no analytics, no sitemap package.
+
+**Spec:** `docs/superpowers/specs/2026-08-15-sentinel-site-design.md` (in the identity-service repo). Read it first — the copy, section order, and token rules come from there.
+
+## Global Constraints
+
+- **New repo lives at `/Users/sidx/workspace/sentinel-site`** (sibling of `docustore-site` and `identity-service`). Every path below is relative to that root unless absolute.
+- **Runtime deps are exactly** `next@16.2.1`, `react@19.2.4`, `react-dom@19.2.4`, `lucide-react@^1.7.0`. Do not add others.
+- **Next 16 is not the Next you remember.** Before using any API not shown in this plan, read `node_modules/next/dist/docs/01-app/**` in the site repo.
+- **Single accent rule:** red (`--color-brand #f43737`) appears ONLY where the spec's "Where red appears" list allows: logo hexagon, hero eyebrow's first two words, three stat numbers, capability-card wash tops, hero SVG shield + minted-token edge, one topology node, CTA border, footer hairline, security-checklist `Check` icons, one line per SDK code card. Everything else is ink/paper/wash.
+- **Fonts:** IBM Plex Sans 400/500/600 + IBM Plex Mono 500, latin subset, self-hosted via `next/font/local`. The latin subset lacks `→`, `✓`, `▶`; use lucide `ArrowRight`/`Check` in JSX and `<path>` marks in SVG. `·`, `—`, `…` are fine.
+- **Static export + basePath:** `next/link` prefixes hrefs; plain `<img src>` does NOT. Every `<img src>` and other static-asset path goes through `asset()` from `src/lib/asset.ts`.
+- **All outbound URLs** come from `src/lib/links.ts` (docs at `https://docs.sentinel-auth.com`, repo at `https://github.com/sidxz/Sentinel`).
+- **Buttons:** `rounded-none`, mono uppercase labels via `ctaPrimary`/`ctaOutline` in `src/lib/cta.ts`. Cards `rounded-2xl`. Container `mx-auto w-full max-w-6xl px-6`. Eyebrows `label-mono text-[11px] text-muted-foreground` prefixed `/ `.
+- **Verification per task:** `pnpm lint && pnpm build` must pass, then `scripts/shoot.sh <name>` (Task 1 creates it) and **read the PNGs** before committing. A verdict without looking at pixels is not verification.
+- **No external network at runtime:** `out/index.html` must not reference `fonts.googleapis`, any CDN, or analytics.
+- **Commits:** conventional prefixes (`feat:`, `chore:`, `docs:`, `ci:`); one commit per task, in the site repo.
+
+---
+
+### Task 1: Scaffold the repo (config, tokens, fonts, layout, verify script)
+
+**Files:**
+- Create: `package.json`, `tsconfig.json`, `eslint.config.mjs`, `postcss.config.mjs`, `next.config.mjs`, `.gitignore`
+- Create: `src/app/globals.css`, `src/app/layout.tsx`, `src/app/page.tsx` (stub), `src/app/not-found.tsx`
+- Create: `src/app/fonts/*.woff2` (copied), `src/lib/asset.ts`, `src/lib/cta.ts`, `src/lib/links.ts`
+- Create: `scripts/shoot.sh`, `public/screenshots/.gitkeep`
+
+**Interfaces:**
+- Produces: `asset(path: string): string`; `ctaPrimary`, `ctaOutline`, `ctaPrimarySm` (class strings); `links` object (see file); CSS tokens `--color-{ink,paper,wash,line,brand,brand-dark,brand-tint,brand-wash,background,foreground,muted-foreground,border}` and utility `.label-mono`; font vars `--font-plex-sans`, `--font-plex-mono`; `scripts/shoot.sh [name]` → `.verify/<name>-desktop.png` + `.verify/<name>-mobile.png` (set `MOTION=1` to capture the animated path instead of reduced-motion).
+
+- [ ] **Step 1: Create the directory and package manifest**
+
+```bash
+mkdir -p /Users/sidx/workspace/sentinel-site && cd /Users/sidx/workspace/sentinel-site
+mkdir -p src/app/fonts src/lib src/components/layout src/components/marketing public/logos public/screenshots scripts .github/workflows
+touch public/screenshots/.gitkeep
+```
+
+`package.json`:
+```json
+{
+  "name": "sentinel-site",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "lucide-react": "^1.7.0",
+    "next": "16.2.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.1",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
+```
+
+- [ ] **Step 2: Config files**
+
+`tsconfig.json`:
+```json
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [{ "name": "next" }],
+    "paths": { "@/*": ["./src/*"] }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", ".next/dev/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}
+```
+
+`eslint.config.mjs`:
+```js
+import { defineConfig, globalIgnores } from "eslint/config";
+import nextVitals from "eslint-config-next/core-web-vitals";
+import nextTs from "eslint-config-next/typescript";
+
+export default defineConfig([
+  ...nextVitals,
+  ...nextTs,
+  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", ".verify/**"]),
+]);
+```
+
+`postcss.config.mjs`:
+```js
+const config = { plugins: { "@tailwindcss/postcss": {} } };
+export default config;
+```
+
+`next.config.mjs`:
+```js
+// NEXT_PUBLIC_BASE_PATH is set by .github/workflows/deploy.yml to "/sentinel-site"
+// while the site lives at sidxz.github.io/sentinel-site. Remove it (and add
+// public/CNAME) when the site moves to sentinel-auth.com.
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  output: "export",
+  basePath,
+};
+
+export default nextConfig;
+```
+
+`.gitignore`:
+```
+/node_modules
+/.next/
+/out/
+/.verify/
+.DS_Store
+*.tsbuildinfo
+next-env.d.ts
+.env*
+```
+
+- [ ] **Step 3: Copy the fonts (already on disk in the admin's node_modules)**
+
+```bash
+F=/Users/sidx/workspace/identity-service/admin/node_modules/@fontsource
+cp $F/ibm-plex-sans/files/ibm-plex-sans-latin-400-normal.woff2 \
+   $F/ibm-plex-sans/files/ibm-plex-sans-latin-500-normal.woff2 \
+   $F/ibm-plex-sans/files/ibm-plex-sans-latin-600-normal.woff2 \
+   $F/ibm-plex-mono/files/ibm-plex-mono-latin-500-normal.woff2 \
+   src/app/fonts/
+ls src/app/fonts   # expect 4 files
+```
+
+- [ ] **Step 4: Design tokens**
+
+`src/app/globals.css`:
+```css
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, monospace;
+
+  /* Monochrome base — same values as docustore-site */
+  --color-ink: #0b0b0d;
+  --color-paper: #ffffff;
+  --color-wash: #f5f5f5;
+  --color-line: #e6e6e6;
+  --color-background: #ffffff;
+  --color-foreground: #0b0b0d;
+  --color-muted-foreground: #6b6b71;
+  --color-border: #e6e6e6;
+
+  /* Sentinel red — the ONE accent. See spec "Where red appears". */
+  --color-brand: #f43737;
+  --color-brand-dark: #c42020;
+  --color-brand-tint: #ffd1d1;
+  --color-brand-wash: #fff1f1;
+
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .label-mono {
+    font-family: var(--font-plex-mono), ui-monospace, monospace;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+}
+```
+
+- [ ] **Step 5: Shared lib files**
+
+`src/lib/asset.ts`:
+```ts
+// Static export under a basePath: next/link prefixes hrefs, plain <img src> does not.
+export const asset = (path: string) =>
+  `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${path}`;
+```
+
+`src/lib/cta.ts`:
+```ts
+// Sharp, mono-labelled buttons — copied from docustore-site.
+export const ctaPrimary =
+  "inline-flex h-11 items-center rounded-none bg-ink px-6 label-mono text-[11px] text-paper transition-opacity hover:opacity-85";
+export const ctaOutline =
+  "inline-flex h-11 items-center gap-2 rounded-none border border-ink px-6 label-mono text-[11px] text-ink transition-colors hover:bg-ink hover:text-paper";
+// Navbar-sized primary. No tailwind-merge here, so don't append h-9/px-4 to ctaPrimary.
+export const ctaPrimarySm = ctaPrimary.replace("h-11", "h-9").replace("px-6", "px-4");
+```
+
+`src/lib/links.ts`:
+```ts
+const DOCS = "https://docs.sentinel-auth.com";
+const GITHUB = "https://github.com/sidxz/Sentinel";
+
+export const links = {
+  docs: `${DOCS}/`,
+  gettingStarted: `${DOCS}/getting-started/`,
+  security: `${DOCS}/security/`,
+  guide: (slug: string) => `${DOCS}/guide/${slug}/`,
+  tutorialReact: `${DOCS}/tutorial/react/`,
+  tutorialNext: `${DOCS}/tutorial/nextjs/`,
+  sdkPython: `${DOCS}/sdk/`,
+  sdkJs: `${DOCS}/js-sdk/`,
+  github: GITHUB,
+  issues: `${GITHUB}/issues`,
+  changelog: `${GITHUB}/blob/main/CHANGELOG.md`,
+  pypi: "https://pypi.org/project/sentinel-auth-sdk/",
+  npm: (pkg: "js" | "react" | "nextjs") =>
+    `https://www.npmjs.com/package/@sentinel-auth/${pkg}`,
+  ghcr: `${GITHUB}/pkgs/container/sentinel`,
+} as const;
+```
+
+- [ ] **Step 6: Layout, stub page, 404**
+
+`src/app/layout.tsx`:
+```tsx
+import type { Metadata } from "next";
+import localFont from "next/font/local";
+import "./globals.css";
+
+const plexSans = localFont({
+  src: [
+    { path: "./fonts/ibm-plex-sans-latin-400-normal.woff2", weight: "400" },
+    { path: "./fonts/ibm-plex-sans-latin-500-normal.woff2", weight: "500" },
+    { path: "./fonts/ibm-plex-sans-latin-600-normal.woff2", weight: "600" },
+  ],
+  variable: "--font-plex-sans",
+  display: "swap",
+});
+
+const plexMono = localFont({
+  src: [{ path: "./fonts/ibm-plex-mono-latin-500-normal.woff2", weight: "500" }],
+  variable: "--font-plex-mono",
+  display: "swap",
+});
+
+// Set NEXT_PUBLIC_SITE_URL=https://sentinel-auth.com at the domain flip.
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ?? "https://sidxz.github.io/sentinel-site";
+
+export const metadata: Metadata = {
+  title: {
+    default: "Sentinel Auth — Auth for everything after login",
+    template: "%s | Sentinel Auth",
+  },
+  description:
+    "Bring your own IdP. Sentinel adds workspaces, roles, and per-resource permissions — one RS256 JWT, SDKs for FastAPI, React, and Next.js. Self-hosted, open source.",
+  metadataBase: new URL(SITE_URL),
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <html lang="en" className={`${plexSans.variable} ${plexMono.variable}`}>
+      <body className="min-h-screen bg-background font-sans text-foreground antialiased">
+        <main>{children}</main>
+      </body>
+    </html>
+  );
+}
+```
+
+`src/app/page.tsx` (stub — replaced wholesale in Task 3):
+```tsx
+export default function Home() {
+  return (
+    <div className="mx-auto w-full max-w-6xl px-6 py-20">
+      <h1 className="text-5xl font-medium tracking-tight text-ink">Sentinel Auth</h1>
+    </div>
+  );
+}
+```
+
+`src/app/not-found.tsx`:
+```tsx
+import Link from "next/link";
+import { ctaPrimary } from "@/lib/cta";
+
+export default function NotFound() {
+  return (
+    <div className="mx-auto flex w-full max-w-6xl flex-col items-start gap-6 px-6 py-32">
+      <p className="label-mono text-[11px] text-muted-foreground">404</p>
+      <h1 className="text-4xl font-medium tracking-tight text-ink">Page not found</h1>
+      <Link href="/" className={ctaPrimary}>
+        Back home
+      </Link>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 7: Screenshot script**
+
+`scripts/shoot.sh`:
+```bash
+#!/usr/bin/env bash
+# Build with the deploy basePath, serve out/ under that prefix, screenshot desktop + mobile.
+# Usage: scripts/shoot.sh [name]        → .verify/<name>-desktop.png, .verify/<name>-mobile.png
+#        MOTION=1 scripts/shoot.sh anim  → drops --force-prefers-reduced-motion (JS animation path)
+set -euo pipefail
+cd "$(dirname "$0")/.."
+NAME="${1:-page}"
+BP="/sentinel-site"
+PORT=3789
+
+NEXT_PUBLIC_BASE_PATH="$BP" pnpm build >/dev/null
+rm -rf .verify/serve && mkdir -p .verify/serve && ln -s "$PWD/out" ".verify/serve${BP}"
+for p in $(lsof -tiTCP:$PORT -sTCP:LISTEN 2>/dev/null); do kill -9 "$p"; done
+python3 -m http.server "$PORT" -d .verify/serve >/dev/null 2>&1 &
+SRV=$!
+trap 'kill $SRV 2>/dev/null' EXIT
+for _ in $(seq 1 25); do
+  curl -sf "http://localhost:${PORT}${BP}/" >/dev/null 2>&1 && break
+  sleep 0.2
+done
+curl -sf "http://localhost:${PORT}${BP}/" | grep -q "Sentinel" || { echo "serve failed"; exit 1; }
+
+CHROME=$(ls -d "$HOME"/Library/Caches/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-mac-arm64/chrome-headless-shell | tail -1)
+MOTION_FLAG="--force-prefers-reduced-motion"
+[ "${MOTION:-0}" = "1" ] && MOTION_FLAG=""
+
+shot() {
+  "$CHROME" --headless=new --disable-gpu --no-sandbox --user-data-dir="$(mktemp -d)" \
+    --force-color-profile=srgb --hide-scrollbars --window-size="$1" \
+    --virtual-time-budget=2600 $MOTION_FLAG \
+    --screenshot=".verify/$NAME-$2.png" "http://localhost:${PORT}${BP}/" 2>/dev/null
+}
+shot 1440,5600 desktop
+shot 390,11000 mobile
+echo ".verify/$NAME-desktop.png .verify/$NAME-mobile.png"
+```
+
+```bash
+chmod +x scripts/shoot.sh
+```
+
+- [ ] **Step 8: Install and build**
+
+```bash
+cd /Users/sidx/workspace/sentinel-site && pnpm install && pnpm lint && pnpm build
+```
+Expected: lint clean; build prints the `/` route and writes `out/index.html`. Then:
+```bash
+test -f out/index.html && ! grep -q "fonts.googleapis" out/index.html && echo OK
+scripts/shoot.sh scaffold && echo shot
+```
+Read `.verify/scaffold-desktop.png`: white page, "Sentinel Auth" in Plex Sans at the top-left. Also confirm the prefixed serve worked (script exits 0 — it greps for "Sentinel" under `/sentinel-site/`).
+
+- [ ] **Step 9: Init git and commit**
+
+```bash
+git init -b main
+git add -A
+git commit -m "chore: scaffold Next 16 static site with Plex fonts and tokens"
+```
+
+---
+
+### Task 2: Brand mark, favicon, navbar, footer
+
+**Files:**
+- Create: `src/components/layout/logo.tsx`, `src/app/icon.svg`, `src/components/layout/navbar.tsx`, `src/components/layout/footer.tsx`
+- Modify: `src/app/layout.tsx` (wire Navbar/Footer)
+
+**Interfaces:**
+- Consumes: `links`, `ctaPrimarySm`.
+- Produces: `LogoMark({className?})`, `Logo({className?})`, `Navbar()`, `Footer()`.
+
+- [ ] **Step 1: The mark**
+
+`src/components/layout/logo.tsx`:
+```tsx
+/* Sentinel mark — a line-art distillation of the existing shield logo:
+   shield outline (currentColor), hexagon core in brand red (the single accent,
+   like docustore's hexagon), keyhole in currentColor, two circuit stubs.
+   Favicon (src/app/icon.svg) is the hexagon+keyhole fragment; keep in sync. */
+export function LogoMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" className={className} aria-hidden="true">
+      {/* shield */}
+      <path
+        d="M16 3.5 L27 8 V16.5 C27 22.5 22.5 27 16 29.5 C9.5 27 5 22.5 5 16.5 V8 Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      {/* circuit stubs */}
+      <line x1="5" y1="13" x2="2.2" y2="13" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="1.4" cy="13" r="1.1" fill="currentColor" />
+      <line x1="27" y1="13" x2="29.8" y2="13" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="30.6" cy="13" r="1.1" fill="currentColor" />
+      {/* hexagon core — the accent */}
+      <polygon
+        points="16,10 20.76,12.75 20.76,18.25 16,21 11.24,18.25 11.24,12.75"
+        fill="none"
+        stroke="var(--color-brand)"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      {/* keyhole */}
+      <circle cx="16" cy="14.6" r="1.9" fill="currentColor" />
+      <path d="M15.1 16 L16.9 16 L17.6 19.4 L14.4 19.4 Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function Logo({ className }: { className?: string }) {
+  return (
+    <span className={`inline-flex items-center gap-2 text-ink ${className ?? ""}`}>
+      <LogoMark className="h-8 w-8" />
+      <span className="text-[22px] font-medium tracking-tight">
+        Sentinel<span className="text-ink/30"> Auth</span>
+      </span>
+    </span>
+  );
+}
+```
+
+`src/app/icon.svg`:
+```svg
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Sentinel favicon — hexagon+keyhole fragment of the mark in
+       src/components/layout/logo.tsx. Ink flips to paper on dark tab strips. -->
+  <style>
+    .k { fill: #0b0b0d; }
+    @media (prefers-color-scheme: dark) { .k { fill: #fafafa; } }
+  </style>
+  <polygon points="16,5 25.53,10.5 25.53,21.5 16,27 6.47,21.5 6.47,10.5" fill="none" stroke="#f43737" stroke-width="2.4" stroke-linejoin="round"/>
+  <circle class="k" cx="16" cy="14" r="3.4"/>
+  <path class="k" d="M14.5 16.5 L17.5 16.5 L18.8 23 L13.2 23 Z"/>
+</svg>
+```
+
+- [ ] **Step 2: Navbar (server component — no client JS)**
+
+`src/components/layout/navbar.tsx`:
+```tsx
+import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
+import { Logo } from "@/components/layout/logo";
+import { ctaPrimarySm } from "@/lib/cta";
+import { links } from "@/lib/links";
+
+function GithubIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+    </svg>
+  );
+}
+
+const navLink =
+  "label-mono inline-flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-ink";
+
+export function Navbar() {
+  return (
+    <header className="sticky top-0 z-50 border-b border-border bg-background/85 backdrop-blur-xl">
+      <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-6">
+        <Link href="/" aria-label="Sentinel Auth home">
+          <Logo />
+        </Link>
+        <nav className="flex items-center gap-5 sm:gap-7">
+          <a href="#features" className={`${navLink} hidden sm:inline-flex`}>
+            Features
+          </a>
+          <a href={links.docs} className={navLink}>
+            Docs
+            <ArrowUpRight className="h-3 w-3" />
+          </a>
+          <a
+            href={links.github}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-muted-foreground transition-colors hover:text-ink"
+            aria-label="GitHub"
+          >
+            <GithubIcon className="h-[18px] w-[18px]" />
+          </a>
+          <a href={links.gettingStarted} className={ctaPrimarySm}>
+            Get started
+          </a>
+        </nav>
+      </div>
+    </header>
+  );
+}
+```
+
+- [ ] **Step 3: Footer**
+
+`src/components/layout/footer.tsx`:
+```tsx
+import { Logo } from "@/components/layout/logo";
+import { links } from "@/lib/links";
+
+const columns: Record<string, { label: string; href: string }[]> = {
+  Product: [
+    { label: "Features", href: "#features" },
+    { label: "Docs", href: links.docs },
+    { label: "Getting started", href: links.gettingStarted },
+    { label: "Security", href: links.security },
+  ],
+  SDKs: [
+    { label: "sentinel-auth-sdk (PyPI)", href: links.pypi },
+    { label: "@sentinel-auth/js", href: links.npm("js") },
+    { label: "@sentinel-auth/react", href: links.npm("react") },
+    { label: "@sentinel-auth/nextjs", href: links.npm("nextjs") },
+  ],
+  Community: [
+    { label: "GitHub", href: links.github },
+    { label: "Issues", href: links.issues },
+    { label: "Changelog", href: links.changelog },
+  ],
+};
+
+export function Footer() {
+  return (
+    <footer className="border-t border-border">
+      {/* brand hairline */}
+      <div className="h-px w-full bg-brand" />
+      <div className="mx-auto w-full max-w-6xl px-6 py-16">
+        <div className="grid grid-cols-2 gap-10 md:grid-cols-4">
+          <div className="col-span-2 md:col-span-1">
+            <Logo />
+            <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">
+              Authentication proxy and authorization microservice. Bring your
+              own IdP. Open source, self-hosted.
+            </p>
+          </div>
+          {Object.entries(columns).map(([category, items]) => (
+            <div key={category}>
+              <p className="label-mono text-[10px] text-muted-foreground">{category}</p>
+              <ul className="mt-4 space-y-3">
+                {items.map((l) => (
+                  <li key={l.href}>
+                    <a
+                      href={l.href}
+                      {...(l.href.startsWith("http")
+                        ? { target: "_blank", rel: "noopener noreferrer" }
+                        : {})}
+                      className="text-sm text-muted-foreground transition-colors hover:text-ink"
+                    >
+                      {l.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+        <div className="mt-14 flex flex-col items-start justify-between gap-3 border-t border-border pt-8 sm:flex-row sm:items-center">
+          <p className="label-mono text-[10px] text-muted-foreground">
+            &copy; {new Date().getFullYear()} Sentinel Auth
+          </p>
+          <p className="label-mono text-[10px] text-muted-foreground">MIT License</p>
+        </div>
+      </div>
+    </footer>
+  );
+}
+```
+
+- [ ] **Step 4: Wire into the layout**
+
+In `src/app/layout.tsx` add imports after the `localFont` import:
+```tsx
+import { Navbar } from "@/components/layout/navbar";
+import { Footer } from "@/components/layout/footer";
+```
+and replace `<main>{children}</main>` with:
+```tsx
+        <Navbar />
+        <main>{children}</main>
+        <Footer />
+```
+
+- [ ] **Step 5: Verify**
+
+```bash
+pnpm lint && pnpm build && grep -c "docs.sentinel-auth.com" out/index.html && grep -o 'href="[^"]*icon[^"]*"' out/index.html
+scripts/shoot.sh chrome
+```
+Expected: lint/build clean; grep count ≥ 6; the icon href starts with `/sentinel-site/`. Read `.verify/chrome-desktop.png` and `.verify/chrome-mobile.png`: sticky navbar with mark + "Sentinel Auth" (Auth muted), Docs ↗, GitHub glyph, black "GET STARTED" button; footer with a thin red hairline, four columns (two on mobile), © line. The mark's hexagon is red, everything else ink.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add -A && git commit -m "feat: brand mark, favicon, navbar and footer"
+```
+
+---
+
+### Task 3: Hero (token-flow SVG) + stats band
+
+**Files:**
+- Create: `src/components/marketing/token-flow.tsx`
+- Modify: `src/app/page.tsx` (replace stub wholesale)
+
+**Interfaces:**
+- Produces: `TokenFlow({className?})`; `page.tsx` with a `{/* @@NEXT_SECTION */}` marker that Tasks 4–9 insert before.
+
+- [ ] **Step 1: Hero graphic**
+
+`src/components/marketing/token-flow.tsx`:
+```tsx
+/* Hero graphic — the AuthZ-mode handshake. Your IdP issues an id_token; the
+   app hands it to Sentinel, which verifies it against the IdP's JWKS and mints
+   one RS256 authz JWT carrying workspace + role claims; the SDK enforces that
+   JWT in your app. Static, server-rendered. Brand red marks the shield and the
+   minted-token edge only. */
+const INK = "#0b0b0d";
+const MONO = "var(--font-plex-mono), monospace";
+
+const idps = [
+  { y: 68, label: "Google" },
+  { y: 128, label: "GitHub" },
+  { y: 188, label: "Entra ID" },
+];
+
+const claims: [string, string][] = [
+  ["sub", '"u_7f3a9c"'],
+  ["workspace_id", '"ws_acme"'],
+  ["workspace_role", '"editor"'],
+  ["aud", '"sentinel:access"'],
+  ["jti", '"9c1e-…"'],
+];
+
+export function TokenFlow({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 520 290"
+      role="img"
+      aria-label="Google, GitHub, or Entra ID issue an id_token; Sentinel verifies it and mints an RS256 authz JWT with sub, workspace_id and workspace_role claims; your app's SDK enforces it"
+      className={className}
+    >
+      <defs>
+        <marker id="tf-arw" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M1 0.8 L6.8 4 L1 7.2" fill="none" stroke={INK} strokeOpacity="0.5" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+        </marker>
+        <marker id="tf-arw-brand" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M1 0.8 L6.8 4 L1 7.2" fill="none" stroke="var(--color-brand)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+        </marker>
+      </defs>
+
+      {/* IdP chips → shield */}
+      {idps.map((p) => (
+        <g key={p.label}>
+          <path
+            d={`M128 ${p.y + 15} C 166 ${p.y + 15}, 170 143, 206 143`}
+            fill="none"
+            stroke={INK}
+            strokeOpacity="0.25"
+            strokeWidth="1"
+          />
+          <rect x="16" y={p.y} width="112" height="30" rx="4" fill="#ffffff" stroke={INK} strokeWidth="1" />
+          <text x="30" y={p.y + 19} fontFamily={MONO} fontSize="10.5" fill={INK}>
+            {p.label}
+          </text>
+        </g>
+      ))}
+      <text x="150" y="136" fontFamily={MONO} fontSize="8.5" letterSpacing="0.1em" fill={INK} opacity="0.5">
+        ID_TOKEN
+      </text>
+
+      {/* Sentinel — shield with keyhole (brand) */}
+      <path
+        d="M240 96 L274 109 V146 C274 169 258 184 240 192 C222 184 206 169 206 146 V109 Z"
+        fill="#ffffff"
+        stroke="var(--color-brand)"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <circle cx="240" cy="136" r="7" fill="none" stroke="var(--color-brand)" strokeWidth="1.6" />
+      <path d="M236.5 142 L243.5 142 L246 160 L234 160 Z" fill="none" stroke="var(--color-brand)" strokeWidth="1.6" strokeLinejoin="round" />
+      <text x="240" y="214" textAnchor="middle" fontFamily={MONO} fontSize="9" letterSpacing="0.14em" fill={INK} opacity="0.55">
+        SENTINEL
+      </text>
+
+      {/* minted token edge (brand) */}
+      <path d="M274 143 H330" fill="none" stroke="var(--color-brand)" strokeWidth="1.25" markerEnd="url(#tf-arw-brand)" />
+      <text x="302" y="134" textAnchor="middle" fontFamily={MONO} fontSize="8.5" letterSpacing="0.1em" fill={INK} opacity="0.5">
+        AUTHZ JWT
+      </text>
+
+      {/* JWT card */}
+      <rect x="336" y="78" width="168" height="130" rx="6" fill="#ffffff" stroke={INK} strokeWidth="1.2" />
+      <path d="M336 100 H504" stroke={INK} strokeOpacity="0.15" />
+      <text x="348" y="93" fontFamily={MONO} fontSize="9" letterSpacing="0.1em" fill={INK} opacity="0.55">
+        RS256 · KID 2026-08
+      </text>
+      {claims.map(([k, v], i) => (
+        <text key={k} x="348" y={118 + i * 17} fontFamily={MONO} fontSize="10" fill={INK}>
+          <tspan opacity="0.5">{k}: </tspan>
+          {v}
+        </text>
+      ))}
+
+      {/* → your app */}
+      <path d="M420 208 V232" fill="none" stroke={INK} strokeOpacity="0.35" strokeWidth="1" markerEnd="url(#tf-arw)" />
+      <rect x="356" y="238" width="128" height="32" rx="4" fill="var(--color-wash)" stroke={INK} strokeWidth="1" />
+      <text x="420" y="258" textAnchor="middle" fontFamily={MONO} fontSize="10.5" fill={INK}>
+        your app · SDK
+      </text>
+    </svg>
+  );
+}
+```
+
+- [ ] **Step 2: Replace `src/app/page.tsx` wholesale**
+
+```tsx
+import { ArrowUpRight } from "lucide-react";
+import { ctaPrimary, ctaOutline } from "@/lib/cta";
+import { links } from "@/lib/links";
+import { TokenFlow } from "@/components/marketing/token-flow";
+
+const steps = [
+  {
+    n: "01",
+    title: "Sign in with your IdP",
+    desc: "Google, GitHub, Entra ID, or any OIDC provider. Your login UI, your client ID — Sentinel never sees a password.",
+  },
+  {
+    n: "02",
+    title: "Sentinel verifies and mints",
+    desc: "The IdP token is checked against the provider's JWKS, then exchanged for one RS256 authz JWT carrying workspace and role claims.",
+  },
+  {
+    n: "03",
+    title: "Your SDK enforces",
+    desc: "require_user, require_action, can() — FastAPI dependencies, React guards, and Next.js middleware read the same token.",
+  },
+  {
+    n: "04",
+    title: "Manage it in the admin panel",
+    desc: "Users, workspaces, roles, grants, service apps, activity — one React SPA, no SQL console.",
+  },
+];
+
+const stats = [
+  { value: "3", label: "Authorization tiers, coarse to per-resource" },
+  { value: "4", label: "SDKs — Python, JS, React, Next.js" },
+  { value: "0", label: "Passwords stored. Ever." },
+];
+
+export default function Home() {
+  return (
+    <div className="flex flex-col">
+      {/* Hero */}
+      <section className="mx-auto w-full max-w-6xl px-6 pt-20 pb-8">
+        <p className="label-mono text-[11px] text-muted-foreground">
+          <span className="text-brand">Open source</span> · Self-hosted · Bring your own IdP
+        </p>
+        <h1 className="mt-6 max-w-3xl text-5xl font-medium leading-[1.02] tracking-tight text-ink sm:text-6xl lg:text-[76px]">
+          Auth for everything after login.
+        </h1>
+        <p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground">
+          Keep Sign in with Google, GitHub, or Entra ID exactly as it is.{" "}
+          <span className="font-medium text-ink">Sentinel</span> adds workspaces,
+          roles, and per-resource permissions — issued as one RS256 JWT and
+          enforced by SDKs for FastAPI, React, and Next.js. Self-hosted.
+        </p>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <a href={links.gettingStarted} className={ctaPrimary}>
+            Get started
+          </a>
+          <a href={links.github} target="_blank" rel="noopener noreferrer" className={ctaOutline}>
+            View on GitHub
+            <ArrowUpRight className="h-4 w-4" />
+          </a>
+        </div>
+        <div className="mt-14 grid items-center gap-12 lg:grid-cols-[1.1fr_1fr]">
+          <TokenFlow className="mx-auto h-auto w-full max-w-md lg:max-w-none" />
+          <ol className="flex flex-col gap-9">
+            {steps.map((s) => (
+              <li key={s.n} className="flex gap-5">
+                <span className="label-mono shrink-0 pt-1.5 text-[11px] text-muted-foreground">{s.n}</span>
+                <div>
+                  <h3 className="text-xl font-medium text-ink">{s.title}</h3>
+                  <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{s.desc}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      {/* Stats */}
+      <section className="mx-auto w-full max-w-6xl px-6 py-16">
+        <div className="grid gap-8 border-y border-border py-12 sm:grid-cols-3">
+          {stats.map((s) => (
+            <div key={s.label}>
+              <div className="text-6xl font-medium tracking-tight text-brand">{s.value}</div>
+              <p className="mt-3 label-mono text-[11px] text-muted-foreground">{s.label}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* @@NEXT_SECTION */}
+    </div>
+  );
+}
+```
+
+- [ ] **Step 3: Verify**
+
+```bash
+pnpm lint && pnpm build && scripts/shoot.sh hero
+```
+Read `.verify/hero-desktop.png`: eyebrow with "OPEN SOURCE" red; 76px headline "Auth for everything after login."; two sharp CTAs; the token-flow SVG (three chips → red shield → JWT card → "your app") beside the 01–04 list; stats band with three big red numbers. Mobile: SVG stacks above the list, stats stack vertically. Nothing else red.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add -A && git commit -m "feat: hero with token-flow graphic and stats band"
+```
+
+---
+
+### Task 4: Capabilities section (4 cards)
+
+**Files:**
+- Create: `src/components/marketing/capability-demos.tsx`
+- Modify: `src/app/page.tsx`
+
+**Interfaces:**
+- Produces: `IdpDemo()`, `WorkspaceDemo()`, `TiersDemo()`, `ServiceDemo()` — each returns the inner "mock window" JSX for a card top.
+
+- [ ] **Step 1: The four mock windows**
+
+`src/components/marketing/capability-demos.tsx`:
+```tsx
+import { ArrowRight, Check } from "lucide-react";
+
+const win =
+  "flex h-32 flex-col justify-center rounded-t-lg border border-b-0 border-border bg-paper p-4 font-mono text-[11px] leading-relaxed text-ink";
+const chip = "rounded bg-wash px-1.5 py-0.5 text-[9px] text-ink";
+
+export function IdpDemo() {
+  return (
+    <div className={win}>
+      <div className="text-muted-foreground">{"// authz mode"}</div>
+      <div className="mt-1 flex items-center gap-2">
+        <span>id_token</span>
+        <ArrowRight className="h-3 w-3 text-muted-foreground" />
+        <span>authz_jwt</span>
+      </div>
+      <div className="mt-1 text-muted-foreground">
+        workspace_role: <span className="text-ink">editor</span>
+      </div>
+    </div>
+  );
+}
+
+export function WorkspaceDemo() {
+  const members: [string, string][] = [
+    ["ada", "owner"],
+    ["grace", "admin"],
+    ["linus", "viewer"],
+  ];
+  return (
+    <div className={win}>
+      <div className="text-muted-foreground">acme-labs · 3 members</div>
+      {members.map(([name, role]) => (
+        <div key={name} className="mt-1 flex items-center justify-between">
+          <span>{name}</span>
+          <span className={chip}>{role}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function TiersDemo() {
+  const rows: [string, string][] = [
+    ["require_user", "editor"],
+    ["require_action", "reports:export"],
+    ["can(doc, view)", "granted"],
+  ];
+  return (
+    <div className={win}>
+      {rows.map(([fn, res]) => (
+        <div key={fn} className="mt-1 flex items-center justify-between gap-2 first:mt-0">
+          <span>{fn}</span>
+          <span className="inline-flex items-center gap-1">
+            <span className={chip}>{res}</span>
+            <Check className="h-3 w-3 text-ink" />
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function ServiceDemo() {
+  return (
+    <div className={win}>
+      <div>X-Service-Key: sk_live_9f…</div>
+      <div className="mt-1 flex items-center gap-2">
+        <span>realm: platform</span>
+        <Check className="h-3 w-3 text-ink" />
+      </div>
+      <div className="mt-1 text-muted-foreground">user: none (m2m)</div>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 2: Add the section to `page.tsx`**
+
+Add imports at the top:
+```tsx
+import { ArrowRight } from "lucide-react";
+import { IdpDemo, WorkspaceDemo, TiersDemo, ServiceDemo } from "@/components/marketing/capability-demos";
+```
+(merge `ArrowRight` into the existing lucide import: `import { ArrowRight, ArrowUpRight } from "lucide-react";`)
+
+Add after the `stats` const:
+```tsx
+const capabilities = [
+  {
+    title: "Bring your own IdP",
+    desc: "AuthZ mode: your app logs in, Sentinel verifies the IdP token and mints an authz JWT. Proxy mode if you'd rather Sentinel own the flow.",
+    href: links.guide("how-it-works"),
+    demo: <IdpDemo />,
+  },
+  {
+    title: "Workspaces & organizations",
+    desc: "Multi-tenant by default. owner / admin / editor / viewer, groups, and email-domain organizations.",
+    href: links.guide("workspaces"),
+    demo: <WorkspaceDemo />,
+  },
+  {
+    title: "Three-tier authorization",
+    desc: "Workspace roles in the JWT, RBAC actions in the DB, Zanzibar-style entity ACLs per resource.",
+    href: links.guide("authorization"),
+    demo: <TiersDemo />,
+  },
+  {
+    title: "Service-to-service",
+    desc: "Service keys, realms, and m2m calls with or without a user in context.",
+    href: links.guide("service-apps"),
+    demo: <ServiceDemo />,
+  },
+];
+```
+
+Insert before `{/* @@NEXT_SECTION */}`:
+```tsx
+      {/* Capabilities */}
+      <section id="features" className="mx-auto w-full max-w-6xl scroll-mt-20 px-6 py-16">
+        <p className="label-mono text-[11px] text-muted-foreground">/ How it works</p>
+        <h2 className="mt-4 max-w-2xl text-4xl font-medium tracking-tight text-ink sm:text-5xl">
+          Everything your IdP doesn&apos;t do.
+        </h2>
+        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {capabilities.map((c) => (
+            <a
+              key={c.title}
+              href={c.href}
+              className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-paper transition-shadow hover:shadow-[0_12px_40px_rgba(11,11,13,0.09)]"
+            >
+              <div className="bg-brand-wash px-7 pt-8">{c.demo}</div>
+              <div className="p-7">
+                <h3 className="text-lg font-medium text-ink">{c.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{c.desc}</p>
+                <span className="mt-4 inline-flex items-center gap-1.5 label-mono text-[11px] text-ink">
+                  Learn more
+                  <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                </span>
+              </div>
+            </a>
+          ))}
+        </div>
+      </section>
+
+```
+
+- [ ] **Step 3: Verify**
+
+```bash
+pnpm lint && pnpm build && scripts/shoot.sh caps
+```
+Read `.verify/caps-desktop.png`: four cards in a row, pale-red wash tops with white mock windows, mono text fits without overflow (check the tiers card — three rows with chips). Mobile: 1 column. Card text is ink, chips wash.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add -A && git commit -m "feat: capabilities cards with mock-window demos"
+```
+
+---
+
+### Task 5: Authorization deep-dive (animated tier stack + code card)
+
+**Files:**
+- Create: `src/components/marketing/tier-stack.tsx`, `src/components/marketing/code-card.tsx`
+- Modify: `src/app/page.tsx`
+
+**Interfaces:**
+- Produces: `TierStack({className?})` (client component); `CodeCard({ title, install?, lines, className? })` where `lines: CodeLine[]` and `type CodeLine = string | { t: string; k: "muted" | "brand" }` — a `"muted"` line renders in `text-muted-foreground`, a `"brand"` line in `text-brand`, plain strings in ink. Task 6 reuses `CodeCard`.
+
+- [ ] **Step 1: The exploded tier stack (mechanic copied from docustore's `pipeline-stack.tsx`)**
+
+`src/components/marketing/tier-stack.tsx`:
+```tsx
+"use client";
+
+import { useEffect, useRef } from "react";
+
+/* Exploded view of one request passing through Sentinel's three authorization
+   tiers: workspace role (from the JWT, no DB), RBAC action, entity ACL. The
+   exploded geometry below is the source of truth (what SSR and reduced-motion
+   users get); JS collapses the plates on mount and an IntersectionObserver
+   releases them once, letting CSS transitions carry them back out. */
+
+const EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
+const DURATION = 700; // ms per plate
+const STAGGER = 60; // ms between plates
+const COLLAPSE = [130, 0, -130]; // px translateY: exploded → stacked pile
+const INK = "#0b0b0d";
+const MONO = "var(--font-plex-mono), monospace";
+
+const plates = [
+  { y: 40, title: "WORKSPACE ROLES", sub: "JWT CLAIMS · NO DB CALL", chip: "role: editor", w: 100 },
+  { y: 170, title: "CUSTOM RBAC", sub: "ACTIONS · ROLES · DB", chip: "reports:export", w: 116 },
+  { y: 300, title: "ENTITY ACLS", sub: "ZANZIBAR-STYLE · PER RESOURCE", chip: "document:42 · view", w: 140 },
+];
+
+export function TierStack({ className }: { className?: string }) {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const layers = useRef<(SVGGElement | null)[]>([]);
+  const fades = useRef<(SVGGElement | null)[]>([]); // [0] spine+request chips, [1] verdict chips
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!("IntersectionObserver" in window)) return;
+    const svg = svgRef.current;
+    const els = layers.current.filter((el): el is SVGGElement => el !== null);
+    const notes = fades.current.filter((el): el is SVGGElement => el !== null);
+    if (!svg || els.length !== COLLAPSE.length) return;
+
+    // collapse without transitions, flush, then arm transitions
+    els.forEach((el, i) => {
+      el.style.transition = "none";
+      el.style.transform = `translateY(${COLLAPSE[i]}px)`;
+    });
+    for (const el of notes) {
+      el.style.transition = "none";
+      el.style.opacity = "0";
+    }
+    void svg.getBoundingClientRect();
+    els.forEach((el, i) => {
+      el.style.transition = `transform ${DURATION}ms ${EASE} ${i * STAGGER}ms`;
+    });
+    for (const el of notes) el.style.transition = "opacity 500ms ease-out 700ms";
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((e) => e.intersectionRatio >= 0.34)) return;
+        io.disconnect();
+        for (const el of els) el.style.transform = "translateY(0px)";
+        for (const el of notes) el.style.opacity = "1";
+      },
+      { threshold: 0.35 },
+    );
+    io.observe(svg);
+    return () => io.disconnect();
+  }, []);
+
+  return (
+    <svg
+      ref={svgRef}
+      viewBox="0 0 480 500"
+      role="img"
+      aria-label="A request GET /projects/42 passes down through three plates — workspace roles from the JWT, custom RBAC actions, entity ACLs — each emitting a verdict chip, and exits as 200 OK"
+      className={className}
+    >
+      <defs>
+        <marker id="ts-arw" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M1 0.8 L6.8 4 L1 7.2" fill="none" stroke={INK} strokeOpacity="0.5" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+        </marker>
+      </defs>
+
+      {/* request spine + request/response chips (fade; painted behind plates) */}
+      <g
+        ref={(el) => {
+          fades.current[0] = el;
+        }}
+      >
+        <line x1="190" y1="24" x2="190" y2="468" stroke="var(--color-line)" strokeWidth="1.5" strokeDasharray="4 4" markerEnd="url(#ts-arw)" />
+        <rect x="132" y="4" width="116" height="20" fill="#ffffff" stroke={INK} strokeWidth="1" />
+        <text x="190" y="18" textAnchor="middle" fontFamily={MONO} fontSize="10" fill={INK}>
+          GET /projects/42
+        </text>
+        <rect x="150" y="474" width="80" height="20" fill="var(--color-wash)" stroke={INK} strokeWidth="1" />
+        <text x="182" y="488" textAnchor="middle" fontFamily={MONO} fontSize="10" fill={INK}>
+          200 OK
+        </text>
+        <path d="M212 484 l3 3 l6 -6" fill="none" stroke={INK} strokeOpacity="0.8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </g>
+
+      {/* the three plates */}
+      {plates.map((p, i) => (
+        <g
+          key={p.title}
+          ref={(el) => {
+            layers.current[i] = el;
+          }}
+        >
+          <polygon
+            points={`60,${p.y + 56} 190,${p.y + 112} 320,${p.y + 56} 320,${p.y + 66} 190,${p.y + 122} 60,${p.y + 66}`}
+            fill="var(--color-wash)"
+            stroke={INK}
+            strokeWidth="1"
+          />
+          <polygon
+            points={`190,${p.y} 320,${p.y + 56} 190,${p.y + 112} 60,${p.y + 56}`}
+            fill="#ffffff"
+            stroke={INK}
+            strokeWidth="1.2"
+          />
+          <text x="190" y={p.y + 53} textAnchor="middle" fontFamily={MONO} fontSize="10" letterSpacing="0.12em" fill={INK}>
+            {p.title}
+          </text>
+          <text x="190" y={p.y + 68} textAnchor="middle" fontFamily={MONO} fontSize="8.5" letterSpacing="0.08em" fill={INK} opacity="0.5">
+            {p.sub}
+          </text>
+        </g>
+      ))}
+
+      {/* verdict chips (fade in after the explode) */}
+      <g
+        ref={(el) => {
+          fades.current[1] = el;
+        }}
+      >
+        {plates.map((p) => (
+          <g key={p.chip}>
+            <line x1="320" y1={p.y + 56} x2="332" y2={p.y + 46} stroke="var(--color-line)" strokeWidth="1" />
+            <rect x="332" y={p.y + 36} width={p.w} height="20" fill="#ffffff" stroke={INK} strokeWidth="1" />
+            <text x="340" y={p.y + 50} fontFamily={MONO} fontSize="10.5" fill={INK}>
+              {p.chip}
+            </text>
+            <path d={`M${332 + p.w - 16} ${p.y + 46} l3 3 l6 -6`} fill="none" stroke={INK} strokeOpacity="0.8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </g>
+        ))}
+      </g>
+    </svg>
+  );
+}
+```
+
+- [ ] **Step 2: Code card**
+
+`src/components/marketing/code-card.tsx`:
+```tsx
+export type CodeLine = string | { t: string; k: "muted" | "brand" };
+
+// Static, hand-marked code: whole-line styling only (comments muted, one brand
+// line per card). No highlighter dependency.
+export function CodeCard({
+  title,
+  install,
+  lines,
+  className,
+}: {
+  title: string;
+  install?: string;
+  lines: CodeLine[];
+  className?: string;
+}) {
+  return (
+    <div className={`flex flex-col overflow-hidden rounded-2xl border border-border bg-paper ${className ?? ""}`}>
+      <div className="flex items-center justify-between gap-4 border-b border-border bg-wash px-5 py-3">
+        <span className="label-mono text-[10px] text-ink">{title}</span>
+        {install && <span className="truncate font-mono text-[10px] text-muted-foreground">{install}</span>}
+      </div>
+      <pre className="overflow-x-auto p-5 font-mono text-[12px] leading-[1.7] text-ink">
+        {lines.map((l, i) => {
+          const t = typeof l === "string" ? l : l.t;
+          const k = typeof l === "string" ? undefined : l.k;
+          return (
+            <div key={i} className={k === "muted" ? "text-muted-foreground" : k === "brand" ? "text-brand" : undefined}>
+              {t || " "}
+            </div>
+          );
+        })}
+      </pre>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 3: Add the section to `page.tsx`**
+
+Imports:
+```tsx
+import { TierStack } from "@/components/marketing/tier-stack";
+import { CodeCard, type CodeLine } from "@/components/marketing/code-card";
+```
+
+After `capabilities` const:
+```tsx
+const tiersCode: CodeLine[] = [
+  { t: "# Tier 1: workspace role from the JWT — no DB call", k: "muted" },
+  '@app.get("/projects")',
+  "async def list_projects(user=Depends(sentinel.require_user)):",
+  "    return await get_projects(user.workspace_id)",
+  "",
+  { t: "# Tier 2: RBAC action check", k: "muted" },
+  '@app.get("/reports/export")',
+  'async def export(user=Depends(sentinel.require_action("reports:export"))):',
+  "    ...",
+  "",
+  { t: "# Tier 3: entity-level permission", k: "muted" },
+  '@app.get("/projects/{id}")',
+  "async def get_project(id: str, auth=Depends(sentinel.get_auth)):",
+  '    if not await auth.can("project", id, "view"):',
+  "        raise HTTPException(403)",
+];
+```
+
+Insert before `{/* @@NEXT_SECTION */}`:
+```tsx
+      {/* Authorization deep-dive */}
+      <section className="mx-auto w-full max-w-6xl px-6 py-20">
+        <div className="grid gap-12 lg:grid-cols-[1.05fr_1fr] lg:items-center">
+          <TierStack className="mx-auto h-auto w-full max-w-md lg:max-w-none" />
+          <div>
+            <p className="label-mono text-[11px] text-muted-foreground">/ Three tiers, one dependency</p>
+            <h2 className="mt-4 text-4xl font-medium tracking-tight text-ink sm:text-5xl">
+              Coarse to fine, without leaving the request.
+            </h2>
+            <p className="mt-5 leading-relaxed text-muted-foreground">
+              The workspace role rides in the JWT — no database call. RBAC
+              actions and Zanzibar-style entity ACLs answer the finer questions
+              from the same service, through the same dependency.
+            </p>
+            <CodeCard title="FastAPI" lines={tiersCode} className="mt-8" />
+          </div>
+        </div>
+      </section>
+
+```
+
+- [ ] **Step 4: Verify both motion paths**
+
+```bash
+pnpm lint && pnpm build && scripts/shoot.sh tiers && MOTION=1 scripts/shoot.sh tiers-anim
+```
+Read `.verify/tiers-desktop.png` (reduced motion): three iso plates fully exploded, spine through them, "GET /projects/42" on top, three verdict chips at right, "200 OK" below; code card beside it with muted comments. Read `.verify/tiers-anim-desktop.png`: the plates are collapsed into a pile / mid-transition and the chips are faded — proof the JS path ran (CSS transitions do not advance under virtual time). Mobile: stack above text.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add -A && git commit -m "feat: animated three-tier stack and authorization section"
+```
+
+---
+
+### Task 6: SDK code grid + "What you stop building" band
+
+**Files:**
+- Modify: `src/app/page.tsx`
+
+**Interfaces:**
+- Consumes: `CodeCard`, `CodeLine`, `links`.
+
+- [ ] **Step 1: Data**
+
+After `tiersCode`:
+```tsx
+const sdkCards: { title: string; install: string; lines: CodeLine[] }[] = [
+  {
+    title: "FastAPI",
+    install: "pip install sentinel-auth-sdk",
+    lines: [
+      "from fastapi import Depends, FastAPI",
+      "from sentinel_auth import Sentinel",
+      "",
+      "sentinel = Sentinel(",
+      '    base_url="https://auth.example.com",',
+      '    service_name="my-app",',
+      '    service_key="sk_...",',
+      '    mode="authz",',
+      '    idp_jwks_url="https://www.googleapis.com/oauth2/v3/certs",',
+      ")",
+      "",
+      "app = FastAPI(lifespan=sentinel.lifespan)",
+      { t: "sentinel.protect(app)", k: "brand" },
+      "",
+      '@app.get("/projects")',
+      "async def list_projects(user=Depends(sentinel.require_user)):",
+      "    return await get_projects(user.workspace_id)",
+    ],
+  },
+  {
+    title: "React",
+    install: "npm i @sentinel-auth/react",
+    lines: [
+      'import { IdpConfigs } from "@sentinel-auth/js";',
+      'import { AuthzProvider, AuthzGuard, useAuthz } from "@sentinel-auth/react";',
+      "",
+      "export function App() {",
+      "  return (",
+      "    <AuthzProvider config={{",
+      '      sentinelUrl: "https://auth.example.com",',
+      '      mintEndpoint: "/api/auth/mint",',
+      "      idps: { google: IdpConfigs.google(GOOGLE_CLIENT_ID) },",
+      "    }}>",
+      { t: "      <AuthzGuard fallback={<Login />}>", k: "brand" },
+      "        <Dashboard />",
+      "      </AuthzGuard>",
+      "    </AuthzProvider>",
+      "  );",
+      "}",
+      "",
+      "function Login() {",
+      "  const { login } = useAuthz();",
+      '  return <button onClick={() => login("google")}>Sign in</button>;',
+      "}",
+    ],
+  },
+  {
+    title: "Next.js",
+    install: "npm i @sentinel-auth/nextjs",
+    lines: [
+      { t: "// middleware.ts", k: "muted" },
+      'import { createSentinelAuthzMiddleware } from "@sentinel-auth/nextjs/authz-middleware";',
+      "",
+      { t: "export default createSentinelAuthzMiddleware({", k: "brand" },
+      "  sentinelUrl: process.env.SENTINEL_URL!,",
+      '  idpJwksUrl: "https://www.googleapis.com/oauth2/v3/certs",',
+      "  idpAudience: process.env.GOOGLE_CLIENT_ID!,",
+      '  idpIssuer: "https://accounts.google.com",',
+      '  serviceName: "team-notes",',
+      '  publicPaths: ["/login", "/auth/callback"],',
+      '  loginPath: "/login",',
+      "});",
+      "",
+      "export const config = {",
+      '  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],',
+      "};",
+    ],
+  },
+];
+
+const problems = [
+  {
+    title: "JWT validation, per service",
+    pain: "JWKS fetch, audience, clock skew, key rotation — re-implemented in every backend.",
+    fix: "The SDK does it: RS256, kid rotation, /.well-known/jwks.json.",
+  },
+  {
+    title: "A roles table in every app",
+    pain: "RBAC drifts across services; nobody knows who can export what.",
+    fix: "Namespaced actions and workspace-scoped roles in one place; require_action.",
+  },
+  {
+    title: "Ad-hoc sharing logic",
+    pain: "“Can Alice edit doc 42?” becomes columns and joins.",
+    fix: "Zanzibar-style entity ACLs; can() and accessible().",
+  },
+  {
+    title: "Tenant isolation by convention",
+    pain: "The workspace_id filter someone forgets.",
+    fix: "Workspace-scoped claims; roles and grants can't cross tenants.",
+  },
+  {
+    title: "Token hygiene as an afterthought",
+    pain: "Rotation, reuse detection, and revocation bolted on late.",
+    fix: "Refresh rotation, reuse detection, Redis denylist, jti — built in.",
+  },
+  {
+    title: "No admin UI",
+    pain: "Auth state lives in SQL consoles and Slack threads.",
+    fix: "React admin: users, workspaces, roles, grants, service apps, activity, usage.",
+  },
+];
+```
+
+- [ ] **Step 2: Sections**
+
+Insert before `{/* @@NEXT_SECTION */}`:
+```tsx
+      {/* SDKs */}
+      <section className="mx-auto w-full max-w-6xl px-6 py-16">
+        <p className="label-mono text-[11px] text-muted-foreground">/ Ship it in your stack</p>
+        <h2 className="mt-4 max-w-2xl text-4xl font-medium tracking-tight text-ink sm:text-5xl">
+          Three lines to a protected route.
+        </h2>
+        <div className="mt-12 grid gap-5 lg:grid-cols-3">
+          {sdkCards.map((c) => (
+            <CodeCard key={c.title} title={c.title} install={c.install} lines={c.lines} />
+          ))}
+        </div>
+        <p className="mt-6 text-sm text-muted-foreground">
+          Full guides:{" "}
+          <a href={links.sdkPython} className="text-ink underline-offset-4 hover:underline">Python SDK</a>
+          {" · "}
+          <a href={links.sdkJs} className="text-ink underline-offset-4 hover:underline">JS/TS SDK</a>
+          {" · "}
+          <a href={links.tutorialReact} className="text-ink underline-offset-4 hover:underline">React + FastAPI tutorial</a>
+          {" · "}
+          <a href={links.tutorialNext} className="text-ink underline-offset-4 hover:underline">Next.js tutorial</a>
+        </p>
+      </section>
+
+      {/* Problems */}
+      <section className="border-y border-border bg-wash/60">
+        <div className="mx-auto w-full max-w-6xl px-6 py-20">
+          <p className="label-mono text-[11px] text-muted-foreground">/ What you stop building</p>
+          <h2 className="mt-4 max-w-2xl text-4xl font-medium tracking-tight text-ink sm:text-5xl">
+            Six things every app re-implements. Solved once.
+          </h2>
+          <ol className="mt-14 grid gap-x-12 gap-y-10 sm:grid-cols-2">
+            {problems.map((p, i) => (
+              <li key={p.title} className="flex gap-5">
+                <span className="label-mono shrink-0 text-[11px] text-muted-foreground">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <div className="border-t border-ink/15 pt-1">
+                  <h3 className="text-lg font-medium text-ink">{p.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{p.pain}</p>
+                  <p className="mt-1 text-sm leading-relaxed text-ink">{p.fix}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+```
+
+- [ ] **Step 3: Verify**
+
+```bash
+pnpm lint && pnpm build && scripts/shoot.sh sdk
+```
+Read `.verify/sdk-desktop.png`: three code cards side by side (long lines scroll inside the card — the page must NOT scroll horizontally), one red line per card, install command in each header; grey band with the six numbered problems in two columns, pain muted + fix ink. Mobile: cards stack; the band is one column; **check the page has no horizontal overflow** (the `pre` has `overflow-x-auto`).
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add -A && git commit -m "feat: SDK code grid and problems band"
+```
+
+---
+
+### Task 7: Admin panel (screenshot placeholder) + security posture
+
+**Files:**
+- Create: `src/components/marketing/screenshot-frame.tsx`
+- Modify: `src/app/page.tsx`
+
+**Interfaces:**
+- Produces: `ScreenshotFrame({ src?, alt, label, url? })` — browser-chrome frame; renders `<img src={asset(src)}>` when `src` is given, else a dashed 16:10 placeholder with the mono `label`. To add a real screenshot later: drop `public/screenshots/admin-dashboard.png` and pass `src="/screenshots/admin-dashboard.png"`.
+
+- [ ] **Step 1: The frame**
+
+`src/components/marketing/screenshot-frame.tsx`:
+```tsx
+import { asset } from "@/lib/asset";
+
+export function ScreenshotFrame({
+  src,
+  alt,
+  label,
+  url = "admin.sentinel-auth.local",
+}: {
+  src?: string;
+  alt: string;
+  label: string;
+  url?: string;
+}) {
+  return (
+    <figure className="overflow-hidden rounded-2xl border border-border bg-paper shadow-[0_12px_40px_rgba(11,11,13,0.06)]">
+      <div className="flex h-9 items-center gap-2 border-b border-border bg-wash px-4">
+        <span className="h-2.5 w-2.5 rounded-full bg-ink/15" />
+        <span className="h-2.5 w-2.5 rounded-full bg-ink/15" />
+        <span className="h-2.5 w-2.5 rounded-full bg-ink/15" />
+        <span className="ml-3 flex-1 truncate rounded-sm bg-paper px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
+          {url}
+        </span>
+      </div>
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={asset(src)} alt={alt} className="block h-auto w-full" />
+      ) : (
+        <div className="m-3 flex aspect-[16/10] items-center justify-center rounded-lg border border-dashed border-ink/20 bg-wash/60">
+          <span className="label-mono text-[10px] text-muted-foreground">{label}</span>
+        </div>
+      )}
+    </figure>
+  );
+}
+```
+
+- [ ] **Step 2: Add sections to `page.tsx`**
+
+Imports:
+```tsx
+import { Check } from "lucide-react";
+import { ScreenshotFrame } from "@/components/marketing/screenshot-frame";
+```
+(merge into the lucide import: `import { ArrowRight, ArrowUpRight, Check } from "lucide-react";`)
+
+After `problems`:
+```tsx
+const adminAreas = [
+  "Users and workspaces",
+  "Roles, actions, and grants",
+  "Permissions (entity ACLs)",
+  "Service apps and realms",
+  "Activity, insights, usage",
+];
+
+const security = [
+  "RS256 JWTs with kid rotation",
+  "Refresh rotation with reuse detection",
+  "Redis denylist for revocation",
+  "IdP token never persisted",
+  "Service keys 256-bit, DB-managed",
+  "Rate limiting, CORS, HSTS, CSP, trusted hosts",
+  "Audit and activity trail",
+  "Trivy dependency and container scans in CI",
+];
+```
+
+Insert before `{/* @@NEXT_SECTION */}`:
+```tsx
+      {/* Admin panel */}
+      <section className="mx-auto w-full max-w-6xl px-6 py-20">
+        <div className="grid gap-12 lg:grid-cols-[1fr_1.2fr] lg:items-center">
+          <div>
+            <p className="label-mono text-[11px] text-muted-foreground">/ Admin panel</p>
+            <h2 className="mt-4 text-4xl font-medium tracking-tight text-ink sm:text-5xl">
+              See everything from one place.
+            </h2>
+            <p className="mt-5 leading-relaxed text-muted-foreground">
+              A React admin ships with the service. Every workspace, role,
+              grant, and service key is one click away — with the activity
+              trail to explain how it got there.
+            </p>
+            <ul className="mt-8 space-y-3">
+              {adminAreas.map((a) => (
+                <li key={a} className="flex items-center gap-3 text-sm text-ink">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-ink" />
+                  {a}
+                </li>
+              ))}
+            </ul>
+            <a href={links.guide("admin-panel")} className="mt-8 inline-flex items-center gap-1.5 label-mono text-[11px] text-ink">
+              Admin panel guide
+              <ArrowRight className="h-3.5 w-3.5" />
+            </a>
+          </div>
+          <ScreenshotFrame alt="Sentinel admin dashboard" label="Screenshot — admin dashboard" />
+        </div>
+      </section>
+
+      {/* Security */}
+      <section className="mx-auto w-full max-w-6xl px-6 pb-20">
+        <div className="rounded-2xl border border-border bg-paper p-8 sm:p-12">
+          <p className="label-mono text-[11px] text-muted-foreground">/ Built to be audited</p>
+          <h2 className="mt-4 max-w-2xl text-3xl font-medium tracking-tight text-ink sm:text-4xl">
+            Boring where it counts.
+          </h2>
+          <ul className="mt-8 grid gap-x-12 gap-y-3 sm:grid-cols-2">
+            {security.map((s) => (
+              <li key={s} className="flex items-start gap-3 text-sm text-ink">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
+                {s}
+              </li>
+            ))}
+          </ul>
+          <a href={links.security} className="mt-8 inline-flex items-center gap-1.5 label-mono text-[11px] text-ink">
+            Security overview
+            <ArrowRight className="h-3.5 w-3.5" />
+          </a>
+        </div>
+      </section>
+
+```
+
+- [ ] **Step 3: Verify**
+
+```bash
+pnpm lint && pnpm build && scripts/shoot.sh admin
+```
+Read `.verify/admin-desktop.png`: admin copy + bullets left, a browser-chrome frame with a dashed "SCREENSHOT — ADMIN DASHBOARD" area right; below it a bordered card with eight red-check items in two columns. Mobile: single column.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add -A && git commit -m "feat: admin panel section with screenshot placeholder, security checklist"
+```
+
+---
+
+### Task 8: Under the hood (tech tiles + topology card)
+
+**Files:**
+- Create: `public/logos/{fastapi,python,react,typescript,postgresql,redis,sqlalchemy,docker}.svg`, `src/components/marketing/topology.tsx`
+- Modify: `src/app/page.tsx`
+
+**Interfaces:**
+- Produces: `Topology()` — dark card with the runtime diagram.
+
+- [ ] **Step 1: Vendor the logos (Simple Icons, CC0; CDN returns brand-colored SVG)**
+
+```bash
+cp /Users/sidx/workspace/docustore-site/public/logos/fastapi.svg /Users/sidx/workspace/docustore-site/public/logos/python.svg public/logos/
+for s in react typescript postgresql redis sqlalchemy docker; do
+  curl -sf "https://cdn.simpleicons.org/$s" -o "public/logos/$s.svg" || { echo "fetch $s failed"; exit 1; }
+done
+grep -L "<svg" public/logos/*.svg   # expect no output
+ls public/logos                       # 8 files
+```
+
+- [ ] **Step 2: Topology card**
+
+`src/components/marketing/topology.tsx`:
+```tsx
+const EDGE = "rgba(255,255,255,0.25)";
+const JOINT = "rgba(255,255,255,0.35)";
+const LABEL = "rgba(255,255,255,0.4)";
+
+type NodeProps = { x: number; y: number; w: number; label: string; sub: string; accent?: boolean };
+
+function Node({ x, y, w, label, sub, accent }: NodeProps) {
+  const cx = x + w / 2;
+  return (
+    <g>
+      <rect
+        x={x}
+        y={y}
+        width={w}
+        height={46}
+        rx={6}
+        fill={accent ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.03)"}
+        stroke={accent ? "var(--color-brand)" : "rgba(255,255,255,0.16)"}
+        strokeWidth={accent ? 1.25 : 1}
+      />
+      <text x={cx} y={y + 20} textAnchor="middle" fontSize={12.5} fontWeight={500} fill="rgba(255,255,255,0.92)">
+        {label}
+      </text>
+      <text x={cx} y={y + 35} textAnchor="middle" fontSize={8.5} letterSpacing="0.1em" fill="rgba(255,255,255,0.38)">
+        {sub}
+      </text>
+    </g>
+  );
+}
+
+export function Topology() {
+  return (
+    <div className="rounded-2xl border border-border bg-ink p-7 sm:p-8">
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <span className="label-mono text-[10px] text-paper/50">Runtime topology</span>
+        <span className="label-mono text-[10px] text-paper/30">One image · Self-hosted</span>
+      </div>
+      <svg
+        viewBox="0 0 560 324"
+        role="img"
+        aria-label="Runtime topology: your app signs in with the identity provider and exchanges the id_token with the Sentinel API for an authz JWT; the admin panel talks to the same API; Sentinel persists to PostgreSQL and uses Redis for the denylist, auth codes and rate limits."
+        className="h-auto w-full font-mono"
+      >
+        <defs>
+          <marker id="tp-arw" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+            <path d="M1 0.8 L6.8 4 L1 7.2" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+          </marker>
+        </defs>
+
+        {/* Edges */}
+        <g fill="none" stroke={EDGE} strokeWidth="1">
+          <path d="M216 39 H339" markerEnd="url(#tp-arw)" />
+          <path d="M116 62 V121" markerEnd="url(#tp-arw)" />
+          <path d="M344 149 H325" markerEnd="url(#tp-arw)" />
+          <path d="M168 172 V232" />
+          <path d="M138 232 H422" />
+          <path d="M138 232 V257" markerEnd="url(#tp-arw)" />
+          <path d="M422 232 V257" markerEnd="url(#tp-arw)" />
+        </g>
+        <g fill={JOINT}>
+          <circle cx="168" cy="232" r="2" />
+        </g>
+
+        {/* Edge labels */}
+        <g fontSize={9} letterSpacing="0.1em" fill={LABEL}>
+          <text x={278} y={31} textAnchor="middle">SIGN IN</text>
+          <text x={126} y={96}>ID_TOKEN → AUTHZ JWT</text>
+          <text x={280} y={220} textAnchor="middle">PERSISTENCE</text>
+        </g>
+
+        {/* Nodes */}
+        <Node x={16} y={16} w={200} label="Your app + SDK" sub="FASTAPI · REACT · NEXT.JS" />
+        <Node x={344} y={16} w={200} label="Identity provider" sub="GOOGLE · GITHUB · ENTRA ID" />
+        <Node x={16} y={126} w={304} label="Sentinel API" sub="FASTAPI · AUTHZ + PROXY MODES" accent />
+        <Node x={344} y={126} w={200} label="Admin panel" sub="REACT SPA" />
+        <Node x={16} y={262} w={244} label="PostgreSQL" sub="USERS · WORKSPACES · ROLES · ACLS" />
+        <Node x={300} y={262} w={244} label="Redis" sub="DENYLIST · AUTH CODES · RATE LIMITS" />
+      </svg>
+    </div>
+  );
+}
+```
+Note: the `→` in `ID_TOKEN → AUTHZ JWT` is SVG text on the ink card at 9px; the fallback glyph is acceptable there. If it renders as a box in the screenshot, replace with `ID_TOKEN TO AUTHZ JWT`.
+
+- [ ] **Step 3: Add the section to `page.tsx`**
+
+Imports:
+```tsx
+import { asset } from "@/lib/asset";
+import { Topology } from "@/components/marketing/topology";
+```
+
+After `security`:
+```tsx
+const stack = [
+  { name: "FastAPI", role: "API layer", logo: "/logos/fastapi.svg" },
+  { name: "SQLAlchemy 2.0", role: "Async ORM", logo: "/logos/sqlalchemy.svg" },
+  { name: "PostgreSQL 16", role: "State", logo: "/logos/postgresql.svg" },
+  { name: "Redis 7", role: "Denylist · limits", logo: "/logos/redis.svg" },
+  { name: "Authlib", role: "OAuth2 / OIDC", logo: null },
+  { name: "Python 3.12", role: "Service + SDK", logo: "/logos/python.svg" },
+  { name: "React", role: "Admin · SDK", logo: "/logos/react.svg" },
+  { name: "TypeScript", role: "JS SDKs", logo: "/logos/typescript.svg" },
+  { name: "Docker", role: "ghcr.io/sidxz/sentinel", logo: "/logos/docker.svg" },
+];
+```
+
+Insert before `{/* @@NEXT_SECTION */}`:
+```tsx
+      {/* Under the hood */}
+      <section className="mx-auto w-full max-w-6xl px-6 py-20">
+        <div className="grid gap-12 lg:grid-cols-[1.05fr_1fr] lg:items-center">
+          <div>
+            <p className="label-mono text-[11px] text-muted-foreground">/ Under the hood</p>
+            <h2 className="mt-4 text-4xl font-medium tracking-tight text-ink sm:text-5xl">
+              Built on proven infrastructure.
+            </h2>
+            <p className="mt-5 leading-relaxed text-muted-foreground">
+              FastAPI and SQLAlchemy 2.0 async on PostgreSQL 16 and Redis 7,
+              with Authlib doing the OAuth2/OIDC heavy lifting. Ships as one
+              container image. Nothing leaves your network.
+            </p>
+            <div className="mt-8 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-3">
+              {stack.map((t) => (
+                <div key={t.name} className="group flex items-center gap-3 bg-paper px-4 py-3.5">
+                  {t.logo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={asset(t.logo)}
+                      alt=""
+                      className="h-5 w-5 shrink-0 rounded-[3px] opacity-55 grayscale transition duration-200 group-hover:opacity-100 group-hover:grayscale-0"
+                    />
+                  ) : (
+                    <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[3px] bg-wash font-mono text-[9px] text-ink">
+                      A
+                    </span>
+                  )}
+                  <div className="min-w-0">
+                    <div className="truncate text-[13px] font-medium leading-tight text-ink">{t.name}</div>
+                    <div className="label-mono mt-0.5 truncate text-[9px] text-muted-foreground">{t.role}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <Topology />
+        </div>
+      </section>
+
+```
+
+- [ ] **Step 4: Verify (this is where basePath bites — check the logos load)**
+
+```bash
+pnpm lint && pnpm build && grep -o 'src="[^"]*logos/[^"]*"' out/index.html | head -3 && scripts/shoot.sh hood
+```
+Expected: every logo `src` starts with `/sentinel-site/logos/`. Read `.verify/hood-desktop.png`: 3×3 tile grid with grayscale logos actually rendered (no broken-image icons), the "A" text tile for Authlib, and the dark topology card with the red-stroked "Sentinel API" node. Mobile: 2-column tiles, card below.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add -A && git commit -m "feat: under-the-hood tiles and runtime topology card"
+```
+
+---
+
+### Task 9: CTA band, beta note, AGENTS.md, README, full-page pass
+
+**Files:**
+- Modify: `src/app/page.tsx` (final section; remove the marker)
+- Create: `AGENTS.md`, `README.md`
+
+- [ ] **Step 1: CTA band — replace `{/* @@NEXT_SECTION */}` with:**
+
+```tsx
+      {/* CTA */}
+      <section className="mx-auto w-full max-w-6xl px-6 pb-24">
+        <div className="rounded-2xl bg-brand p-[1.5px]">
+          <div className="flex flex-col items-start gap-8 rounded-[15px] bg-paper px-8 py-14 sm:px-14 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="max-w-md text-3xl font-medium tracking-tight text-ink sm:text-4xl">
+                Ship auth in an afternoon.
+              </h2>
+              <p className="mt-4 max-w-md text-muted-foreground">
+                Docker Compose or Kubernetes, your IdP credentials, one env
+                file. Open source, MIT, yours to run.
+              </p>
+              <p className="mt-5 font-mono text-[12px] text-ink">docker pull ghcr.io/sidxz/sentinel</p>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-3">
+              <a href={links.gettingStarted} className={ctaPrimary}>
+                Get started
+              </a>
+              <a href={links.github} target="_blank" rel="noopener noreferrer" className={ctaOutline}>
+                Star on GitHub
+                <ArrowUpRight className="h-4 w-4" />
+              </a>
+            </div>
+          </div>
+        </div>
+        <p className="mt-4 label-mono text-[10px] text-muted-foreground">
+          Beta — APIs may change before 1.0.
+        </p>
+      </section>
+```
+
+- [ ] **Step 2: `AGENTS.md`**
+
+```markdown
+# sentinel-site
+
+Product site for Sentinel Auth. Single page, Next 16 static export, GitHub Pages.
+
+<!-- BEGIN:nextjs-agent-rules -->
+# This is NOT the Next.js you know
+This version has breaking changes — read the relevant guide in `node_modules/next/dist/docs/` before writing any code.
+<!-- END:nextjs-agent-rules -->
+
+## Design system (sibling of sidxz/docustore-site)
+- **Palette:** white paper, ink `#0b0b0d`, `#f5f5f5` washes. Near-monochrome.
+- **The one accent:** Sentinel red `#f43737` (`--color-brand`). It appears ONLY in: logo hexagon, hero eyebrow's first two words, the three stat numbers, capability-card wash tops, hero SVG shield + minted-token edge, one topology node, CTA border, footer hairline, security-checklist checks, one line per SDK code card. Everything else stays monochrome. Do not add red elsewhere. Never yellow.
+- **Type:** IBM Plex Sans (display + body) + IBM Plex Mono (eyebrows, labels, buttons — uppercase, tracked). Self-hosted `src/app/fonts/*.woff2` (latin subset — no `→ ✓ ▶`; use lucide icons / SVG paths). No Google Fonts. No serif.
+- **Buttons:** `rounded-none`, mono uppercase; `src/lib/cta.ts`. Cards `rounded-2xl`. Container `max-w-6xl px-6`. Eyebrows `/ Label`.
+- **Tokens:** `src/app/globals.css`. Links: `src/lib/links.ts`. Static assets: always `asset("/path")` (basePath).
+- **Art** is hand-authored SVG in `src/components/marketing/`. No rasters except user-provided admin screenshots in `public/screenshots/` (via `ScreenshotFrame src=`).
+- **Motion:** only `tier-stack.tsx` (IntersectionObserver explode; reduced-motion → static SSR state).
+
+## Verify (do this before claiming anything looks right)
+`scripts/shoot.sh <name>` builds with the deploy basePath, serves `out/` under `/sentinel-site`, and writes `.verify/<name>-{desktop,mobile}.png`. **Read the PNGs.** `MOTION=1 scripts/shoot.sh x` captures the animated path (transitions freeze mid-way — proof JS ran, not the beauty shot).
+
+## Deploy / domain
+Push to `main` → `.github/workflows/deploy.yml` → https://sidxz.github.io/sentinel-site/.
+Domain flip to sentinel-auth.com: remove `NEXT_PUBLIC_BASE_PATH` from the workflow, set `NEXT_PUBLIC_SITE_URL=https://sentinel-auth.com`, add `public/CNAME` containing `sentinel-auth.com`, point apex A records at GitHub Pages, enable Enforce HTTPS.
+```
+
+- [ ] **Step 3: `README.md`**
+
+```markdown
+# sentinel-site
+
+Product site for [Sentinel Auth](https://github.com/sidxz/Sentinel). Docs live at https://docs.sentinel-auth.com.
+
+```bash
+pnpm install
+pnpm dev                 # http://localhost:3000
+pnpm lint && pnpm build  # static export → out/
+scripts/shoot.sh home    # screenshots → .verify/
+```
+
+Deploys to GitHub Pages on push to `main` (see `.github/workflows/deploy.yml`).
+Currently served at https://sidxz.github.io/sentinel-site/ via `NEXT_PUBLIC_BASE_PATH=/sentinel-site`.
+
+## Moving to sentinel-auth.com
+1. In `deploy.yml`, delete the `NEXT_PUBLIC_BASE_PATH` line and set `NEXT_PUBLIC_SITE_URL: https://sentinel-auth.com`.
+2. Add `public/CNAME` containing `sentinel-auth.com`.
+3. Point the apex A records at GitHub Pages (185.199.108.153, .109.153, .110.153, .111.153) and enable "Enforce HTTPS" in repo Settings → Pages.
+
+## Adding admin screenshots
+Drop PNGs into `public/screenshots/` and pass `src="/screenshots/<file>.png"` to `ScreenshotFrame` in `src/app/page.tsx`.
+
+Design rules: `AGENTS.md`.
+```
+
+- [ ] **Step 4: Full-page verification**
+
+```bash
+pnpm lint && pnpm build
+grep -c "@@NEXT_SECTION" src/app/page.tsx            # expect 0
+grep -Eo 'https?://[^"]+' out/index.html | grep -vE 'sentinel-auth.com|github.com|pypi.org|npmjs.com|googleapis.com/oauth2|accounts.google.com|auth.example.com|sidxz.github.io|w3.org' # expect nothing (googleapis/accounts.google.com/auth.example.com only appear inside code samples)
+scripts/shoot.sh final
+```
+Read `.verify/final-desktop.png` and `.verify/final-mobile.png` top to bottom against the spec's section order: navbar · hero · stats · capabilities · tier stack · SDKs · problems band · admin · security · under the hood · CTA + beta note · footer. Confirm: red only where allowed; no horizontal page scroll on mobile; code cards scroll internally; footer hairline red.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add -A && git commit -m "feat: CTA band, beta note, AGENTS.md and README"
+```
+
+---
+
+### Task 10: Deploy workflow, create the GitHub repo, go live
+
+**Files:**
+- Create: `.github/workflows/deploy.yml`
+
+**Interfaces:**
+- Consumes: `NEXT_PUBLIC_BASE_PATH` / `NEXT_PUBLIC_SITE_URL` from `next.config.mjs` and `layout.tsx`.
+
+- [ ] **Step 1: Workflow**
+
+`.github/workflows/deploy.yml`:
+```yaml
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm build
+        env:
+          # Project-page URL for now. Delete this line + add public/CNAME at the domain flip.
+          NEXT_PUBLIC_BASE_PATH: /sentinel-site
+          NEXT_PUBLIC_SITE_URL: https://sidxz.github.io/sentinel-site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: out
+      - id: deployment
+        uses: actions/deploy-pages@v4
+```
+
+```bash
+git add -A && git commit -m "ci: deploy to GitHub Pages"
+```
+
+- [ ] **Step 2: STOP — confirm with the user before creating the public repo and pushing.** Say exactly what will happen: create public repo `sidxz/sentinel-site`, push `main`, enable Pages with the Actions source. Wait for a yes.
+
+- [ ] **Step 3: Create repo, push, enable Pages, watch the run**
+
+```bash
+gh repo create sidxz/sentinel-site --public --description "Sentinel Auth product site" --source=. --remote=origin --push
+gh api -X POST repos/sidxz/sentinel-site/pages -f build_type=workflow || true   # 409 if already enabled is fine
+gh run list --limit 1
+gh run watch "$(gh run list --limit 1 --json databaseId -q '.[0].databaseId')" --exit-status
+```
+Expected: the "Deploy to GitHub Pages" run succeeds.
+
+- [ ] **Step 4: Verify live**
+
+```bash
+curl -sI https://sidxz.github.io/sentinel-site/ | head -1        # HTTP/2 200
+curl -s https://sidxz.github.io/sentinel-site/ | grep -o '/sentinel-site/_next/static/[^"]*\.css' | head -1
+curl -sI "https://sidxz.github.io$(curl -s https://sidxz.github.io/sentinel-site/ | grep -o '/sentinel-site/logos/fastapi.svg' | head -1)" | head -1   # 200
+```
+Then open `https://sidxz.github.io/sentinel-site/` in Chrome (via the browser tools) and eyeball the hero and the tier-stack animation. Report the live URL to the user.
+
+---
+
+## Self-review
+
+**Spec coverage:** Decisions → Tasks 1 (stack/hosting/type), 2 (identity), 3–9 (page sections 0–11 in order: navbar T2, hero T3, stats T3, capabilities T4, authorization T5, SDKs T6, problems T6, admin T7, security T7, under-the-hood T8, CTA T9, footer T2), art (`logo` T2, `token-flow` T3, `tier-stack` T5, `capability-demos` T4, `topology` T8, `screenshot-frame` T7, logos T8), deploy + domain flip (T10 + README T9), verification (shoot.sh T1, used every task). Out-of-scope items stay out. `docs/guide/admin-panel/` link used in T7. Beta note in T9. Screenshot placeholder in T7.
+
+**Placeholder scan:** none — every step has the file content or the exact command; the only "later" items are the user's own follow-ups named in the spec.
+
+**Type consistency:** `asset(path: string)`, `links.guide(slug)`, `links.npm("js"|"react"|"nextjs")`, `CodeLine`/`CodeCard({title, install?, lines, className?})`, `ScreenshotFrame({src?, alt, label, url?})`, `TierStack/TokenFlow({className?})`, `Topology()`, `Navbar()`, `Footer()`, `Logo/LogoMark({className?})` are used with the same names and shapes across tasks. The lucide import in `page.tsx` ends as `{ ArrowRight, ArrowUpRight, Check }`.
