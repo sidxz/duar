@@ -1,6 +1,6 @@
 {
   "name": "@duar-auth/react",
-  "version": "0.20.1",
+  "version": "1.0.0",
   "type": "module",
   "description": "Duar React SDK — provider, hooks, and components",
   "license": "MIT",
@@ -28,7 +28,7 @@
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",
-    "@duar-auth/js": "^0.20.1"
+    "@duar-auth/js": "^1.0.0"
   },
   "devDependencies": {
     "tsup": "^8.0.0",
