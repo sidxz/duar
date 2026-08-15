@@ -39,3 +39,6 @@ local-docs/
 
 CLAUDE.md
 .serena/.DS_Store
+
+.DS_Store
+.serena/
