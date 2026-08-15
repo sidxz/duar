@@ -38,4 +38,4 @@ site/
 local-docs/
 
 CLAUDE.md
-.serena/
+.serena/.DS_Store
