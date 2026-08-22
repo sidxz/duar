@@ -171,7 +171,8 @@ Both middleware classes return JSON errors:
 | 500 | `Authentication service unavailable` | JWKS fetch failed (proxy mode) |
 | 401 | `Missing authz token — send X-Authz-Token, or X-Workspace-Id to resolve one server-side` | `auto_resolve=True` and neither header sent |
 | 400 | `Invalid X-Workspace-Id` | `X-Workspace-Id` is not a UUID (auto-resolve) |
-| 401 | `IdP token rejected by Duar` | Duar refused the IdP token at mint (auto-resolve) |
-| 403 | `Not authorized for this workspace` | Not a member / org not allowed / inactive (auto-resolve) |
+| 401 | `IdP token rejected by Duar: <Duar's reason>` | Duar refused the IdP token at mint — audience not allowed for this app, unsupported `idp_provider`, … (auto-resolve) |
+| 403 | `Not authorized for this workspace` | Not a member / org not allowed / inactive / cross-provider email conflict (auto-resolve) |
 | 429 | `Authorization service rate limit` | Duar's `/authz/resolve` limit hit; `Retry-After` passed through (auto-resolve) |
-| 503 | `Authorization service unavailable` | Duar unreachable or 5xx at mint (auto-resolve) |
+| 503 | `Authorization service rejected the service key` | Duar returned 401 to the mint — this app's service key is missing or revoked (auto-resolve) |
+| 503 | `Authorization service unavailable` | Duar unreachable, 5xx, or an unusable mint response (auto-resolve) |

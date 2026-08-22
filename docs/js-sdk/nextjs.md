@@ -58,7 +58,7 @@ curl https://app.example.com/api/items \
   -H "X-Workspace-Id: 5e60ba90-4b3e-4b1a-9dcb-9d76b1a1e3a1"
 ```
 
-The IdP token is verified first, then the middleware mints through `POST /authz/resolve`, caches per `(idp_sub, workspace)` for 80% of the token TTL, de-duplicates concurrent first requests, and forwards the minted token as `x-authz-token` to your route handlers. `X-Authz-Token` wins when both headers are sent. Responses on `/api/*`: missing both headers → `401` (detail names the headers); non-UUID workspace → `400`; Duar rejects the IdP token → `401`; not a member → `403`; Duar rate limit → `429` with `Retry-After`; Duar unreachable → `503`. Page routes still redirect to `loginPath`.
+The IdP token is verified first, then the middleware mints through `POST /authz/resolve`, caches per `(idp_sub, workspace)` for 80% of the token TTL, de-duplicates concurrent first requests, and forwards the minted token as `x-authz-token` to your route handlers. `X-Authz-Token` wins when both headers are sent. Responses: missing both headers → `401` (detail names the headers); non-UUID workspace → `400`; Duar rejects the IdP token → `401` (Duar's reason appended); not a member → `403`; Duar rate limit → `429` with `Retry-After`; Duar rejects this app's service key, is unreachable, or returns an unusable body → `503`. Every auto-resolve response is JSON whether the path is an API or page route — a caller sending a Bearer token plus `X-Workspace-Id` is an API client by construction; page navigations without a Bearer token still redirect to `loginPath`.
 
 ## Proxy Middleware
 

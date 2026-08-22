@@ -193,3 +193,28 @@ minus concurrency, plus "forwarded request carries `x-authz-token`".
 Duar service changes · GitHub (opaque token) support · browser-client changes ·
 echoing the minted token in a response header · workspace discovery fallback ·
 forwarding script IPs to Duar's audit (`X-Forwarded-For` on the resolve call).
+
+## Review amendments (2026-08-22, whole-branch review)
+
+Refinements adopted from the post-implementation review; §1–§4 above read with these:
+
+- **Unusable mint response → 503, never cached.** A non-JSON 200, a 200 without a string
+  `authz_token`, or a non-numeric `expires_in` is treated like an outage (`503
+  Authorization service unavailable`); nothing is stored.
+- **Verify-failure eviction.** A minted token that then fails the middleware's local
+  verification (stale pinned key, issuer mismatch) is evicted from the cache on the spot.
+- **Duar 401 → `503 Authorization service rejected the service key`.** Distinguishes a
+  missing/revoked service key from a Duar outage.
+- **Duar 400 carries Duar's reason.** `DuarError.detail` / `ResolveError.detail` hold the
+  JSON `detail` from Duar's error body; the app responds `401 IdP token rejected by
+  Duar: <reason>` (plain `IdP token rejected by Duar` when Duar sent none).
+- **`expires_in`**: only a numeric value is used as the TTL (so `0` caches nothing) — both
+  SDKs identical.
+- **Missing `sub`** on a locally-valid IdP token → `401 Invalid IdP token` before the cache
+  lookup; the key is never built from a missing identity.
+- **Next.js: auto-path responses are always JSON**, page route or not — a Bearer +
+  `X-Workspace-Id` caller is an API client by construction. Page navigations without a
+  Bearer token redirect to `loginPath` exactly as before.
+- **`Duar(mode="proxy", auto_resolve=True)` raises** instead of silently doing nothing.
+- Python single-flight task marks its exception retrieved in the done-callback, so a mint
+  whose every awaiter was cancelled cannot log "Task exception was never retrieved".
