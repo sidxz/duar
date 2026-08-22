@@ -56,6 +56,12 @@ class Duar:
             Recommended: ``30``–``60`` for apps where permission changes are
             infrequent.  Write operations (share, unshare, visibility changes)
             automatically invalidate the cache.
+        idp_provider: IdP provider name Duar validates tokens as (``"google"``,
+            ``"entra_id"``). Required when ``auto_resolve=True``.
+        auto_resolve: Let ``AuthzMiddleware`` mint the authz token server-side when a
+            request carries only the IdP token plus ``X-Workspace-Id`` (scripts,
+            Postman, Swagger). Default ``False`` — existing dual-token behaviour
+            unchanged. AuthZ mode only.
     """
 
     def __init__(
@@ -71,6 +77,8 @@ class Duar:
         actions: list[dict] | None = None,
         allowed_workspaces: set[str] | None = None,
         cache_ttl: float = 0,
+        idp_provider: str | None = None,
+        auto_resolve: bool = False,
     ):
         if not service_key:
             raise ValueError(
@@ -88,6 +96,8 @@ class Duar:
                     "aud claim must be verified to prevent accepting tokens minted "
                     "for other OAuth clients of the same IdP."
                 )
+            if auto_resolve and not idp_provider:
+                raise ValueError("idp_provider is required when auto_resolve=True (e.g. 'google', 'entra_id')")
 
         self.base_url = base_url.rstrip("/")
         warn_if_insecure(self.base_url, "Duar")
@@ -101,6 +111,8 @@ class Duar:
         self.actions = actions
         self.allowed_workspaces = allowed_workspaces
         self.cache_ttl = cache_ttl
+        self.idp_provider = idp_provider
+        self.auto_resolve = auto_resolve
 
         self._permissions: PermissionClient | None = None
         self._roles: RoleClient | None = None
@@ -201,6 +213,8 @@ class Duar:
                 idp_audience=self.idp_audience,
                 idp_issuer=self.idp_issuer,
                 exclude_paths=exclude_paths,
+                idp_provider=self.idp_provider,
+                auto_resolve=self.auto_resolve,
             )
         else:
             app.add_middleware(
