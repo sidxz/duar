@@ -15,7 +15,7 @@ jobs:
     name: Lint & Type Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: astral-sh/setup-uv@v5
         with:
@@ -38,7 +38,7 @@ jobs:
     name: SDK Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: astral-sh/setup-uv@v5
         with:
@@ -58,7 +58,7 @@ jobs:
     name: Dependency Scan (Trivy)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # uv workspace: the only Python lockfile is the root uv.lock, so scan from root.
       # Demos are excluded (not shipped); admin is covered by admin-container-scan.
@@ -76,7 +76,7 @@ jobs:
     name: Container Scan (Trivy)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build service image
         run: |
@@ -95,7 +95,7 @@ jobs:
     name: Admin Container Scan (Trivy)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build admin image
         run: docker build -t daikon/duar-admin:ci admin/
