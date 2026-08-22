@@ -15,6 +15,17 @@ import pytest
 from src.api.auth_routes import _log_login_failure
 
 
+@pytest.fixture(autouse=True)
+def _no_signal_side_effects():
+    """Isolate the audit funnel from the stuffing counter (needs Redis; its
+    fail-open path rolls back the session). The hookup itself is covered in
+    test_signals.py."""
+    with patch(
+        "src.api.auth_routes.signal_service.on_login_failure", new_callable=AsyncMock
+    ):
+        yield
+
+
 def _fake_request(ip: str = "203.0.113.9", ua: str = "TestUA/1.0") -> MagicMock:
     request = MagicMock()
     request.client.host = ip
