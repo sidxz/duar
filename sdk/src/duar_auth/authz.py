@@ -64,7 +64,11 @@ class AuthzClient:
             headers=self._headers(),
         )
         if resp.status_code != 200:
-            raise DuarError(f"Duar API error: {resp.status_code}", resp.status_code)
+            raise DuarError(
+                f"Duar API error: {resp.status_code}",
+                resp.status_code,
+                retry_after=resp.headers.get("Retry-After"),
+            )
         return resp.json()
 
     async def close(self) -> None:
