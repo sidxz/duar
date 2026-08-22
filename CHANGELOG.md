@@ -10,7 +10,9 @@ For versions prior to `0.11.0`, see the git tag history (`git log --oneline -- s
 
 ## [Unreleased]
 
-<!-- Add next-version entries here -->
+### Added
+- AuthZ mode auto-resolve: the SDK middleware can mint the authz token server-side when a request carries only the IdP token plus `X-Workspace-Id` — scripts, Postman, and Swagger call app APIs with one token. Opt-in (`Duar(idp_provider=..., auto_resolve=True)` / `createDuarAuthzMiddleware({ autoResolve, serviceKey, idpProvider })`), default off. Cached per `(idp_sub, workspace)` at 80% of the token TTL with single-flight minting; Duar mint failures map to 401/403/429 (+`Retry-After`)/503. No service changes.
+- `duar_auth.DuarError.retry_after` — Duar's `Retry-After` header on 429 responses.
 
 ---
 

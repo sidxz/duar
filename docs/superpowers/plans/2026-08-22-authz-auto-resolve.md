@@ -1193,7 +1193,7 @@ function handleUnauthenticated(
 - [ ] **Step 4: Run tests + build**
 
 Run: `cd sdks/nextjs && npm test`
-Expected: **36 passed** (19 baseline + 17 new: 13 `it` + 4 `it.each` rows).
+Expected: **35 passed** (19 baseline + 16 new: 12 `it` + 4 `it.each` rows).
 
 Run: `cd sdks/nextjs && npm run build`
 Expected: tsup succeeds with no type errors.
@@ -1362,7 +1362,7 @@ git commit -m "docs: AuthZ-mode auto-resolve (X-Workspace-Id) for Python + Next.
 ```bash
 make lint
 cd sdk && uv run pytest -q                     # expected: 160 passed
-cd sdks/nextjs && npm test && npm run build    # expected: 36 passed; build clean
+cd sdks/nextjs && npm test && npm run build    # expected: 35 passed; build clean
 cd ../.. && uv run --extra docs mkdocs build --strict
 git status --short                             # expected: clean
 ```
