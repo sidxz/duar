@@ -1,0 +1,12 @@
+# Secret scanning config (pre-commit hook + CI). Allowlist placeholder values used in docs.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Doc placeholders and test fixtures"
+paths = ['''^service/tests/integration/fixtures/''']
+regexes = [
+  '''^sk_(your_\w+|live_abc123|prod_abc123|a1b2c3d4e5f6)''',
+  '''\.\.\.$''',            # truncated example tokens like eyJhbGciOi...
+  '''^idp_jwks_url=''',
+]

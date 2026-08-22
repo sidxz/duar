@@ -60,20 +60,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Scan service dependencies
+      # uv workspace: the only Python lockfile is the root uv.lock, so scan from root.
+      # Demos are excluded (not shipped); admin is covered by admin-container-scan.
+      - name: Scan workspace dependencies
         uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: fs
-          scan-ref: service/
-          format: table
-          severity: CRITICAL,HIGH
-          exit-code: 1
-
-      - name: Scan SDK dependencies
-        uses: aquasecurity/trivy-action@v0.35.0
-        with:
-          scan-type: fs
-          scan-ref: sdk/
+          scan-ref: .
+          skip-dirs: demo-authz,demo-proxy,pentest,admin
           format: table
           severity: CRITICAL,HIGH
           exit-code: 1
