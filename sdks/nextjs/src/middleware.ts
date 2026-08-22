@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyToken, payloadToUser } from '@duar-auth/js/server'
 import { encodeHeaderValue } from './header-codec'
+import { issuerFromJwksUrl } from './issuer'
 
 export interface DuarMiddlewareConfig {
   /** URL to the JWKS endpoint. */
@@ -11,7 +12,7 @@ export interface DuarMiddlewareConfig {
   loginPath?: string
   /** Expected audience. Defaults to "duar:access". */
   audience?: string
-  /** Expected JWT issuer claim. Defaults to the origin of jwksUrl. */
+  /** Expected JWT issuer claim. Defaults to jwksUrl minus `/.well-known/jwks.json` (Duar's BASE_URL, path prefix included). */
   issuer?: string
   /** Optional workspace ID allowlist. */
   allowedWorkspaces?: string[]
@@ -38,7 +39,7 @@ export function createDuarMiddleware(config: DuarMiddlewareConfig) {
     audience = 'duar:access',
     allowedWorkspaces,
   } = config
-  const issuer = config.issuer ?? new URL(jwksUrl).origin
+  const issuer = config.issuer ?? issuerFromJwksUrl(jwksUrl)
 
   // Warn if JWKS URL is plain HTTP on a non-localhost host
   try {

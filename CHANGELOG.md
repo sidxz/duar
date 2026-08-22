@@ -14,6 +14,20 @@ For versions prior to `0.11.0`, see the git tag history (`git log --oneline -- s
 
 ---
 
+## [1.1.0] - 2026-08-22 — Path-prefix deployment
+
+### Added
+- Path-prefix deployment (e.g. `/duar` + `/duar-admin` behind one ingress): the admin image reads `DUAR_ADMIN_BASE_PATH` at container start — published image, no rebuild. Guide: `docs/deployment/subpath.md`.
+
+### Fixed
+- `@duar-auth/nextjs`: the default expected `issuer` now keeps Duar's path prefix (`https://host/duar`), matching the service's `iss = BASE_URL`; previously only the origin.
+- service: a trailing slash on `BASE_URL` / `ADMIN_URL` / `FRONTEND_URL` is stripped instead of producing `//` in OAuth redirect URIs.
+
+### Removed
+- Admin image build arg `VITE_API_URL` — the login link now uses the same `/api` nginx proxy as every other admin request.
+
+---
+
 ## [1.0.0] - 2026-08-15 — Renamed to Duar
 
 First release under the new name. Functionally identical to 0.20.1 apart from

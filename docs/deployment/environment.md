@@ -153,3 +153,13 @@ These are used by `docker-compose.prod.yml` and `.env.prod`. They are not read b
 | `POSTGRES_PASSWORD` | *(none)* | Yes |
 | `REDIS_PASSWORD` | *(none)* | Yes |
 | `DUAR_PORT` | `9003` | No |
+
+### Admin image (`ghcr.io/sidxz/duar-admin`)
+
+| Variable | Default | Required |
+|----------|---------|----------|
+| `DUAR_BACKEND` | `duar:9003` | No |
+| `DUAR_ADMIN_BASE_PATH` | `/` | No |
+
+- `DUAR_BACKEND` -- host:port the admin's nginx proxies `/api/*` to (the service's public listener).
+- `DUAR_ADMIN_BASE_PATH` -- path prefix the admin is served under (e.g. `/duar-admin`), applied at container start. See [Path-Prefix Deployment](subpath.md).

@@ -7,6 +7,7 @@ import "./app.css";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ThemeProvider } from "./lib/theme";
 import { clientLog } from "./lib/logger";
+import { BASE_PATH } from "./lib/base";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -23,7 +24,7 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
+        <BrowserRouter basename={BASE_PATH}>
           <ThemeProvider>
             <App />
           </ThemeProvider>

@@ -21,6 +21,7 @@ import {
 import { adminLogout } from "../api/client";
 import { useAdmin } from "./AuthGuard";
 import { useTheme } from "../lib/theme";
+import { BASE_PATH } from "../lib/base";
 
 const NAV = [
   { to: "/", label: "Dashboard", Icon: LayoutDashboard },
@@ -44,14 +45,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { theme, toggle } = useTheme();
   const handleLogout = async () => {
     await adminLogout();
-    window.location.href = "/";
+    window.location.href = BASE_PATH;
   };
 
   return (
     <div className="flex h-screen">
       <aside className="w-56 shrink-0 flex flex-col bg-sidebar text-sidebar-foreground">
         <div className="h-14 flex items-center gap-2.5 px-4 border-b border-white/15">
-          <img src="/logo.png" alt="Duar" className="h-8 w-auto shrink-0" />
+          <img src="logo.png" alt="Duar" className="h-8 w-auto shrink-0" />
           <span className="text-sm font-bold tracking-wider uppercase whitespace-nowrap">
             Duar
           </span>

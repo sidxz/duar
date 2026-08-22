@@ -95,6 +95,12 @@ class Settings(BaseSettings):
     rate_limit_admin_write: str = "10/minute"  # admin mutations (per user)
     rate_limit_sensitive: str = "5/minute"  # destructive/expensive admin ops (per user)
 
+    @field_validator("base_url", "admin_url", "frontend_url")
+    @classmethod
+    def _strip_trailing_slash(cls, v: str) -> str:
+        # Every URL built from these is f"{base}/path" — a trailing slash would double it.
+        return v.rstrip("/")
+
     @field_validator(
         "rate_limit_auth",
         "rate_limit_auth_admin",

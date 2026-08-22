@@ -32,7 +32,7 @@ export interface DuarAuthzMiddlewareConfig {
   publicPaths?: string[]
   /** Redirect target for unauthenticated page requests. Defaults to "/login". */
   loginPath?: string
-  /** Expected JWT issuer for the authz token. Defaults to the origin of duarUrl. */
+  /** Expected JWT issuer for the authz token. Defaults to duarUrl (Duar's BASE_URL, path prefix included). */
   issuer?: string
 }
 
@@ -91,7 +91,7 @@ export function createDuarAuthzMiddleware(config: DuarAuthzMiddlewareConfig) {
   }
 
   const duarJwksUrl = `${duarUrl.replace(/\/+$/, '')}/.well-known/jwks.json`
-  const issuer = config.issuer ?? new URL(duarUrl).origin
+  const issuer = config.issuer ?? duarUrl.replace(/\/+$/, '')
 
   const DUAR_HEADERS = [
     'x-duar-user-id',

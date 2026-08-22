@@ -125,6 +125,8 @@ Browser-facing flows (login, the admin panel) continue to use the public `:9003`
 
 ## Production Checklist
 
+Serving under a path prefix (e.g. `/duar` + `/duar-admin` on a shared ingress)? See [Path-Prefix Deployment](subpath.md).
+
 ### TLS
 
 - [ ] Reverse proxy (nginx, Caddy, ALB) handles TLS termination

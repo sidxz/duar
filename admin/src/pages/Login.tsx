@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getAuthProviders } from "../api/client";
+import { API_BASE, getAuthProviders } from "../api/client";
 import { clientLog } from "../lib/logger";
 
 const PROVIDER_META: Record<string, { label: string; icon: string }> = {
@@ -51,7 +51,7 @@ export function Login() {
   return (
     <div className="flex h-screen items-center justify-center bg-background">
       <div className="w-full max-w-sm space-y-6 rounded-xl border border-border bg-card overflow-hidden">
-        <img src="/splash.png" alt="Duar" className="w-full object-cover" />
+        <img src="splash.png" alt="Duar" className="w-full object-cover" />
         <div className="px-8 pb-8 space-y-6">
           <div className="text-center">
             <p className="mt-1 text-sm text-muted-foreground">Sign in to access the admin panel</p>
@@ -69,7 +69,7 @@ export function Login() {
               return (
                 <a
                   key={p}
-                  href={`${import.meta.env.VITE_API_URL || "http://localhost:9003"}/auth/admin/login/${p}`}
+                  href={`${API_BASE}/auth/admin/login/${p}`}
                   className="flex w-full items-center justify-center gap-2.5 rounded-md border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
                 >
                   {meta.icon && (

@@ -126,6 +126,7 @@ nav:
     - Environment Variables: deployment/environment.md
     - Local Docker (Entra ID): deployment/local-docker.md
     - Private Network: deployment/private-network.md
+    - Path Prefix (Ingress): deployment/subpath.md
   - Contributing:
     - contributing/index.md
     - Database: contributing/database.md

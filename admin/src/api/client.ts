@@ -30,11 +30,12 @@ import type {
   WorkspaceOption,
 } from "../types/api";
 import { clientLog, setLastRequestId } from "../lib/logger";
+import { BASE_PATH } from "../lib/base";
 
-const BASE = "/api";
+export const API_BASE = `${BASE_PATH}api`;
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${API_BASE}${path}`, {
     headers: {
       "Content-Type": "application/json",
       "X-Requested-With": "XMLHttpRequest",
@@ -65,7 +66,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 async function upload<T>(path: string, file: File): Promise<T> {
   const form = new FormData();
   form.append("file", file);
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
     body: form,
     headers: { "X-Requested-With": "XMLHttpRequest" },
@@ -453,7 +454,7 @@ export const bulkUserStatus = (userIds: string[], isActive: boolean) =>
 // ── Data Export ─────────────────────────────────────────────────────
 
 async function downloadCsv(path: string, filename: string) {
-  const res = await fetch(`${BASE}${path}`);
+  const res = await fetch(`${API_BASE}${path}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
