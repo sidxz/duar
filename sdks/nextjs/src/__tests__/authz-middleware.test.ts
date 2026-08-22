@@ -126,7 +126,8 @@ describe('createDuarAuthzMiddleware autoResolve', () => {
   })
 
   it.each([
-    [400, 401, 'IdP token rejected by Duar'],
+    [400, 401, 'IdP token rejected by Duar: x'],
+    [401, 503, 'Authorization service rejected the service key'],
     [403, 403, 'Not authorized for this workspace'],
     [409, 403, 'Not authorized for this workspace'],
     [500, 503, 'Authorization service unavailable'],
@@ -164,9 +165,45 @@ describe('createDuarAuthzMiddleware autoResolve', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('page routes without an authz token still redirect to loginPath', async () => {
-    const res = await mw()(api({ authorization: 'Bearer idp-ok' }, '/dashboard'))
+  it('page navigations without a Bearer token still redirect to loginPath', async () => {
+    const res = await mw()(api({}, '/dashboard'))
     expect(res.status).toBe(307)
     expect(res.headers.get('location')).toBe('https://app.example.com/login')
+  })
+
+  it('auto-path failures are JSON even on page routes (the caller is an API client)', async () => {
+    const res = await mw()(api({ authorization: 'Bearer idp-ok' }, '/dashboard'))
+    expect(res.status).toBe(401)
+    expect((await res.json()).detail).toContain('X-Workspace-Id')
+  })
+
+  it.each([
+    ['non-JSON 200', () => new Response('<html>maintenance</html>', { status: 200 })],
+    ['200 without authz_token', () => jsonResponse({ workspaces: [] })],
+  ])('%s → 503 and nothing is cached', async (_label, make) => {
+    fetchMock.mockImplementation(async () => make())
+    const m = mw()
+    const first = await m(api({ authorization: 'Bearer idp-ok', 'x-workspace-id': WS }))
+    expect(first.status).toBe(503)
+    expect((await first.json()).detail).toBe('Authorization service unavailable')
+    await m(api({ authorization: 'Bearer idp-ok', 'x-workspace-id': WS }))
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('a minted token that fails local verification is evicted', async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({ authz_token: 'unverifiable', expires_in: 300 }))
+    const m = mw()
+    const first = await m(api({ authorization: 'Bearer idp-ok', 'x-workspace-id': WS }))
+    expect(first.status).toBe(401)
+    expect((await first.json()).detail).toBe('Invalid authz token')
+    await m(api({ authorization: 'Bearer idp-ok', 'x-workspace-id': WS }))
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('an IdP token without sub never reaches Duar', async () => {
+    vi.mocked(jwtVerify).mockResolvedValue({ payload: { email: 'a@acme.com' } } as any)
+    const res = await mw()(api({ authorization: 'Bearer idp-ok', 'x-workspace-id': WS }))
+    expect(res.status).toBe(401)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

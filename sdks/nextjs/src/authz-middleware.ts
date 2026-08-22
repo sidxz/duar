@@ -69,15 +69,33 @@ class ResolveError extends Error {
   constructor(
     readonly status: number,
     readonly retryAfter: string | null,
+    readonly detail: string | null = null,
   ) {
     super(`authz resolve failed: ${status}`)
+  }
+}
+
+/** Duar's JSON `detail` from an error body, if it sent one. */
+async function readDetail(res: Response): Promise<string | null> {
+  try {
+    const body = (await res.json()) as { detail?: unknown }
+    return typeof body?.detail === 'string' ? body.detail : null
+  } catch {
+    return null
   }
 }
 
 /** Map a Duar mint failure to the app's response (spec §1). */
 function resolveErrorResponse(e: ResolveError): NextResponse {
   if (e.status === 400) {
-    return NextResponse.json({ detail: 'IdP token rejected by Duar' }, { status: 401 })
+    // Duar refused the IdP token (aud binding, provider config, ...); its reason is the
+    // fastest route to the misconfig, so pass it through.
+    const detail = e.detail ? `IdP token rejected by Duar: ${e.detail}` : 'IdP token rejected by Duar'
+    return NextResponse.json({ detail }, { status: 401 })
+  }
+  if (e.status === 401) {
+    // Duar refused OUR service key — app config, not the caller's token.
+    return NextResponse.json({ detail: 'Authorization service rejected the service key' }, { status: 503 })
   }
   if (e.status === 403 || e.status === 409) {
     return NextResponse.json({ detail: 'Not authorized for this workspace' }, { status: 403 })
@@ -162,16 +180,27 @@ export function createDuarAuthzMiddleware(config: DuarAuthzMiddlewareConfig) {
     } catch {
       throw new ResolveError(0, null)
     }
-    if (!res.ok) throw new ResolveError(res.status, res.headers.get('retry-after'))
-    const data = (await res.json()) as { authz_token: string; expires_in?: number }
-    // 80% of the TTL (same rule as M2mTokenClient) so a cached token never goes out seconds before expiry.
-    resolveCache.set(key, { token: data.authz_token, expiresAt: Date.now() + 0.8 * (data.expires_in ?? 300) * 1000 })
+    if (!res.ok) {
+      throw new ResolveError(res.status, res.headers.get('retry-after'), await readDetail(res))
+    }
+    let data: { authz_token?: unknown; expires_in?: unknown }
+    try {
+      data = await res.json()
+    } catch {
+      throw new ResolveError(0, null) // a 200 that is not JSON (proxy maintenance page, ...)
+    }
+    const token = data?.authz_token
+    if (typeof token !== 'string' || !token) throw new ResolveError(0, null)
+    // 80% of the TTL (same rule as M2mTokenClient) so a cached token never goes out seconds
+    // before expiry. Only a numeric expires_in counts (0 → nothing cached), matching the Python SDK.
+    const ttl = typeof data.expires_in === 'number' ? data.expires_in : 300
+    resolveCache.set(key, { token, expiresAt: Date.now() + 0.8 * ttl * 1000 })
     while (resolveCache.size > RESOLVE_CACHE_MAX) {
       const oldest = resolveCache.keys().next().value
       if (oldest === undefined) break
       resolveCache.delete(oldest)
     }
-    return data.authz_token
+    return token
   }
 
   /** Cached token for (idp_sub, workspace), else one shared in-flight mint per key. */
@@ -226,6 +255,12 @@ export function createDuarAuthzMiddleware(config: DuarAuthzMiddlewareConfig) {
       return handleUnauthenticated(req, loginPath)
     }
 
+    // A caller sending a Bearer token but no authz token is an API client by construction
+    // (browsers never attach Bearer on navigation), so auto-path failures are always JSON.
+    const autoPath = !authzToken
+    const unauthorized = (detail = 'Unauthorized') =>
+      autoPath ? NextResponse.json({ detail }, { status: 401 }) : handleUnauthenticated(req, loginPath)
+
     try {
       const idpVerifyOptions: {
         audience: string | string[]
@@ -250,20 +285,27 @@ export function createDuarAuthzMiddleware(config: DuarAuthzMiddlewareConfig) {
         // Auto-resolve: verify the IdP token FIRST so junk never reaches Duar's rate
         // bucket, then mint (or reuse) an authz token for X-Workspace-Id.
         idpPayload = (await jwtVerify(idpToken, getJWKS(idpJwksUrl), idpVerifyOptions)).payload
+        if (!idpPayload.sub) return unauthorized() // never build the cache key from a missing identity
         const workspaceId = req.headers.get('x-workspace-id')
         if (!workspaceId) {
-          return handleUnauthenticated(req, loginPath, MISSING_BOTH_DETAIL)
+          return unauthorized(MISSING_BOTH_DETAIL)
         }
         if (!UUID_RE.test(workspaceId)) {
           return NextResponse.json({ detail: 'Invalid X-Workspace-Id' }, { status: 400 })
         }
+        const key = `${idpPayload.sub}|${workspaceId.toLowerCase()}`
         try {
-          authzToken = await resolveOnce(`${idpPayload.sub}|${workspaceId.toLowerCase()}`, idpToken, workspaceId)
+          authzToken = await resolveOnce(key, idpToken, workspaceId)
         } catch (e) {
           if (e instanceof ResolveError) return resolveErrorResponse(e)
           throw e
         }
-        authzPayload = await verifyToken(authzToken, { jwksUrl: duarJwksUrl, audience: 'duar:authz', issuer })
+        try {
+          authzPayload = await verifyToken(authzToken, { jwksUrl: duarJwksUrl, audience: 'duar:authz', issuer })
+        } catch {
+          resolveCache.delete(key) // a minted token we cannot verify must not be served from cache again
+          return unauthorized('Invalid authz token')
+        }
         // Server code that reads the raw header keeps working on the auto path.
         requestHeaders.set('x-authz-token', authzToken)
       }
@@ -271,14 +313,14 @@ export function createDuarAuthzMiddleware(config: DuarAuthzMiddlewareConfig) {
       // Check idp_sub binding: authz token's idp_sub must match IdP token's sub.
       const authzClaims = authzPayload as unknown as Record<string, unknown>
       if (!idpPayload.sub || !authzClaims.idp_sub || authzClaims.idp_sub !== idpPayload.sub) {
-        return handleUnauthenticated(req, loginPath)
+        return unauthorized()
       }
 
       // Enforce svc binding: the authz token was minted for this service's shared
       // scope — its own name (standalone) or its realm slug (effectiveScope).
       const allowedSvc = new Set([serviceName, effectiveScope].filter(Boolean))
       if (!authzClaims.svc || !allowedSvc.has(authzClaims.svc as string)) {
-        return handleUnauthenticated(req, loginPath)
+        return unauthorized()
       }
 
       // Forward verified user info in request headers for server components / route handlers
@@ -300,7 +342,7 @@ export function createDuarAuthzMiddleware(config: DuarAuthzMiddlewareConfig) {
 
       return NextResponse.next({ request: { headers: requestHeaders } })
     } catch {
-      return handleUnauthenticated(req, loginPath)
+      return unauthorized()
     }
   }
 }
@@ -308,11 +350,10 @@ export function createDuarAuthzMiddleware(config: DuarAuthzMiddlewareConfig) {
 function handleUnauthenticated(
   req: NextRequest,
   loginPath: string,
-  detail = 'Unauthorized',
 ): NextResponse {
   const isApiRoute = req.nextUrl.pathname.startsWith('/api/')
   if (isApiRoute) {
-    return NextResponse.json({ detail }, { status: 401 })
+    return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 })
   }
   const loginUrl = req.nextUrl.clone()
   loginUrl.pathname = loginPath
