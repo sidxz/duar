@@ -7,6 +7,7 @@ import respx
 from httpx import Response
 
 from duar_auth.authz import AuthzClient
+from duar_auth.types import DuarError
 
 
 class TestAuthzClient:
@@ -48,3 +49,16 @@ class TestAuthzClient:
             async with AuthzClient("http://duar:9003", service_key="sk_test") as client:
                 result = await client.resolve(idp_token="fake", provider="google")
                 assert len(result["workspaces"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_error_carries_status_and_retry_after(self):
+        with respx.mock:
+            respx.post("http://duar:9003/authz/resolve").mock(
+                return_value=Response(429, json={"detail": "slow down"}, headers={"Retry-After": "17"})
+            )
+            async with AuthzClient("http://duar:9003", service_key="sk_test") as client:
+                with pytest.raises(DuarError) as exc_info:
+                    await client.resolve(idp_token="t", provider="google", workspace_id=uuid.uuid4())
+        assert exc_info.value.status_code == 429
+        assert exc_info.value.retry_after == "17"
+        assert exc_info.value.detail == "slow down"

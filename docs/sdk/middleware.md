@@ -12,6 +12,7 @@ Validates both an IdP token and a Duar authorization token on each request. Chec
 |--------|---------|
 | `Authorization` | `Bearer <idp_token>` |
 | `X-Authz-Token` | `<duar_authz_token>` |
+| `X-Workspace-Id` | `<workspace uuid>` — only with `auto_resolve=True`, instead of `X-Authz-Token` |
 
 ### Setup
 
@@ -49,6 +50,8 @@ duar.protect(app)  # preferred
 | `idp_algorithm` | `str` | `"RS256"` | IdP token signing algorithm |
 | `duar_algorithm` | `str` | `"RS256"` | Authz token signing algorithm |
 | `duar_audience` | `str` | `"duar:authz"` | Expected `aud` claim in authz token |
+| `idp_provider` | `str \| None` | `None` | Provider Duar validates IdP tokens as: `"google"` or `"entra_id"`. Required with `auto_resolve`. |
+| `auto_resolve` | `bool` | `False` | Mint the authz token server-side when a request carries only the IdP token plus `X-Workspace-Id`. Requires `duar_instance` and `idp_provider`. |
 | `exclude_paths` | `list[str] \| None` | `["/health", "/docs", "/openapi.json"]` | Paths that bypass authentication |
 
 Either `duar_public_key` or `duar_instance` is required. For IdP validation, the middleware uses `idp_jwks_url` or `idp_public_key` (from the params or from the Duar instance).
@@ -74,6 +77,25 @@ After successful validation, the middleware sets:
 7. Build `AuthenticatedUser` and set on `request.state`
 
 OPTIONS requests are passed through without validation.
+
+### Calling the API from scripts (auto-resolve)
+
+Browsers hold both tokens; a script, Postman, or Swagger usually has only an IdP token. With `auto_resolve=True` the middleware mints the authz token itself when a request sends the IdP token plus the target workspace:
+
+```python
+duar = Duar(..., idp_provider="google", auto_resolve=True)
+duar.protect(app)
+```
+
+```bash
+curl https://api.example.com/reports \
+  -H "Authorization: Bearer $ID_TOKEN" \
+  -H "X-Workspace-Id: 5e60ba90-4b3e-4b1a-9dcb-9d76b1a1e3a1"
+```
+
+How it works: the IdP token is verified locally first (bad tokens never reach Duar), then the middleware calls `POST /authz/resolve` with the service key, caches the token per `(idp_sub, workspace)` for 80% of its TTL, and de-duplicates concurrent first requests into one mint. Everything after that — `idp_sub` binding, `svc` binding, `request.state` — is the normal dual-token path. `X-Authz-Token` always wins when both headers are present. Missing both → `401` telling the caller which header to send; a non-UUID `X-Workspace-Id` → `400`.
+
+Not a new trust boundary: the app could already mint for any valid IdP token through its mint endpoint; this only removes the second round trip. Membership, organisation, and active-user checks still run on every mint, and the IdP token's `aud` is still pinned to your client id. Opaque (GitHub) tokens are not supported — the middleware requires a JWT IdP token.
 
 ---
 
@@ -147,3 +169,10 @@ Both middleware classes return JSON errors:
 | 403 | `Authz token was issued for a different service` | authz `svc` claim != `service_name` (authz mode) |
 | 403 | `Workspace not permitted for this service` | Workspace not in `allowed_workspaces` |
 | 500 | `Authentication service unavailable` | JWKS fetch failed (proxy mode) |
+| 401 | `Missing authz token — send X-Authz-Token, or X-Workspace-Id to resolve one server-side` | `auto_resolve=True` and neither header sent |
+| 400 | `Invalid X-Workspace-Id` | `X-Workspace-Id` is not a UUID (auto-resolve) |
+| 401 | `IdP token rejected by Duar: <Duar's reason>` | Duar refused the IdP token at mint — audience not allowed for this app, unsupported `idp_provider`, … (auto-resolve) |
+| 403 | `Not authorized for this workspace` | Not a member / org not allowed / inactive / cross-provider email conflict (auto-resolve) |
+| 429 | `Authorization service rate limit` | Duar's `/authz/resolve` limit hit; `Retry-After` passed through (auto-resolve) |
+| 503 | `Authorization service rejected the service key` | Duar returned 401 to the mint — this app's service key is missing or revoked (auto-resolve) |
+| 503 | `Authorization service unavailable` | Duar unreachable, 5xx, or an unusable mint response (auto-resolve) |

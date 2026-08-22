@@ -30,6 +30,8 @@ duar = Duar(
 | `actions` | `list[dict] \| None` | `None` | RBAC actions to register on startup |
 | `allowed_workspaces` | `set[str] \| None` | `None` | Workspace IDs permitted to access this service. `None` allows all. Proxy mode only. |
 | `cache_ttl` | `float` | `0` | Seconds to cache `accessible()` and `can()` results in the `PermissionClient`. `0` disables caching. Recommended: `30`–`120` for apps where permission changes are infrequent. Write operations (share, unshare, visibility changes) automatically invalidate the cache. |
+| `idp_provider` | `str \| None` | `None` | Provider Duar validates IdP tokens as: `"google"` or `"entra_id"`. Required when `auto_resolve=True`. |
+| `auto_resolve` | `bool` | `False` | AuthZ mode: mint the authz token server-side when a request carries only the IdP token plus `X-Workspace-Id` (scripts, Postman, Swagger). See [Middleware → auto-resolve](middleware.md#calling-the-api-from-scripts-auto-resolve). |
 
 In authz mode, both `idp_audience` and one of `idp_public_key` / `idp_jwks_url` are required.
 
@@ -66,6 +68,8 @@ The middleware enforces:
 - Authz token signature and `aud == "duar:authz"`
 - `authz_token.idp_sub == idp_token.sub` (token binding)
 - `authz_token.svc == service_name` (prevents cross-service token replay)
+
+**Scripts and API clients.** Pass `idp_provider="google"` (or `"entra_id"`) and `auto_resolve=True` to accept `Authorization: Bearer <idp_token>` + `X-Workspace-Id: <uuid>` with no `X-Authz-Token`; the middleware mints and caches the authz token for you. Details and the error contract: [Middleware → auto-resolve](middleware.md#calling-the-api-from-scripts-auto-resolve).
 
 ## Proxy Mode
 

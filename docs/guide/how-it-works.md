@@ -48,6 +48,8 @@ The backend's `AuthzMiddleware` validates both tokens independently and verifies
 
 The authz token also carries an `svc` claim binding it to the requesting service, preventing cross-service replay. The middleware enforces this alongside the IdP token's `aud` (OAuth client_id) — all checked on every request.
 
+**Scripts and API clients.** A script rarely holds a Duar authz token. With auto-resolve enabled in the SDK middleware (`auto_resolve=True` / `autoResolve: true`), a request carrying only the IdP token plus `X-Workspace-Id` has its authz token minted server-side — the same `POST /authz/resolve` call, made by the backend with its service key, cached per user and workspace. One token for scripts, Postman, and Swagger; the browser flow is unchanged.
+
 ## Proxy Mode
 
 Duar handles the entire OAuth2/OIDC flow. The client gets a single JWT.

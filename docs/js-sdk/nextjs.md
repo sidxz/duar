@@ -35,8 +35,30 @@ export const config = { matcher: ['/((?!_next|favicon.ico).*)'] }
 | `effectiveScope` | `string` | `undefined` | Realm slug (this service's shared scope). When set, the authz token's `svc` may equal either `serviceName` or this — so a [realm](../guide/realms.md) member accepts a realm-shared user token (Flow A). Resolve it once at startup with `fetchWhoami` from `@duar-auth/js/server`. Omit for standalone apps. |
 | `publicPaths` | `string[]` | `[]` | Paths that skip auth |
 | `loginPath` | `string` | `"/login"` | Redirect for unauthenticated page requests |
+| `autoResolve` | `boolean` | `false` | Mint the authz token server-side when a request carries only the IdP token plus `X-Workspace-Id` (scripts, Postman, Swagger). Requires `serviceKey` and `idpProvider`. |
+| `serviceKey` | `string` | `undefined` | Service key used for `POST /authz/resolve`. Server-only env — never `NEXT_PUBLIC_`. |
+| `idpProvider` | `string` | `undefined` | Provider Duar validates the IdP token as: `'google'` or `'entra_id'`. |
 
 What it does: strips spoofed `x-duar-*` headers, verifies IdP token (signature + `aud` + optional `iss`) against IdP JWKS, verifies authz token against Duar JWKS, checks `idp_sub` binding, checks `svc` binding, sets `x-duar-*` headers for downstream components. API routes get 401 JSON; page routes redirect.
+
+### Calling the API from scripts (auto-resolve)
+
+```ts
+export default createDuarAuthzMiddleware({
+  ...,
+  autoResolve: true,
+  serviceKey: process.env.DUAR_SERVICE_KEY!,
+  idpProvider: 'google',
+})
+```
+
+```bash
+curl https://app.example.com/api/items \
+  -H "Authorization: Bearer $ID_TOKEN" \
+  -H "X-Workspace-Id: 5e60ba90-4b3e-4b1a-9dcb-9d76b1a1e3a1"
+```
+
+The IdP token is verified first, then the middleware mints through `POST /authz/resolve`, caches per `(idp_sub, workspace)` for 80% of the token TTL, de-duplicates concurrent first requests, and forwards the minted token as `x-authz-token` to your route handlers. `X-Authz-Token` wins when both headers are sent. Responses: missing both headers → `401` (detail names the headers); non-UUID workspace → `400`; Duar rejects the IdP token → `401` (Duar's reason appended); not a member → `403`; Duar rate limit → `429` with `Retry-After`; Duar rejects this app's service key, is unreachable, or returns an unusable body → `503`. Every auto-resolve response is JSON whether the path is an API or page route — a caller sending a Bearer token plus `X-Workspace-Id` is an API client by construction; page navigations without a Bearer token still redirect to `loginPath`.
 
 ## Proxy Middleware
 
@@ -67,6 +89,7 @@ Both variants set these on success, readable in Server Components and Route Hand
 | `x-duar-workspace-id` | Workspace ID |
 | `x-duar-workspace-slug` | Workspace slug |
 | `x-duar-workspace-role` | Workspace role |
+| `x-authz-token` | The Duar authz token — on the auto-resolve path the middleware sets it so route handlers see the minted token |
 
 > **Prefer `getUser()` over reading these directly.** `x-duar-email` and
 > `x-duar-name` are percent-encoded on the wire (HTTP header values are
