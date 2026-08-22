@@ -2,7 +2,7 @@
 
 ![Duar](docs/assets/images/splash.png)
 
-**DUAR** — **D**oorway for **U**sers, **A**ctions, and **R**esources.
+**DUAR** — **D**oorway to **U**sers, **A**ctions, and **R**esources.
 
 An authentication proxy and authorization microservice. Duar handles OAuth2/OIDC authentication from external IdPs, multi-tenant workspace management, and fine-grained Zanzibar-style permissions so you can focus on your application logic.
 
