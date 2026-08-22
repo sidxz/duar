@@ -63,7 +63,7 @@ jobs:
       # uv workspace: the only Python lockfile is the root uv.lock, so scan from root.
       # Demos are excluded (not shipped); admin is covered by admin-container-scan.
       - name: Scan workspace dependencies
-        uses: aquasecurity/trivy-action@v0.35.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -84,7 +84,7 @@ jobs:
           docker build -t daikon/duar:ci service/
 
       - name: Scan container image
-        uses: aquasecurity/trivy-action@v0.35.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: daikon/duar:ci
           format: table
@@ -101,7 +101,7 @@ jobs:
         run: docker build -t daikon/duar-admin:ci admin/
 
       - name: Scan admin container image
-        uses: aquasecurity/trivy-action@v0.35.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: daikon/duar-admin:ci
           format: table
