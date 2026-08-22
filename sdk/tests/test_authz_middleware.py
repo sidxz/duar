@@ -1,8 +1,10 @@
 """Tests for dual-token AuthZ middleware."""
 
+import asyncio
 import datetime
 import uuid
 
+import httpx
 import jwt as pyjwt
 import pytest
 from cryptography.hazmat.primitives import serialization
@@ -448,3 +450,208 @@ class TestAuthzKidPath:
             headers={"Authorization": f"Bearer {idp_token}", "X-Authz-Token": authz_token},
         )
         assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# auto_resolve: no X-Authz-Token + X-Workspace-Id → middleware mints via Duar
+# ---------------------------------------------------------------------------
+
+AUTO_WS = str(uuid.uuid4())
+
+
+def _mint_authz(duar_priv, workspace_id: str, kid: str = "s1") -> str:
+    """What Duar's /authz/resolve would sign for this workspace."""
+    now = datetime.datetime.now(datetime.UTC)
+    return pyjwt.encode(
+        {
+            "sub": str(uuid.uuid4()),
+            "idp_sub": "google|12345",
+            "svc": TEST_SERVICE_NAME,
+            "wid": str(workspace_id),
+            "wslug": "acme",
+            "wrole": "editor",
+            "actions": ["read"],
+            "aud": "duar:authz",
+            "iat": now,
+            "exp": now + datetime.timedelta(minutes=5),
+        },
+        duar_priv,
+        algorithm="RS256",
+        headers={"kid": kid},
+    )
+
+
+class _FakeAuthzClient:
+    """Stand-in for AuthzClient: records resolve() calls, returns a signed mint or raises."""
+
+    def __init__(self, duar_priv, *, fail: Exception | None = None, delay: float = 0.0):
+        self.calls: list[tuple[str, str, str]] = []
+        self._duar_priv = duar_priv
+        self._fail = fail
+        self._delay = delay
+
+    async def resolve(self, idp_token, provider, workspace_id=None, nonce=None):
+        self.calls.append((idp_token, provider, str(workspace_id)))
+        if self._delay:
+            await asyncio.sleep(self._delay)
+        if self._fail is not None:
+            raise self._fail
+        return {"authz_token": _mint_authz(self._duar_priv, str(workspace_id)), "expires_in": 300}
+
+
+class _FakeAutoDuar(_FakeDuar):
+    """_FakeDuar plus the ``authz`` client the auto path mints through."""
+
+    def __init__(self, authz):
+        super().__init__()
+        self.authz = authz
+
+
+def _make_auto_app(idp_pub, fake_duar, *, auto_resolve: bool = True) -> Starlette:
+    async def protected(request: Request) -> JSONResponse:
+        return JSONResponse({"email": request.state.user.email, "token": request.state.token})
+
+    app = Starlette(routes=[Route("/protected", protected)])
+    app.add_middleware(
+        AuthzMiddleware,
+        service_name=TEST_SERVICE_NAME,
+        idp_audience=TEST_IDP_AUDIENCE,
+        idp_public_key=idp_pub,
+        duar_instance=fake_duar,
+        idp_provider="google",
+        auto_resolve=auto_resolve,
+    )
+    return app
+
+
+@pytest.fixture()
+def auto_env(idp_keypair, duar_keypair, monkeypatch):
+    """JWKS served for kid s1, a verified IdP token, and a recording fake authz client."""
+    idp_priv, idp_pub = idp_keypair
+    duar_priv, duar_pub = duar_keypair
+    _patch_jwks(monkeypatch, _jwks_for(duar_pub, "s1"))
+    idp_token, authz_token = _signed_dual(idp_priv, duar_priv, "s1")
+    return idp_pub, duar_priv, idp_token, authz_token
+
+
+class TestAutoResolve:
+    def test_missing_both_tokens_401_with_hint(self, auto_env):
+        idp_pub, duar_priv, idp_token, _ = auto_env
+        authz = _FakeAuthzClient(duar_priv)
+        client = TestClient(_make_auto_app(idp_pub, _FakeAutoDuar(authz)))
+        resp = client.get("/protected", headers={"Authorization": f"Bearer {idp_token}"})
+        assert resp.status_code == 401
+        assert "X-Workspace-Id" in resp.json()["detail"]
+        assert authz.calls == []
+
+    def test_workspace_header_mints_and_sets_state(self, auto_env):
+        idp_pub, duar_priv, idp_token, _ = auto_env
+        authz = _FakeAuthzClient(duar_priv)
+        client = TestClient(_make_auto_app(idp_pub, _FakeAutoDuar(authz)))
+        resp = client.get(
+            "/protected",
+            headers={"Authorization": f"Bearer {idp_token}", "X-Workspace-Id": AUTO_WS},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["email"] == "alice@acme.com"
+        assert authz.calls == [(idp_token, "google", AUTO_WS)]
+        minted = pyjwt.decode(resp.json()["token"], options={"verify_signature": False})
+        assert minted["wid"] == AUTO_WS
+
+    def test_second_request_hits_cache(self, auto_env):
+        idp_pub, duar_priv, idp_token, _ = auto_env
+        authz = _FakeAuthzClient(duar_priv)
+        client = TestClient(_make_auto_app(idp_pub, _FakeAutoDuar(authz)))
+        headers = {"Authorization": f"Bearer {idp_token}", "X-Workspace-Id": AUTO_WS}
+        assert client.get("/protected", headers=headers).status_code == 200
+        assert client.get("/protected", headers=headers).status_code == 200
+        assert len(authz.calls) == 1
+
+    def test_cache_key_includes_workspace(self, auto_env):
+        idp_pub, duar_priv, idp_token, _ = auto_env
+        authz = _FakeAuthzClient(duar_priv)
+        client = TestClient(_make_auto_app(idp_pub, _FakeAutoDuar(authz)))
+        other_ws = str(uuid.uuid4())
+        for ws in (AUTO_WS, other_ws):
+            resp = client.get("/protected", headers={"Authorization": f"Bearer {idp_token}", "X-Workspace-Id": ws})
+            assert resp.status_code == 200
+        assert [c[2] for c in authz.calls] == [AUTO_WS, other_ws]
+
+    async def test_concurrent_misses_share_one_mint(self, auto_env):
+        idp_pub, duar_priv, idp_token, _ = auto_env
+        authz = _FakeAuthzClient(duar_priv, delay=0.05)
+        app = _make_auto_app(idp_pub, _FakeAutoDuar(authz))
+        headers = {"Authorization": f"Bearer {idp_token}", "X-Workspace-Id": AUTO_WS}
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
+            resps = await asyncio.gather(*[c.get("/protected", headers=headers) for _ in range(5)])
+        assert [r.status_code for r in resps] == [200] * 5
+        assert len(authz.calls) == 1
+
+    def test_authz_header_wins_over_workspace_header(self, auto_env):
+        idp_pub, duar_priv, idp_token, authz_token = auto_env
+        authz = _FakeAuthzClient(duar_priv)
+        client = TestClient(_make_auto_app(idp_pub, _FakeAutoDuar(authz)))
+        resp = client.get(
+            "/protected",
+            headers={
+                "Authorization": f"Bearer {idp_token}",
+                "X-Authz-Token": authz_token,
+                "X-Workspace-Id": str(uuid.uuid4()),
+            },
+        )
+        assert resp.status_code == 200
+        assert authz.calls == []
+
+    def test_bad_workspace_uuid_400(self, auto_env):
+        idp_pub, duar_priv, idp_token, _ = auto_env
+        authz = _FakeAuthzClient(duar_priv)
+        client = TestClient(_make_auto_app(idp_pub, _FakeAutoDuar(authz)))
+        resp = client.get(
+            "/protected", headers={"Authorization": f"Bearer {idp_token}", "X-Workspace-Id": "not-a-uuid"}
+        )
+        assert resp.status_code == 400
+        assert resp.json()["detail"] == "Invalid X-Workspace-Id"
+        assert authz.calls == []
+
+    def test_invalid_idp_token_never_reaches_duar(self, auto_env):
+        idp_pub, duar_priv, _, _ = auto_env
+        authz = _FakeAuthzClient(duar_priv)
+        client = TestClient(_make_auto_app(idp_pub, _FakeAutoDuar(authz)))
+        resp = client.get("/protected", headers={"Authorization": "Bearer junk", "X-Workspace-Id": AUTO_WS})
+        assert resp.status_code == 401
+        assert authz.calls == []
+
+    def test_auto_resolve_off_keeps_existing_401(self, auto_env):
+        idp_pub, duar_priv, idp_token, _ = auto_env
+        authz = _FakeAuthzClient(duar_priv)
+        client = TestClient(_make_auto_app(idp_pub, _FakeAutoDuar(authz), auto_resolve=False))
+        resp = client.get("/protected", headers={"Authorization": f"Bearer {idp_token}", "X-Workspace-Id": AUTO_WS})
+        assert resp.status_code == 401
+        assert resp.json()["detail"] == "Missing authz token"
+        assert authz.calls == []
+
+    def test_requires_duar_instance(self, idp_keypair, duar_keypair):
+        _, idp_pub = idp_keypair
+        _, duar_pub = duar_keypair
+        with pytest.raises(ValueError, match="duar_instance"):
+            AuthzMiddleware(
+                Starlette(),
+                service_name=TEST_SERVICE_NAME,
+                idp_audience=TEST_IDP_AUDIENCE,
+                idp_public_key=idp_pub,
+                duar_public_key=duar_pub,
+                idp_provider="google",
+                auto_resolve=True,
+            )
+
+    def test_requires_idp_provider(self, idp_keypair):
+        _, idp_pub = idp_keypair
+        with pytest.raises(ValueError, match="idp_provider"):
+            AuthzMiddleware(
+                Starlette(),
+                service_name=TEST_SERVICE_NAME,
+                idp_audience=TEST_IDP_AUDIENCE,
+                idp_public_key=idp_pub,
+                duar_instance=_FakeDuar(),
+                auto_resolve=True,
+            )
