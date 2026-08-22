@@ -235,7 +235,9 @@ class AuthzMiddleware(BaseHTTPMiddleware):
         try:
             # shield: one caller disconnecting must not cancel the mint the others await.
             return await asyncio.shield(task)
-        except (DuarError, httpx.HTTPError):
+        except DuarError as exc:
+            return self._mint_error(exc)
+        except httpx.HTTPError:
             return JSONResponse(status_code=503, content={"detail": "Authorization service unavailable"})
 
     async def _mint(self, key: str, idp_token: str, workspace_id: str) -> str:
@@ -247,6 +249,20 @@ class AuthzMiddleware(BaseHTTPMiddleware):
         while len(self._resolve_cache) > _RESOLVE_CACHE_MAX:
             self._resolve_cache.popitem(last=False)
         return token
+
+    @staticmethod
+    def _mint_error(exc: DuarError) -> JSONResponse:
+        """Map a Duar /authz/resolve failure to the app's response (spec §1)."""
+        if exc.status_code == 400:  # IdP token rejected (aud / signature / expiry)
+            return JSONResponse(status_code=401, content={"detail": "IdP token rejected by Duar"})
+        if exc.status_code in (403, 409):  # not a member / org not allowed / inactive / email conflict
+            return JSONResponse(status_code=403, content={"detail": "Not authorized for this workspace"})
+        if exc.status_code == 429:
+            headers = {"Retry-After": exc.retry_after} if exc.retry_after else None
+            return JSONResponse(
+                status_code=429, content={"detail": "Authorization service rate limit"}, headers=headers
+            )
+        return JSONResponse(status_code=503, content={"detail": "Authorization service unavailable"})
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         if request.method == "OPTIONS":

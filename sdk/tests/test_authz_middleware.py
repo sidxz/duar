@@ -16,6 +16,7 @@ from starlette.routing import Route
 from starlette.testclient import TestClient
 
 from duar_auth.authz_middleware import AuthzMiddleware
+from duar_auth.types import DuarError
 
 
 @pytest.fixture(scope="module")
@@ -655,3 +656,47 @@ class TestAutoResolve:
                 duar_instance=_FakeDuar(),
                 auto_resolve=True,
             )
+
+    @pytest.mark.parametrize(
+        ("duar_status", "expected_status", "expected_detail"),
+        [
+            (400, 401, "IdP token rejected by Duar"),
+            (403, 403, "Not authorized for this workspace"),
+            (409, 403, "Not authorized for this workspace"),
+            (500, 503, "Authorization service unavailable"),
+        ],
+    )
+    def test_duar_error_mapping(self, auto_env, duar_status, expected_status, expected_detail):
+        idp_pub, duar_priv, idp_token, _ = auto_env
+        authz = _FakeAuthzClient(duar_priv, fail=DuarError("Duar API error", duar_status))
+        client = TestClient(_make_auto_app(idp_pub, _FakeAutoDuar(authz)))
+        resp = client.get("/protected", headers={"Authorization": f"Bearer {idp_token}", "X-Workspace-Id": AUTO_WS})
+        assert resp.status_code == expected_status
+        assert resp.json()["detail"] == expected_detail
+
+    def test_rate_limited_passes_retry_after(self, auto_env):
+        idp_pub, duar_priv, idp_token, _ = auto_env
+        authz = _FakeAuthzClient(duar_priv, fail=DuarError("Duar API error", 429, retry_after="17"))
+        client = TestClient(_make_auto_app(idp_pub, _FakeAutoDuar(authz)))
+        resp = client.get("/protected", headers={"Authorization": f"Bearer {idp_token}", "X-Workspace-Id": AUTO_WS})
+        assert resp.status_code == 429
+        assert resp.json()["detail"] == "Authorization service rate limit"
+        assert resp.headers["Retry-After"] == "17"
+
+    def test_network_error_503(self, auto_env):
+        idp_pub, duar_priv, idp_token, _ = auto_env
+        authz = _FakeAuthzClient(duar_priv, fail=httpx.ConnectError("boom"))
+        client = TestClient(_make_auto_app(idp_pub, _FakeAutoDuar(authz)))
+        resp = client.get("/protected", headers={"Authorization": f"Bearer {idp_token}", "X-Workspace-Id": AUTO_WS})
+        assert resp.status_code == 503
+        assert resp.json()["detail"] == "Authorization service unavailable"
+
+    def test_failed_mint_is_not_cached(self, auto_env):
+        idp_pub, duar_priv, idp_token, _ = auto_env
+        authz = _FakeAuthzClient(duar_priv, fail=DuarError("Duar API error", 500))
+        client = TestClient(_make_auto_app(idp_pub, _FakeAutoDuar(authz)))
+        headers = {"Authorization": f"Bearer {idp_token}", "X-Workspace-Id": AUTO_WS}
+        assert client.get("/protected", headers=headers).status_code == 503
+        authz._fail = None  # Duar recovers
+        assert client.get("/protected", headers=headers).status_code == 200
+        assert len(authz.calls) == 2
