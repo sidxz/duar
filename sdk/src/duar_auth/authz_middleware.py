@@ -206,14 +206,17 @@ class AuthzMiddleware(BaseHTTPMiddleware):
             audience=self.duar_audience,
         )
 
-    async def _auto_resolve(self, request: Request, idp_token: str, idp_payload: dict) -> str | Response:
-        """Return an authz token for ``X-Workspace-Id`` — cached, or minted via Duar.
+    async def _auto_resolve(self, request: Request, idp_token: str, idp_payload: dict) -> tuple[str, str] | Response:
+        """Return ``(authz_token, cache_key)`` for ``X-Workspace-Id`` — cached, or minted via Duar.
 
         Keyed by ``(idp_sub, workspace_id)``, not the IdP token: the token was verified
         locally just before this and the ``idp_sub`` binding check still runs on the
         result, so a script fetching a fresh IdP token per request reuses the cached
         mint instead of burning one Duar call per request.
         """
+        idp_sub = idp_payload.get("sub")
+        if not idp_sub:  # the cache key must never be built from a missing identity
+            return JSONResponse(status_code=401, content={"detail": "Invalid IdP token"})
         raw_wid = request.headers.get("X-Workspace-Id")
         if not raw_wid:
             return JSONResponse(status_code=401, content={"detail": _MISSING_BOTH_DETAIL})
@@ -222,28 +225,40 @@ class AuthzMiddleware(BaseHTTPMiddleware):
         except ValueError:
             return JSONResponse(status_code=400, content={"detail": "Invalid X-Workspace-Id"})
 
-        key = f"{idp_payload.get('sub')}|{workspace_id}"
+        key = f"{idp_sub}|{workspace_id}"
         cached = self._resolve_cache.get(key)
         if cached is not None and cached[1] > time.monotonic():
-            return cached[0]
+            return cached[0], key
 
         task = self._resolve_pending.get(key)
         if task is None:
             task = asyncio.ensure_future(self._mint(key, idp_token, workspace_id))
             self._resolve_pending[key] = task
-            task.add_done_callback(lambda _t: self._resolve_pending.pop(key, None))
+
+            def _done(t: asyncio.Task[str], _key: str = key) -> None:
+                self._resolve_pending.pop(_key, None)
+                if not t.cancelled():
+                    t.exception()  # mark retrieved — every awaiter may have been cancelled
+
+            task.add_done_callback(_done)
         try:
             # shield: one caller disconnecting must not cancel the mint the others await.
-            return await asyncio.shield(task)
+            return await asyncio.shield(task), key
         except DuarError as exc:
             return self._mint_error(exc)
-        except httpx.HTTPError:
-            return JSONResponse(status_code=503, content={"detail": "Authorization service unavailable"})
 
     async def _mint(self, key: str, idp_token: str, workspace_id: str) -> str:
-        data = await self._duar_instance.authz.resolve(idp_token, self.idp_provider, workspace_id)
-        token: str = data["authz_token"]
-        ttl = 0.8 * float(data.get("expires_in") or 300)  # re-mint well before it expires mid-flight
+        try:
+            data = await self._duar_instance.authz.resolve(idp_token, self.idp_provider, workspace_id)
+        except (httpx.HTTPError, ValueError) as exc:  # unreachable / timed out, or a non-JSON body
+            raise DuarError("Duar /authz/resolve unusable") from exc
+        token = data.get("authz_token") if isinstance(data, dict) else None
+        if not isinstance(token, str) or not token:
+            raise DuarError("Duar /authz/resolve returned no authz_token")
+        expires_in = data.get("expires_in")
+        # 80% of the TTL so a cached token never goes out seconds before expiry. Only a
+        # numeric expires_in counts (0 → nothing cached), matching the Next.js SDK.
+        ttl = 0.8 * expires_in if isinstance(expires_in, int | float) else 240.0
         self._resolve_cache[key] = (token, time.monotonic() + ttl)
         self._resolve_cache.move_to_end(key)
         while len(self._resolve_cache) > _RESOLVE_CACHE_MAX:
@@ -253,8 +268,13 @@ class AuthzMiddleware(BaseHTTPMiddleware):
     @staticmethod
     def _mint_error(exc: DuarError) -> JSONResponse:
         """Map a Duar /authz/resolve failure to the app's response (spec §1)."""
-        if exc.status_code == 400:  # IdP token rejected (aud / signature / expiry)
-            return JSONResponse(status_code=401, content={"detail": "IdP token rejected by Duar"})
+        if exc.status_code == 400:  # Duar refused the IdP token (aud binding, provider config, ...)
+            detail = "IdP token rejected by Duar"
+            if exc.detail:
+                detail = f"{detail}: {exc.detail}"  # Duar's reason — usually the fastest route to the misconfig
+            return JSONResponse(status_code=401, content={"detail": detail})
+        if exc.status_code == 401:  # Duar refused OUR service key — app config, not the caller's token
+            return JSONResponse(status_code=503, content={"detail": "Authorization service rejected the service key"})
         if exc.status_code in (403, 409):  # not a member / org not allowed / inactive / email conflict
             return JSONResponse(status_code=403, content={"detail": "Not authorized for this workspace"})
         if exc.status_code == 429:
@@ -292,18 +312,23 @@ class AuthzMiddleware(BaseHTTPMiddleware):
 
         # 3b. Auto-resolve: no authz token but a target workspace — mint (or reuse) one.
         #     Runs after IdP validation so junk never consumes Duar's rate bucket.
+        resolved_key: str | None = None
         if not authz_token:
             resolved = await self._auto_resolve(request, idp_token, idp_payload)
             if isinstance(resolved, Response):
                 return resolved
-            authz_token = resolved
+            authz_token, resolved_key = resolved
 
         # 4. Validate authz token (key selected by kid; supports rotation)
         try:
             authz_payload = await asyncio.to_thread(self._decode_authz, authz_token)
         except jwt.ExpiredSignatureError:
+            if resolved_key:  # a minted token we cannot verify must not be served from cache again
+                self._resolve_cache.pop(resolved_key, None)
             return JSONResponse(status_code=401, content={"detail": "Authz token expired"})
         except (jwt.InvalidTokenError, PyJWKClientError):
+            if resolved_key:
+                self._resolve_cache.pop(resolved_key, None)
             return JSONResponse(status_code=401, content={"detail": "Invalid authz token"})
 
         # 5. Verify binding: IdP sub must match authz idp_sub, both non-empty.

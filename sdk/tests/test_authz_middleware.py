@@ -485,11 +485,12 @@ def _mint_authz(duar_priv, workspace_id: str, kid: str = "s1") -> str:
 class _FakeAuthzClient:
     """Stand-in for AuthzClient: records resolve() calls, returns a signed mint or raises."""
 
-    def __init__(self, duar_priv, *, fail: Exception | None = None, delay: float = 0.0):
+    def __init__(self, duar_priv, *, fail: Exception | None = None, delay: float = 0.0, response: dict | None = None):
         self.calls: list[tuple[str, str, str]] = []
         self._duar_priv = duar_priv
         self._fail = fail
         self._delay = delay
+        self._response = response
 
     async def resolve(self, idp_token, provider, workspace_id=None, nonce=None):
         self.calls.append((idp_token, provider, str(workspace_id)))
@@ -497,6 +498,8 @@ class _FakeAuthzClient:
             await asyncio.sleep(self._delay)
         if self._fail is not None:
             raise self._fail
+        if self._response is not None:
+            return self._response
         return {"authz_token": _mint_authz(self._duar_priv, str(workspace_id)), "expires_in": 300}
 
 
@@ -661,6 +664,7 @@ class TestAutoResolve:
         ("duar_status", "expected_status", "expected_detail"),
         [
             (400, 401, "IdP token rejected by Duar"),
+            (401, 503, "Authorization service rejected the service key"),
             (403, 403, "Not authorized for this workspace"),
             (409, 403, "Not authorized for this workspace"),
             (500, 503, "Authorization service unavailable"),
@@ -700,3 +704,65 @@ class TestAutoResolve:
         authz._fail = None  # Duar recovers
         assert client.get("/protected", headers=headers).status_code == 200
         assert len(authz.calls) == 2
+
+    def test_duar_400_detail_is_surfaced(self, auto_env):
+        idp_pub, duar_priv, idp_token, _ = auto_env
+        err = DuarError("Duar API error", 400, detail="Unsupported provider: entra")
+        client = TestClient(_make_auto_app(idp_pub, _FakeAutoDuar(_FakeAuthzClient(duar_priv, fail=err))))
+        resp = client.get("/protected", headers={"Authorization": f"Bearer {idp_token}", "X-Workspace-Id": AUTO_WS})
+        assert resp.status_code == 401
+        assert resp.json()["detail"] == "IdP token rejected by Duar: Unsupported provider: entra"
+
+    @pytest.mark.parametrize(
+        "authz",
+        [
+            pytest.param(lambda k: _FakeAuthzClient(k, fail=ValueError("Expecting value")), id="non-json"),
+            pytest.param(lambda k: _FakeAuthzClient(k, response={"workspaces": []}), id="no-token"),
+            pytest.param(lambda k: _FakeAuthzClient(k, response={"authz_token": ""}), id="empty-token"),
+        ],
+    )
+    def test_unusable_mint_response_503_not_cached(self, auto_env, authz):
+        idp_pub, duar_priv, idp_token, _ = auto_env
+        fake = authz(duar_priv)
+        client = TestClient(_make_auto_app(idp_pub, _FakeAutoDuar(fake)))
+        headers = {"Authorization": f"Bearer {idp_token}", "X-Workspace-Id": AUTO_WS}
+        assert client.get("/protected", headers=headers).status_code == 503
+        assert client.get("/protected", headers=headers).json()["detail"] == "Authorization service unavailable"
+        assert len(fake.calls) == 2
+
+    def test_unverifiable_minted_token_is_evicted(self, auto_env):
+        idp_pub, duar_priv, idp_token, _ = auto_env
+        # Signed with a kid Duar's JWKS does not publish → local verification fails.
+        bad = {"authz_token": _mint_authz(duar_priv, AUTO_WS, kid="rotated-away"), "expires_in": 300}
+        fake = _FakeAuthzClient(duar_priv, response=bad)
+        client = TestClient(_make_auto_app(idp_pub, _FakeAutoDuar(fake)))
+        headers = {"Authorization": f"Bearer {idp_token}", "X-Workspace-Id": AUTO_WS}
+        resp = client.get("/protected", headers=headers)
+        assert resp.status_code == 401
+        assert resp.json()["detail"] == "Invalid authz token"
+        client.get("/protected", headers=headers)
+        assert len(fake.calls) == 2  # not served from cache
+
+    def test_zero_expires_in_is_not_cached(self, auto_env):
+        idp_pub, duar_priv, idp_token, _ = auto_env
+        fake = _FakeAuthzClient(duar_priv, response={"authz_token": _mint_authz(duar_priv, AUTO_WS), "expires_in": 0})
+        client = TestClient(_make_auto_app(idp_pub, _FakeAutoDuar(fake)))
+        headers = {"Authorization": f"Bearer {idp_token}", "X-Workspace-Id": AUTO_WS}
+        assert client.get("/protected", headers=headers).status_code == 200
+        assert client.get("/protected", headers=headers).status_code == 200
+        assert len(fake.calls) == 2
+
+    def test_idp_token_without_sub_never_reaches_duar(self, auto_env, idp_keypair):
+        idp_pub, duar_priv, _, _ = auto_env
+        idp_priv, _ = idp_keypair
+        now = datetime.datetime.now(datetime.UTC)
+        subless = pyjwt.encode(
+            {"aud": TEST_IDP_AUDIENCE, "email": "alice@acme.com", "iat": now, "exp": now + datetime.timedelta(hours=1)},
+            idp_priv,
+            algorithm="RS256",
+        )
+        fake = _FakeAuthzClient(duar_priv)
+        client = TestClient(_make_auto_app(idp_pub, _FakeAutoDuar(fake)))
+        resp = client.get("/protected", headers={"Authorization": f"Bearer {subless}", "X-Workspace-Id": AUTO_WS})
+        assert resp.status_code == 401
+        assert fake.calls == []

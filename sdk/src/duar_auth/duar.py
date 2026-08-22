@@ -87,6 +87,8 @@ class Duar:
             )
         if mode not in ("authz", "proxy"):
             raise ValueError(f"mode must be 'authz' or 'proxy', got '{mode}'")
+        if auto_resolve and mode != "authz":
+            raise ValueError("auto_resolve is only available in mode='authz' (proxy mode has no authz token to mint)")
         if mode == "authz":
             if not idp_public_key and not idp_jwks_url:
                 raise ValueError("idp_public_key or idp_jwks_url is required when mode='authz'")

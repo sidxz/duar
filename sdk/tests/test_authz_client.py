@@ -61,3 +61,4 @@ class TestAuthzClient:
                     await client.resolve(idp_token="t", provider="google", workspace_id=uuid.uuid4())
         assert exc_info.value.status_code == 429
         assert exc_info.value.retry_after == "17"
+        assert exc_info.value.detail == "slow down"

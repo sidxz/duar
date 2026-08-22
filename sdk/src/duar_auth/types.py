@@ -102,7 +102,14 @@ class WorkspaceContext:
 class DuarError(Exception):
     """Raised when the Duar identity service returns an error or is unreachable."""
 
-    def __init__(self, message: str, status_code: int | None = None, retry_after: str | None = None):
+    def __init__(
+        self,
+        message: str,
+        status_code: int | None = None,
+        retry_after: str | None = None,
+        detail: str | None = None,
+    ):
         self.status_code = status_code
         self.retry_after = retry_after  # Duar's Retry-After header on 429, else None
+        self.detail = detail  # Duar's JSON ``detail`` body field, when it sent one
         super().__init__(message)

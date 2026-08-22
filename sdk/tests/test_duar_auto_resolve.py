@@ -37,3 +37,15 @@ def test_auto_resolve_defaults_off(rsa_keypair):
     app = Starlette(routes=[])
     _duar(public_pem).protect(app)
     assert app.user_middleware[0].kwargs["auto_resolve"] is False
+
+
+def test_auto_resolve_rejected_in_proxy_mode():
+    with pytest.raises(ValueError, match="mode='authz'"):
+        Duar(
+            base_url="https://duar.test",
+            service_name="reports",
+            service_key="svc-key",
+            mode="proxy",
+            auto_resolve=True,
+            idp_provider="google",
+        )
