@@ -112,6 +112,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             path.startswith("/auth")
             or path.startswith("/admin")
             or path.startswith("/users")
+            or path.startswith("/onboard")  # one-time invite links, personal data
         ):
             response.headers["Cache-Control"] = "no-store"
             response.headers["Pragma"] = "no-cache"
@@ -123,11 +124,13 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "camera=(), microphone=(), geolocation=()"
         )
         # `form-action`/`base-uri` are no-fallback directives: `default-src 'none'` does NOT
-        # cover them, so they must be pinned explicitly. (`style-src 'unsafe-inline'` is a
-        # deliberate trade-off so the rendered login/consent HTML can use inline styles.)
+        # cover them, so they must be pinned explicitly. HTML pages may submit plain forms
+        # to Duar itself ('self') — the hosted /onboard pages need it; error pages have no
+        # forms so it is harmless there. (`style-src 'unsafe-inline'` is a deliberate
+        # trade-off so the rendered HTML can use inline styles.)
         _HTML_CSP = (
             "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; "
-            "frame-ancestors 'none'; form-action 'none'; base-uri 'none'"
+            "frame-ancestors 'none'; form-action 'self'; base-uri 'none'"
         )
         csp_override = response.headers.get("X-CSP-Override")
         if csp_override == "html-page":
