@@ -8,6 +8,7 @@ invitations). Same fake-dep style as test_workspace_audit_events.py.
 from __future__ import annotations
 
 import uuid
+from types import SimpleNamespace
 
 import pytest
 from fastapi import FastAPI
@@ -34,6 +35,9 @@ def _disable_limiter():
 class _FakeDB:
     async def commit(self):
         pass
+
+    async def get(self, model, pk):
+        return SimpleNamespace(id=pk)
 
 
 def _client(role="owner") -> TestClient:
@@ -88,3 +92,28 @@ def test_direct_add_unchanged_when_flag_off(monkeypatch):
         json={"email": "a@example.com", "role": "viewer"},
     )
     assert resp.status_code == 400
+
+
+def test_create_workspace_cap_maps_to_403(monkeypatch):
+    monkeypatch.setattr(settings, "self_serve_enabled", True)
+    from src.api import workspace_routes
+
+    async def _boom(*a, **kw):
+        raise workspace_routes.workspace_service.SelfServeCapReached()
+
+    monkeypatch.setattr(workspace_routes.workspace_service, "create_self_serve", _boom)
+    resp = _client().post("/workspaces", json={"name": "Acme", "slug": "acme"})
+    assert resp.status_code == 403
+
+
+def test_create_workspace_throttled_maps_to_429(monkeypatch):
+    monkeypatch.setattr(settings, "self_serve_enabled", True)
+    from src.api import workspace_routes
+
+    async def _boom(*a, **kw):
+        raise workspace_routes.workspace_service.SelfServeThrottled()
+
+    monkeypatch.setattr(workspace_routes.workspace_service, "create_self_serve", _boom)
+    resp = _client().post("/workspaces", json={"name": "Acme", "slug": "acme"})
+    assert resp.status_code == 429
+    assert resp.headers["Retry-After"] == "3600"

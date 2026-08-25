@@ -12,6 +12,7 @@ from src.api.dependencies import (
     get_current_user_flexible,
 )
 from src.database import get_db
+from src.models.user import User
 from src.schemas.workspace import (
     InviteMemberRequest,
     UpdateMemberRoleRequest,
@@ -48,16 +49,27 @@ async def create_workspace(
         raise HTTPException(
             status_code=403, detail="Workspace creation is disabled on this server"
         )
+    # Flag on: the API is a self-serve create like the hosted one — same cap and
+    # breaker — otherwise one workspace would unlock unlimited creation here.
+    actor = await db.get(User, user.user_id)
+    if actor is None:
+        raise HTTPException(status_code=404, detail="User not found")
     try:
-        workspace = await workspace_service.create_workspace(
-            db,
-            name=body.name,
-            slug=body.slug,
-            created_by=user.user_id,
-            description=body.description,
+        workspace = await workspace_service.create_self_serve(
+            db, actor, body.name, slug=body.slug
+        )
+    except workspace_service.SelfServeCapReached:
+        raise HTTPException(status_code=403, detail="Workspace limit reached")
+    except workspace_service.SelfServeThrottled:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many workspaces are being created right now",
+            headers={"Retry-After": "3600"},
         )
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
+    if body.description:
+        workspace.description = body.description
     await activity_service.log_activity(
         db,
         action="workspace_created",
@@ -65,7 +77,7 @@ async def create_workspace(
         target_id=workspace.id,
         actor_id=user.user_id,
         workspace_id=workspace.id,
-        detail={"name": workspace.name, "slug": workspace.slug},
+        detail={"name": workspace.name, "slug": workspace.slug, "self_serve": True},
     )
     await db.commit()
     return workspace

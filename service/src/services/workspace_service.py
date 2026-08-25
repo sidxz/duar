@@ -1,9 +1,13 @@
+import re
+import secrets
 import uuid
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import settings
 from src.models.group import Group, GroupMembership
 from src.models.permission import ResourcePermission, ResourceShare
 from src.models.role import Role, UserRole
@@ -35,6 +39,112 @@ async def create_workspace(
     db.add(membership)
     await db.commit()
     return workspace
+
+
+class SelfServeDisabled(Exception):
+    """SELF_SERVE_ENABLED is off."""
+
+
+class SelfServeCapReached(Exception):
+    """The user already created SELF_SERVE_MAX_WORKSPACES_PER_USER workspaces."""
+
+
+class SelfServeThrottled(Exception):
+    """Instance-wide SELF_SERVE_MAX_CREATES_PER_HOUR reached."""
+
+
+_NON_SLUG = re.compile(r"[^a-z0-9]+")
+
+
+def slugify(name: str) -> str:
+    """lowercase; runs of non-[a-z0-9] -> '-'; trimmed; <= 40 chars; 'ws' if empty."""
+    base = _NON_SLUG.sub("-", name.lower()).strip("-")[:40].strip("-")
+    return base or "ws"
+
+
+async def count_created_by(db: AsyncSession, user_id: uuid.UUID) -> int:
+    stmt = (
+        select(func.count())
+        .select_from(Workspace)
+        .where(Workspace.created_by == user_id)
+    )
+    return int(await db.scalar(stmt) or 0)
+
+
+async def get_member_role(
+    db: AsyncSession, workspace_id: uuid.UUID, user_id: uuid.UUID
+) -> str | None:
+    stmt = select(WorkspaceMembership.role).where(
+        WorkspaceMembership.workspace_id == workspace_id,
+        WorkspaceMembership.user_id == user_id,
+    )
+    return await db.scalar(stmt)
+
+
+async def list_admin_workspaces(
+    db: AsyncSession, user_id: uuid.UUID
+) -> list[tuple[Workspace, str]]:
+    """Workspaces where the user is owner or admin, with the role."""
+    stmt = (
+        select(Workspace, WorkspaceMembership.role)
+        .join(WorkspaceMembership)
+        .where(
+            WorkspaceMembership.user_id == user_id,
+            WorkspaceMembership.role.in_(("owner", "admin")),
+        )
+        .order_by(Workspace.created_at)
+    )
+    return [(ws, role) for ws, role in (await db.execute(stmt)).all()]
+
+
+async def create_self_serve(
+    db: AsyncSession,
+    user: User,
+    name: str,
+    *,
+    slug: str | None = None,
+    now: datetime | None = None,
+) -> Workspace:
+    """Self-serve workspace creation: flag -> per-user cap -> hourly breaker -> create.
+
+    The user row is locked FOR UPDATE for the duration so concurrent requests
+    from one user cannot both pass the cap (no-op on SQLite). The breaker counts
+    *successful* creations instance-wide, so unauthenticated traffic cannot
+    exhaust it. ``slug=None`` generates ``slugify(name)-<4 hex>``; a caller-supplied
+    slug (proxy-mode API) is used verbatim and a collision is a ValueError.
+    """
+    if not settings.self_serve_enabled:
+        raise SelfServeDisabled()
+    now = now or datetime.now(UTC)
+    await db.execute(select(User.id).where(User.id == user.id).with_for_update())
+    if (
+        await count_created_by(db, user.id)
+        >= settings.self_serve_max_workspaces_per_user
+    ):
+        raise SelfServeCapReached()
+    recent = await db.scalar(
+        select(func.count())
+        .select_from(Workspace)
+        .where(Workspace.created_at > now - timedelta(hours=1))
+    )
+    if int(recent or 0) >= settings.self_serve_max_creates_per_hour:
+        raise SelfServeThrottled()
+    if slug is not None:
+        return await create_workspace(db, name=name, slug=slug, created_by=user.id)
+    for _ in range(3):
+        try:
+            return await create_workspace(
+                db,
+                name=name,
+                slug=f"{slugify(name)}-{secrets.token_hex(2)}",
+                created_by=user.id,
+            )
+        except ValueError:
+            # 1-in-65536 collision; the failed flush poisoned the transaction.
+            # ponytail: rollback drops the FOR UPDATE lock for the retry — a
+            # same-user race here is bounded by the breaker, accepted.
+            await db.rollback()
+    raise ValueError("Could not allocate a unique slug")
 
 
 async def list_user_workspaces(db: AsyncSession, user_id: uuid.UUID) -> list[Workspace]:

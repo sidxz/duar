@@ -39,6 +39,9 @@ class _FakeDB:
     async def commit(self):
         pass
 
+    async def get(self, model, pk):
+        return SimpleNamespace(id=pk)
+
 
 def _build_app(role="owner"):
     app = FastAPI()
@@ -84,16 +87,18 @@ def test_create_workspace_audited(monkeypatch, activity):
 
     new_id = uuid.uuid4()
 
-    async def _create(_db, **kw):
+    async def _create(_db, _actor, name, slug=None):
         return _workspace_ns(ws_id=new_id)
 
-    monkeypatch.setattr(workspace_routes.workspace_service, "create_workspace", _create)
+    monkeypatch.setattr(
+        workspace_routes.workspace_service, "create_self_serve", _create
+    )
     resp = _build_app().post("/workspaces", json={"name": "Acme", "slug": "acme"})
     assert resp.status_code == 201
     assert activity[0]["action"] == "workspace_created"
     assert activity[0]["target_id"] == new_id
     assert activity[0]["actor_id"] == ACTOR_ID
-    assert activity[0]["detail"] == {"name": "Acme", "slug": "acme"}
+    assert activity[0]["detail"] == {"name": "Acme", "slug": "acme", "self_serve": True}
 
 
 def test_update_workspace_audited(monkeypatch, activity):
