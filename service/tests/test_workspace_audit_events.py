@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 
 from src.api.dependencies import CurrentUser, get_current_user
 from src.api.workspace_routes import router as workspace_router
+from src.config import settings
 from src.database import get_db
 from src.middleware.rate_limit import limiter
 
@@ -78,6 +79,7 @@ def _workspace_ns(ws_id=WS_ID):
 
 
 def test_create_workspace_audited(monkeypatch, activity):
+    monkeypatch.setattr(settings, "self_serve_enabled", True)
     from src.api import workspace_routes
 
     new_id = uuid.uuid4()

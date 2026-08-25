@@ -44,6 +44,10 @@ async def create_workspace(
     user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    if not settings.self_serve_enabled:
+        raise HTTPException(
+            status_code=403, detail="Workspace creation is disabled on this server"
+        )
     try:
         workspace = await workspace_service.create_workspace(
             db,
@@ -167,6 +171,13 @@ async def invite_member(
     user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    if settings.self_serve_enabled:
+        # Consent rule (spec): in self-serve mode nobody is added to a workspace
+        # without their own action, and this endpoint is an email-existence oracle.
+        raise HTTPException(
+            status_code=403,
+            detail="Direct member add is disabled in self-serve mode; use invitations",
+        )
     _require_workspace_match(user, workspace_id)
     _require_role(user, "admin")
     try:

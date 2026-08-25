@@ -404,6 +404,12 @@ export interface ServiceInfoType {
   admin_url: string;
 }
 
+export interface SelfServeInfo {
+  enabled: boolean;
+  max_workspaces_per_user: number;
+  max_creates_per_hour: number;
+}
+
 export interface SystemSettings {
   oauth_providers: OAuthProviderInfo[];
   jwt: JwtInfo;
@@ -411,6 +417,7 @@ export interface SystemSettings {
   rate_limits: RateLimitInfo[];
   service_keys: ServiceKeyInfo[];
   service: ServiceInfoType;
+  self_serve: SelfServeInfo;
 }
 
 // ── Realms (trusted app groups) ──────────────────────────────────────

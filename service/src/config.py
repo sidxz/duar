@@ -134,6 +134,13 @@ class Settings(BaseSettings):
     signal_stuffing_failures: int = 10  # failures per IP in window, AND:
     signal_stuffing_distinct_emails: int = 5  # distinct emails per IP in window
 
+    # Self-serve workspaces — public instances only (docs/guide/self-serve.md).
+    # Off: /onboard* is 404 and POST /workspaces is 403. Consortium deployments
+    # leave this unset.
+    self_serve_enabled: bool = False
+    self_serve_max_workspaces_per_user: int = 1  # created_by count; 0 = join-only
+    self_serve_max_creates_per_hour: int = 30  # instance-wide, successful creates
+
     # Admin
     admin_emails: str = ""
     admin_url: str = "http://localhost:9004"
