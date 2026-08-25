@@ -1,0 +1,16 @@
+{% extends "onboard/base.html" %}
+{% block title %}Sign in{% endblock %}
+{% block content %}
+<h1>Sign in to continue</h1>
+<p>Use the same account you sign in to the app with.</p>
+{% if not providers %}
+<p>No sign-in providers are configured on this server.</p>
+{% endif %}
+<div class="row">
+{% for p in providers %}
+  <a class="btn" href="{{ base_url }}/onboard/login/{{ p }}">
+    {% if p == 'google' %}Google{% elif p == 'github' %}GitHub{% elif p == 'entra_id' %}Microsoft{% else %}{{ p }}{% endif %}
+  </a>
+{% endfor %}
+</div>
+{% endblock %}

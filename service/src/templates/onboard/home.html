@@ -1,0 +1,62 @@
+{% extends "onboard/base.html" %}
+{% block title %}Workspaces{% endblock %}
+{% block content %}
+<h1>Hi {{ user.name or user.email }}</h1>
+
+{% if invite_invalid %}
+<div class="flash">That invite link is invalid, expired, or already used.</div>
+{% endif %}
+
+{% if invite %}
+<div class="card-inv">
+  {% if invite_member %}
+  <p>You're already a member of <strong>{{ invite_ws.name }}</strong>.</p>
+  <div class="row"><a class="btn secondary" href="{{ base_url }}/onboard/done">Continue</a></div>
+  {% else %}
+  <p>You've been invited to join <strong>{{ invite_ws.name }}</strong> as <strong>{{ invite.role }}</strong>.</p>
+  <form method="post" action="{{ base_url }}/onboard/join">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="code" value="{{ invite_code }}">
+    <div class="row"><button class="btn" type="submit">Join {{ invite_ws.name }}</button></div>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
+
+<h2>Have an invite link or code?</h2>
+<form method="post" action="{{ base_url }}/onboard/join">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="code">Paste the link or the code</label>
+  <input type="text" id="code" name="code" required autocomplete="off">
+  <div class="row"><button class="btn secondary" type="submit">Join</button></div>
+</form>
+
+{% if workspaces %}
+<h2>You're already in</h2>
+<ul>
+{% for ws in workspaces %}<li>{{ ws.name }}</li>{% endfor %}
+</ul>
+<div class="row"><a class="btn secondary" href="{{ base_url }}/onboard/done">Continue</a></div>
+{% endif %}
+
+{% if show_create_section %}
+<h2>Create a workspace</h2>
+{% if can_create %}
+<form method="post" action="{{ base_url }}/onboard/create">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="name">Workspace name</label>
+  <input type="text" id="name" name="name" required maxlength="255">
+  <div class="row"><button class="btn" type="submit">Create workspace</button></div>
+</form>
+{% else %}
+<p>You've reached the limit of workspaces you can create.</p>
+{% endif %}
+{% endif %}
+{% endblock %}
+{% block footer %}
+<div class="meta">
+  <a href="{{ base_url }}/onboard/invites">Invite people</a>
+  {% if return_to %}<a href="{{ return_to }}">Back to app</a>{% endif %}
+  <form method="post" action="{{ base_url }}/onboard/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button type="submit">Sign out</button></form>
+</div>
+{% endblock %}

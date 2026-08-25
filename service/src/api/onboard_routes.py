@@ -1,0 +1,455 @@
+"""Duar-hosted self-serve onboarding pages (/onboard).
+
+Server-rendered, zero-JavaScript pages where a user with no workspace joins one
+through a one-time invitation link or creates one, and where workspace
+owners/admins mint invitations. Identity comes from Duar's own OAuth client
+flow (authlib code flow, like proxy mode and admin login) and lives in the
+existing signed session cookie under ``onboard_*`` keys. Everything is gated
+by ``SELF_SERVE_ENABLED`` (404 when off). See docs/guide/self-serve.md and
+docs/superpowers/specs/2026-08-25-self-serve-workspaces-design.md.
+"""
+
+import hmac
+import secrets
+import time
+import uuid
+from datetime import UTC, datetime
+from pathlib import Path
+
+import structlog
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi.templating import Jinja2Templates
+from jinja2 import Environment, FileSystemLoader
+from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.responses import HTMLResponse, RedirectResponse
+
+from src.api.auth_routes import (
+    IdpProfileError,
+    _error_page,
+    _idp_profile,
+    _log_login_failure,
+    _profile_error_page,
+)
+from src.api.authz_routes import _validate_authz_redirect_uri
+from src.auth.providers import get_configured_providers, oauth
+from src.config import settings
+from src.database import get_db
+from src.logging_events import log_security
+from src.middleware.rate_limit import get_client_ip, limiter
+from src.models.user import User
+from src.models.workspace import Workspace
+from src.services import (
+    activity_service,
+    auth_service,
+    invitation_service,
+    organization_service,
+    signal_service,
+    workspace_service,
+)
+
+logger = structlog.get_logger()
+
+router = APIRouter(prefix="/onboard", tags=["onboard"], include_in_schema=False)
+
+_TEMPLATES_DIR = str(Path(__file__).resolve().parent.parent / "templates")
+templates = Jinja2Templates(
+    env=Environment(loader=FileSystemLoader(_TEMPLATES_DIR), autoescape=True)
+)
+
+# Keys GET /onboard resets. NEVER onboard_user_id / onboard_csrf, and never
+# request.session.clear(): the same cookie carries in-flight proxy/admin/authz-idp
+# OAuth round-trips from other tabs.
+_RESET_KEYS = (
+    "onboard_code",
+    "onboard_return_to",
+    "onboard_next",
+    "onboard_flash",
+    "onboard_result",
+)
+_MAX_RETURN_TO = 2048
+
+
+def _require_enabled() -> None:
+    if not settings.self_serve_enabled:
+        raise HTTPException(status_code=404, detail="Not found")
+
+
+def _url(path: str = "") -> str:
+    return f"{settings.base_url}/onboard{path}"
+
+
+def _home() -> str:
+    return _url("/home")
+
+
+def _render(request: Request, template: str, status: int = 200, **ctx) -> HTMLResponse:
+    flash = request.session.pop("onboard_flash", None)
+    resp = templates.TemplateResponse(
+        request,
+        f"onboard/{template}",
+        {
+            "base_url": settings.base_url,
+            "flash": flash["text"] if isinstance(flash, dict) else flash,
+            "flash_ok": bool(flash.get("ok")) if isinstance(flash, dict) else False,
+            "csrf": request.session.get("onboard_csrf", ""),
+            "return_to": request.session.get("onboard_return_to"),
+            **ctx,
+        },
+        status_code=status,
+    )
+    resp.headers["X-CSP-Override"] = "html-page"
+    return resp
+
+
+def _flash(request: Request, text: str, ok: bool = False) -> None:
+    request.session["onboard_flash"] = {"text": text, "ok": ok}
+
+
+def _clear_onboard_session(request: Request) -> None:
+    for key in [k for k in request.session if k.startswith("onboard_")]:
+        del request.session[key]
+
+
+async def _session_user(request: Request, db: AsyncSession) -> User | None:
+    """The onboarding user, re-read every request (deactivation cuts the
+    session off). Writes ``onboard_seen`` so the 10-minute cookie window slides
+    (starlette re-issues the cookie only when the session is modified)."""
+    raw = request.session.get("onboard_user_id")
+    if not raw:
+        return None
+    try:
+        user = await db.get(User, uuid.UUID(raw))
+    except ValueError:
+        user = None
+    if user is None or not user.is_active:
+        _clear_onboard_session(request)
+        return None
+    request.session["onboard_seen"] = int(time.time())
+    return user
+
+
+def _csrf_ok(request: Request, token: str | None) -> bool:
+    expected = request.session.get("onboard_csrf")
+    return bool(expected and token) and hmac.compare_digest(expected, token)
+
+
+def _csrf_page() -> HTMLResponse:
+    return _error_page(
+        403,
+        "Invalid Form Token",
+        "Please reload the page and try again.",
+        back_href=_home(),
+    )
+
+
+async def _store_return_to(
+    request: Request, db: AsyncSession, value: str
+) -> HTMLResponse | None:
+    """Validate ``return_to`` against the ServiceApp origin allowlist and stash
+    it; returns an error page instead of storing anything on failure."""
+    if len(value) > _MAX_RETURN_TO:
+        return _error_page(
+            400,
+            "Invalid Return URL",
+            "The return address is too long.",
+            back_href=_url(),
+        )
+    try:
+        await _validate_authz_redirect_uri(db, value)
+    except HTTPException:
+        return _error_page(
+            400,
+            "Invalid Return URL",
+            "The app you came from is not registered on this server.",
+            back_href=_url(),
+        )
+    request.session["onboard_return_to"] = value
+    return None
+
+
+def _client_meta(request: Request) -> dict:
+    return {
+        "ip": get_client_ip(request),
+        "user_agent": request.headers.get("user-agent", "")[:200],
+    }
+
+
+# ── entry / login / callback ──────────────────────────────────────────
+
+
+@router.get("", response_class=HTMLResponse)
+async def entry(
+    request: Request,
+    return_to: str | None = None,
+    code: str | None = None,
+    provider: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    _require_enabled()
+    if return_to is not None or code is not None:
+        for key in _RESET_KEYS:
+            request.session.pop(key, None)
+        if return_to is not None:
+            err = await _store_return_to(request, db, return_to)
+            if err is not None:
+                return err
+        if code:
+            request.session["onboard_code"] = code.strip()[:128]
+        # PRG: the code never persists in history / the address bar.
+        return RedirectResponse(_url(), status_code=303)
+
+    if await _session_user(request, db) is not None:
+        return RedirectResponse(
+            request.session.pop("onboard_next", None) or _home(), status_code=302
+        )
+
+    providers = get_configured_providers()
+    target = (
+        provider
+        if provider in providers
+        else (providers[0] if len(providers) == 1 else None)
+    )
+    if target:
+        return RedirectResponse(_url(f"/login/{target}"), status_code=302)
+    return _render(request, "login.html", providers=providers)
+
+
+@router.get("/login/{provider}")
+@limiter.limit(settings.rate_limit_auth)
+async def login(provider: str, request: Request):
+    _require_enabled()
+    if provider not in get_configured_providers():
+        return _error_page(
+            400,
+            "Provider Not Available",
+            f"The login provider “{provider}” is not configured on this server.",
+            back_href=_url(),
+        )
+    client = oauth.create_client(provider)
+    return await client.authorize_redirect(request, _url(f"/callback/{provider}"))
+
+
+@router.get("/callback/{provider}")
+@limiter.limit(settings.rate_limit_auth)
+async def callback(provider: str, request: Request, db: AsyncSession = Depends(get_db)):
+    _require_enabled()
+    back = _url()
+    try:
+        if provider not in get_configured_providers():
+            return _error_page(
+                400,
+                "Provider Not Available",
+                "This provider is not configured.",
+                back_href=back,
+            )
+        client = oauth.create_client(provider)
+        token = await client.authorize_access_token(request)
+        try:
+            prof = await _idp_profile(client, token, provider)
+        except IdpProfileError as e:
+            await _log_login_failure(
+                db,
+                request,
+                provider,
+                e.reason,
+                flow="onboard",
+                count_for_stuffing=e.count_for_stuffing,
+            )
+            return _profile_error_page(provider, e.reason, back_href=back)
+
+        if provider == "entra_id" and prof.provider_data.get("xms_edov") is not True:
+            # The tenant pin does not verify guest-account addresses; the
+            # optional xms_edov claim does. Fail closed on the hosted flow.
+            await _log_login_failure(
+                db,
+                request,
+                provider,
+                "email_domain_unverified",
+                flow="onboard",
+                count_for_stuffing=False,
+            )
+            return _error_page(
+                403,
+                "Email Not Verified",
+                "Your Microsoft account's email domain is not owner-verified (xms_edov).",
+                back_href=back,
+            )
+
+        org = await organization_service.resolve_organization(db, prof.email)
+        if org is None:
+            await _log_login_failure(
+                db,
+                request,
+                provider,
+                "org_not_permitted",
+                flow="onboard",
+                email=prof.email,
+            )
+            return _error_page(
+                403,
+                "Sign-In Not Permitted",
+                "Your email domain is not associated with an organization on this "
+                "server, and public sign-in is disabled. Contact your administrator.",
+                back_href=back,
+            )
+        try:
+            user = await auth_service.find_or_create_user(
+                db=db,
+                provider=provider,
+                provider_user_id=prof.provider_user_id,
+                email=prof.email,
+                name=prof.name,
+                organization_id=org.id,
+                avatar_url=prof.avatar_url,
+                provider_data=prof.provider_data,
+            )
+        except auth_service.CrossProviderEmailConflict:
+            await _log_login_failure(
+                db,
+                request,
+                provider,
+                "cross_provider_conflict",
+                flow="onboard",
+                email=prof.email,
+            )
+            return _error_page(
+                409,
+                "Email Already Used",
+                "An account with this email address already exists under a "
+                "different sign-in provider. Please sign in with your original "
+                "provider, or contact your administrator to link accounts.",
+                back_href=back,
+            )
+        if not user.is_active:
+            await _log_login_failure(
+                db,
+                request,
+                provider,
+                "inactive_user",
+                flow="onboard",
+                count_for_stuffing=False,
+            )
+            return _error_page(
+                403,
+                "Account Inactive",
+                "This account has been deactivated.",
+                back_href=back,
+            )
+
+        meta = _client_meta(request)
+        await activity_service.log_activity(
+            db,
+            action="user_login",
+            target_type="user",
+            target_id=user.id,
+            actor_id=user.id,
+            detail={"provider": provider, "flow": "onboard", **meta},
+        )
+        await db.commit()
+        await signal_service.on_login_success(
+            db, user_id=user.id, ip=meta["ip"], user_agent=meta["user_agent"]
+        )
+        log_security(
+            "auth.login.succeeded",
+            outcome="success",
+            provider=provider,
+            actor=str(user.id),
+            flow="onboard",
+        )
+
+        request.session["onboard_user_id"] = str(user.id)
+        request.session["onboard_csrf"] = secrets.token_urlsafe(32)
+        request.session["onboard_seen"] = int(time.time())
+        return RedirectResponse(
+            request.session.pop("onboard_next", None) or _home(), status_code=302
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("app.error.unhandled", category="app", error=str(e), exc_info=True)
+        await _log_login_failure(
+            db,
+            request,
+            provider,
+            "callback_error",
+            flow="onboard",
+            error_type=type(e).__name__,
+        )
+        return _error_page(
+            500,
+            "Authentication Failed",
+            "Something went wrong during sign-in. Please try again.",
+            back_href=back,
+        )
+
+
+# ── home / done / logout ──────────────────────────────────────────────
+
+
+@router.get("/home", response_class=HTMLResponse)
+async def home(request: Request, db: AsyncSession = Depends(get_db)):
+    _require_enabled()
+    user = await _session_user(request, db)
+    if user is None:
+        return RedirectResponse(_url(), status_code=302)
+    now = datetime.now(UTC)
+    ctx: dict = {
+        "invite": None,
+        "invite_ws": None,
+        "invite_member": False,
+        "invite_invalid": False,
+        "invite_code": None,
+    }
+    code = request.session.get("onboard_code")
+    if code:
+        inv = await invitation_service.peek(db, code, now=now)
+        if inv is None:
+            ctx["invite_invalid"] = True
+            request.session.pop("onboard_code", None)
+        else:
+            ctx.update(
+                invite=inv,
+                invite_ws=await db.get(Workspace, inv.workspace_id),
+                invite_member=(
+                    await workspace_service.get_member_role(
+                        db, inv.workspace_id, user.id
+                    )
+                )
+                is not None,
+                invite_code=code,
+            )
+    cap = settings.self_serve_max_workspaces_per_user
+    created = await workspace_service.count_created_by(db, user.id)
+    return _render(
+        request,
+        "home.html",
+        user=user,
+        workspaces=await workspace_service.list_user_workspaces(db, user.id),
+        show_create_section=cap > 0,
+        can_create=created < cap,
+        **ctx,
+    )
+
+
+@router.get("/done", response_class=HTMLResponse)
+async def done(request: Request, db: AsyncSession = Depends(get_db)):
+    _require_enabled()
+    user = await _session_user(request, db)
+    if user is None:
+        return RedirectResponse(_url(), status_code=302)
+    result = request.session.pop("onboard_result", None)
+    request.session.pop("onboard_code", None)
+    return _render(request, "done.html", result=result)
+
+
+@router.post("/logout")
+async def logout(
+    request: Request, csrf: str = Form(""), db: AsyncSession = Depends(get_db)
+):
+    _require_enabled()
+    if await _session_user(request, db) is None:
+        return RedirectResponse(_url(), status_code=303)
+    if not _csrf_ok(request, csrf):
+        return _csrf_page()
+    _clear_onboard_session(request)
+    return RedirectResponse(_url(), status_code=303)

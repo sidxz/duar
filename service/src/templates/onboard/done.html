@@ -1,0 +1,21 @@
+{% extends "onboard/base.html" %}
+{% block title %}All set{% endblock %}
+{% block content %}
+<h1>You're all set</h1>
+{% if result and result.kind == 'joined' %}
+<p>You joined <strong>{{ result.workspace }}</strong>.</p>
+{% elif result and result.kind == 'created' %}
+<p>You created <strong>{{ result.workspace }}</strong> and are its owner.</p>
+{% endif %}
+{% if return_to %}
+<div class="row"><a class="btn" href="{{ return_to }}">Continue to app</a></div>
+{% else %}
+<p>Go back to the app and sign in — your workspace will be there.</p>
+{% endif %}
+{% endblock %}
+{% block footer %}
+<div class="meta">
+  <a href="{{ base_url }}/onboard/home">Workspaces</a>
+  <a href="{{ base_url }}/onboard/invites">Invite people</a>
+</div>
+{% endblock %}
