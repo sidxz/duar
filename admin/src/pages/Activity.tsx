@@ -60,6 +60,8 @@ export function Activity() {
     "user_promoted_admin", "user_demoted_admin",
     "workspace_created", "workspace_updated", "workspace_deleted",
     "member_invited", "member_role_changed", "member_removed",
+    "invitation_created", "invitation_accepted", "invitation_revoked", "invitation_rejected",
+    "self_serve_denied",
     "group_created", "group_updated", "group_deleted",
     "group_member_added", "group_member_removed",
     "role_created", "role_updated", "role_deleted",

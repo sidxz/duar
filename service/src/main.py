@@ -20,8 +20,10 @@ from src.api.permission_routes import router as permission_router
 from src.api.role_routes import router as role_router
 from src.api.user_routes import router as user_router
 from src.api.workspace_routes import router as workspace_router
+from src.api.onboard_routes import router as onboard_router
 from slowapi.errors import RateLimitExceeded
 
+from src.auth.providers import get_configured_providers
 from src.config import settings
 from src.logging_config import configure_logging
 from src.version import __version__
@@ -193,6 +195,13 @@ async def lifespan(app: FastAPI):
         if _redis_no_tls:
             logger.warning("app.config.insecure", category="app", reason="redis_no_tls")
 
+    if settings.self_serve_enabled and not get_configured_providers():
+        logger.warning(
+            "app.config.self_serve.no_providers",
+            category="app",
+            reason="SELF_SERVE_ENABLED is on but no IdP client is configured; /onboard is a dead end",
+        )
+
     app.state.start_time = time.time()
     yield
     logger.info("app.shutdown")
@@ -209,6 +218,7 @@ PUBLIC_ROUTERS = [
     workspace_router,
     group_router,
     client_log_router,
+    onboard_router,
 ]
 INTERNAL_ROUTERS = [
     realm_router,

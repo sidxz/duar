@@ -203,11 +203,11 @@ export function BarList({ rows, labelWidth = 130 }: { rows: [string, number][]; 
 const MIX_BUCKETS: [string, RegExp][] = [
   ["Sign-ins", /^(user_login|admin_login)$/],
   ["Auth anomalies", /^(login_failed|admin_login_failed|refresh_context_changed|refresh_reuse_detected|tokens_revoked|login_impossible_travel|login_new_country|login_new_device|credential_stuffing_suspected)$/],
-  ["Users & members", /^(user_|member_|batch_import|bulk_status_change|export_users)/],
+  ["Users & members", /^(user_|member_|invitation_|batch_import|bulk_status_change|export_users)/],
   ["Groups & roles", /^(group_|role_|service_action_)/],
   ["Apps & realms", /^(client_app_|service_app_|realm_)/],
   ["Permissions", /^permission/],
-  ["Workspaces & orgs", /^(workspace_|org_|export_workspaces)/],
+  ["Workspaces & orgs", /^(workspace_|org_|self_serve_|export_workspaces)/],
 ];
 
 /** Event volume by category — nominal bars, one series, one hue. */
