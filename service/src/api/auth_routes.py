@@ -1,5 +1,6 @@
 import html
 import uuid
+from dataclasses import dataclass
 from urllib.parse import urlencode
 
 import structlog
@@ -41,11 +42,108 @@ logger = structlog.get_logger()
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-def _error_page(status_code: int, title: str, message: str) -> HTMLResponse:
+@dataclass
+class IdpProfile:
+    provider_user_id: str
+    email: str
+    name: str
+    avatar_url: str | None
+    provider_data: dict
+
+
+class IdpProfileError(Exception):
+    """The IdP did not give us a verified email. ``reason`` feeds
+    ``_log_login_failure``; callers render their own response."""
+
+    def __init__(self, reason: str, *, count_for_stuffing: bool = True):
+        super().__init__(reason)
+        self.reason = reason
+        self.count_for_stuffing = count_for_stuffing
+
+
+async def _idp_profile(client, token: dict, provider: str) -> IdpProfile:
+    """Extract the signed-in identity from an authlib token, provider-aware.
+
+    GitHub: profile + /user/emails (primary AND verified only). OIDC providers:
+    the ID-token claims, gated by ``is_email_verified_claim`` (strict boolean,
+    Entra tenant-pin exemption) and ``extract_email_claim``.
+    """
+    if provider == "github":
+        resp = await client.get("user", token=token)
+        profile = resp.json()
+        # Always validate email via /user/emails (profile email may be unverified)
+        resp = await client.get("user/emails", token=token)
+        primary = next(
+            (e for e in resp.json() if e.get("primary") and e.get("verified")), None
+        )
+        if not primary:
+            raise IdpProfileError("email_not_verified")
+        profile["email"] = primary["email"]
+        return IdpProfile(
+            provider_user_id=str(profile["id"]),
+            email=profile["email"],
+            name=profile.get("name") or profile.get("login", ""),
+            avatar_url=profile.get("avatar_url"),
+            provider_data=profile,
+        )
+    userinfo = token.get("userinfo", {})
+    if not auth_service.is_email_verified_claim(userinfo, provider):
+        raise IdpProfileError("email_not_verified")
+    email = auth_service.extract_email_claim(userinfo)
+    if not email:
+        # Misconfigured app registration, not a credential attack —
+        # keep it out of the stuffing counter.
+        raise IdpProfileError("no_email_claim", count_for_stuffing=False)
+    return IdpProfile(
+        provider_user_id=userinfo.get("sub", ""),
+        email=email,
+        name=userinfo.get("name", ""),
+        avatar_url=userinfo.get("picture"),
+        provider_data=dict(userinfo),
+    )
+
+
+def _profile_error_page(
+    provider: str, reason: str, back_href: str | None = None
+) -> HTMLResponse:
+    if reason == "no_email_claim":
+        return _error_page(
+            403,
+            "No Email Address",
+            "Your identity provider did not return an email address. "
+            "Ask your administrator to add the 'email' optional claim to "
+            "the application registration.",
+            back_href=back_href,
+        )
+    if provider == "github":
+        return _error_page(
+            403,
+            "Email Not Verified",
+            "Your GitHub account does not have a verified primary email. "
+            "Please verify your email on GitHub and try again.",
+            back_href=back_href,
+        )
+    return _error_page(
+        403,
+        "Email Not Verified",
+        "Your identity provider did not confirm your email address. "
+        "Please verify your email and try again.",
+        back_href=back_href,
+    )
+
+
+def _error_page(
+    status_code: int, title: str, message: str, back_href: str | None = None
+) -> HTMLResponse:
     # Base64-encoded splash.png is too large — use an inline SVG shield instead.
     # The response overrides the global CSP to allow inline styles and the SVG.
     safe_title = html.escape(title)
     safe_message = html.escape(message)
+    back = (
+        f'<p class="back"><a href="{html.escape(back_href, quote=True)}">Back to sign-in</a></p>'
+        if back_href
+        else ""
+    )
     page = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -67,6 +165,8 @@ def _error_page(status_code: int, title: str, message: str) -> HTMLResponse:
   p {{ font-size: 0.875rem; color: #a1a1aa; line-height: 1.6; }}
   .meta {{ font-size: 0.75rem; color: #3f3f46; margin-top: 1.5rem;
            padding-top: 1rem; border-top: 1px solid #27272a; }}
+  .back {{ margin-top: 1rem; }}
+  .back a {{ color: #f43737; text-decoration: none; }}
 </style>
 </head>
 <body>
@@ -83,6 +183,7 @@ def _error_page(status_code: int, title: str, message: str) -> HTMLResponse:
     <div class="body">
       <h1>{safe_title}</h1>
       <p>{safe_message}</p>
+      {back}
       <div class="meta">Error {status_code}</div>
     </div>
   </div>
@@ -282,59 +383,20 @@ async def callback(
         client = oauth.create_client(provider)
         token = await client.authorize_access_token(request)
 
-        # Extract user info based on provider
-        if provider == "github":
-            resp = await client.get("user", token=token)
-            profile = resp.json()
-            # Always validate email via /user/emails (profile email may be unverified)
-            resp = await client.get("user/emails", token=token)
-            emails = resp.json()
-            primary = next(
-                (e for e in emails if e.get("primary") and e.get("verified")),
-                None,
+        try:
+            prof = await _idp_profile(client, token, provider)
+        except IdpProfileError as e:
+            await _log_login_failure(
+                db, request, provider, e.reason, count_for_stuffing=e.count_for_stuffing
             )
-            if not primary:
-                await _log_login_failure(db, request, provider, "email_not_verified")
-                return _error_page(
-                    403,
-                    "Email Not Verified",
-                    "Your GitHub account does not have a verified primary email. "
-                    "Please verify your email on GitHub and try again.",
-                )
-            profile["email"] = primary["email"]
-            provider_user_id = str(profile["id"])
-            email = profile["email"]
-            name = profile.get("name") or profile.get("login", "")
-            avatar_url = profile.get("avatar_url")
-        else:
-            # OIDC providers (Google, EntraID) — parse ID token
-            userinfo = token.get("userinfo", {})
-            if not auth_service.is_email_verified_claim(userinfo, provider):
-                await _log_login_failure(db, request, provider, "email_not_verified")
-                return _error_page(
-                    403,
-                    "Email Not Verified",
-                    "Your identity provider did not confirm your email address. "
-                    "Please verify your email and try again.",
-                )
-            provider_user_id = userinfo.get("sub", "")
-            email = auth_service.extract_email_claim(userinfo)
-            name = userinfo.get("name", "")
-            avatar_url = userinfo.get("picture")
-            profile = dict(userinfo)
-            if not email:
-                # Misconfigured app registration, not a credential attack —
-                # keep it out of the stuffing counter.
-                await _log_login_failure(
-                    db, request, provider, "no_email_claim", count_for_stuffing=False
-                )
-                return _error_page(
-                    403,
-                    "No Email Address",
-                    "Your identity provider did not return an email address. "
-                    "Ask your administrator to add the 'email' optional claim to "
-                    "the application registration.",
-                )
+            return _profile_error_page(provider, e.reason)
+        provider_user_id, email, name, avatar_url, profile = (
+            prof.provider_user_id,
+            prof.email,
+            prof.name,
+            prof.avatar_url,
+            prof.provider_data,
+        )
 
         org = await organization_service.resolve_organization(db, email)
         if org is None:
@@ -731,57 +793,27 @@ async def admin_callback(
         client = oauth.create_client(provider)
         token = await client.authorize_access_token(request)
 
-        if provider == "github":
-            resp = await client.get("user", token=token)
-            profile = resp.json()
-            # Always validate email via /user/emails (profile email may be unverified)
-            resp = await client.get("user/emails", token=token)
-            emails = resp.json()
-            primary = next(
-                (e for e in emails if e.get("primary") and e.get("verified")),
-                None,
+        try:
+            prof = await _idp_profile(client, token, provider)
+        except IdpProfileError as e:
+            await _log_login_failure(
+                db,
+                request,
+                provider,
+                e.reason,
+                flow="admin",
+                count_for_stuffing=e.count_for_stuffing,
             )
-            if not primary:
-                await _log_login_failure(
-                    db, request, provider, "email_not_verified", flow="admin"
-                )
-                return RedirectResponse(
-                    url=f"{settings.admin_url}/login?error=email_not_verified",
-                    status_code=302,
-                )
-            profile["email"] = primary["email"]
-            provider_user_id = str(profile["id"])
-            email = profile["email"]
-            name = profile.get("name") or profile.get("login", "")
-            avatar_url = profile.get("avatar_url")
-        else:
-            userinfo = token.get("userinfo", {})
-            if not auth_service.is_email_verified_claim(userinfo, provider):
-                await _log_login_failure(
-                    db, request, provider, "email_not_verified", flow="admin"
-                )
-                return RedirectResponse(
-                    url=f"{settings.admin_url}/login?error=email_not_verified",
-                    status_code=302,
-                )
-            provider_user_id = userinfo.get("sub", "")
-            email = auth_service.extract_email_claim(userinfo)
-            name = userinfo.get("name", "")
-            avatar_url = userinfo.get("picture")
-            profile = dict(userinfo)
-            if not email:
-                await _log_login_failure(
-                    db,
-                    request,
-                    provider,
-                    "no_email_claim",
-                    flow="admin",
-                    count_for_stuffing=False,
-                )
-                return RedirectResponse(
-                    url=f"{settings.admin_url}/login?error=no_email_claim",
-                    status_code=302,
-                )
+            return RedirectResponse(
+                url=f"{settings.admin_url}/login?error={e.reason}", status_code=302
+            )
+        provider_user_id, email, name, avatar_url, profile = (
+            prof.provider_user_id,
+            prof.email,
+            prof.name,
+            prof.avatar_url,
+            prof.provider_data,
+        )
 
         # Resolve + persist the admin's org for record-keeping, but do NOT gate
         # admin sign-in on it. Admin access is gated by is_admin (below); hard
