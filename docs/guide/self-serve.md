@@ -7,8 +7,10 @@ loop. With `SELF_SERVE_ENABLED=true`, Duar hosts onboarding pages under
 link (the encouraged path) or **creates** one and becomes its owner.
 
 Everything is off by default. Consortium/enterprise deployments leave the flag
-unset; the only change they see in this release is that proxy-mode
-`POST /workspaces` now returns `403` (it was open to any signed-in user).
+unset; the only *behavioral* change they see in this release is that
+proxy-mode `POST /workspaces` now returns `403` (it was open to any signed-in
+user) — the CSP header and the `/admin/system/settings` block also change, as
+the changelog notes.
 
 ## How it works
 

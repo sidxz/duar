@@ -67,6 +67,7 @@ _RESET_KEYS = (
     "onboard_next",
     "onboard_flash",
     "onboard_result",
+    "onboard_new_invite",
 )
 _MAX_RETURN_TO = 2048
 
@@ -438,7 +439,9 @@ async def home(request: Request, db: AsyncSession = Depends(get_db)):
     code = request.session.get("onboard_code")
     if code:
         inv = await invitation_service.peek(db, code, now=now)
-        if inv is None:
+        if inv is None or (inv.email and inv.email != user.email.strip().lower()):
+            # A locked invite belongs to a different address than the signed-in
+            # user — treat it exactly like an invalid code, not as theirs to see.
             ctx["invite_invalid"] = True
             request.session.pop("onboard_code", None)
         else:

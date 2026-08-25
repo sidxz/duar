@@ -55,9 +55,15 @@ def _client(role="owner") -> TestClient:
 
 
 def test_settings_defaults():
-    assert settings.self_serve_enabled is False
-    assert settings.self_serve_max_workspaces_per_user == 1
-    assert settings.self_serve_max_creates_per_hour == 30
+    # Construct fresh rather than assert on the live `settings` singleton: a
+    # gitignored local .env (e.g. left by a manual click-through) can set
+    # SELF_SERVE_ENABLED=true, which would make this test env-fragile.
+    from src.config import Settings
+
+    s = Settings(_env_file=None)
+    assert s.self_serve_enabled is False
+    assert s.self_serve_max_workspaces_per_user == 1
+    assert s.self_serve_max_creates_per_hour == 30
 
 
 def test_create_workspace_403_when_flag_off(monkeypatch):

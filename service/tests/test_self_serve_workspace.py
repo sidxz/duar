@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from unittest.mock import Mock
 
 import pytest
 import pytest_asyncio
@@ -63,6 +64,22 @@ async def test_creates_workspace_with_generated_slug_and_owner(db):
     assert ws.created_by == user.id
     role = await workspace_service.get_member_role(db, ws.id, user.id)
     assert role == "owner"
+
+
+@pytest.mark.asyncio
+async def test_slug_collision_retry_does_not_expire_user(db, monkeypatch):
+    """Regression: db.rollback() in the retry loop used to expire `user`, and
+    the next iteration's `user.id` lazy-load crashed with MissingGreenlet."""
+    other = await _user(db, "other@example.com")
+    db.add(Workspace(name="Acme", slug="acme-aaaa", created_by=other.id))
+    await db.commit()
+    monkeypatch.setattr(
+        workspace_service.secrets, "token_hex", Mock(side_effect=["aaaa", "bbbb"])
+    )
+    user = await _user(db)
+    ws = await create_self_serve(db, user, "Acme", now=NOW)
+    assert ws.slug == "acme-bbbb"
+    assert await workspace_service.get_member_role(db, ws.id, user.id) == "owner"
 
 
 @pytest.mark.asyncio

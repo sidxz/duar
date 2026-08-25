@@ -54,10 +54,13 @@ def _pending(now: datetime):
 def _inviter_standing():
     inv, mem = WorkspaceInvitation, WorkspaceMembership
     return exists(
-        select(mem.user_id).where(
+        select(mem.user_id)
+        .join(User, User.id == mem.user_id)
+        .where(
             mem.workspace_id == inv.workspace_id,
             mem.user_id == inv.created_by,
             mem.role.in_(_ADMIN_ROLES),
+            User.is_active.is_(True),
         )
     )
 
@@ -130,17 +133,12 @@ async def revoke(
 ) -> WorkspaceInvitation:
     _require_enabled()
     now = now or datetime.now(UTC)
-    inv = await db.get(WorkspaceInvitation, invitation_id)
-    if inv is None or inv.accepted_at or inv.revoked_at:
-        raise InvitationInvalid()
-    # SQLite (tests) doesn't round-trip tzinfo on DateTime(timezone=True) the
-    # way Postgres (prod) does — a freshly-loaded row can come back naive.
-    # Everything this column ever holds is UTC, so treat naive as UTC rather
-    # than let it blow up the `now` comparison below.
-    expires_at = (
-        inv.expires_at if inv.expires_at.tzinfo else inv.expires_at.replace(tzinfo=UTC)
+    inv = await db.scalar(
+        select(WorkspaceInvitation).where(
+            WorkspaceInvitation.id == invitation_id, *_pending(now)
+        )
     )
-    if expires_at <= now:
+    if inv is None:
         raise InvitationInvalid()
     actor_role = await db.scalar(
         select(WorkspaceMembership.role).where(

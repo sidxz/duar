@@ -102,6 +102,21 @@ def _login(client, user_id, extra=None):
     )
 
 
+def test_invite_routes_404_when_flag_off(client, monkeypatch):
+    monkeypatch.setattr(settings, "self_serve_enabled", False)
+    assert client.get("/onboard/invites").status_code == 404
+    assert (
+        client.post(
+            "/onboard/invites", data={"workspace_id": str(uuid.uuid4())}
+        ).status_code
+        == 404
+    )
+    assert (
+        client.post(f"/onboard/invites/{uuid.uuid4()}/revoke", data={}).status_code
+        == 404
+    )
+
+
 @pytest.mark.asyncio
 async def test_invites_without_session_sets_next_and_redirects(client, db):
     wid = uuid.uuid4()

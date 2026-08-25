@@ -464,6 +464,29 @@ async def test_home_already_member_shows_continue(client, db):
     assert "Join Acme" not in page
 
 
+@pytest.mark.asyncio
+async def test_home_locked_invite_for_other_email_shows_invalid(client, db):
+    owner = await _user(db, "o@example.com")
+    ws = Workspace(name="Acme", slug="acme", created_by=owner.id)
+    db.add(ws)
+    await db.flush()
+    db.add(WorkspaceMembership(workspace_id=ws.id, user_id=owner.id, role="owner"))
+    await db.commit()
+    _, code = await invitation_service.create(
+        db,
+        workspace_id=ws.id,
+        role="viewer",
+        created_by=owner.id,
+        actor_role="owner",
+        email="someone.else@example.com",
+    )
+    u = await _user(db, "different@example.com")
+    _login(client, u.id, {"onboard_code": code})
+    page = client.get("/onboard/home").text
+    assert "invalid, expired, or already used" in page
+    assert "invited to join" not in page
+
+
 def test_logout_without_session_redirects_not_403(client):
     # session-before-csrf: no cookie at all must never reach the CSRF check.
     r = client.post("/onboard/logout", data={"csrf": "whatever"})

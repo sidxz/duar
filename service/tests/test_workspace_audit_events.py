@@ -135,6 +135,9 @@ def test_delete_workspace_audited(monkeypatch, activity):
 
 
 def test_invite_member_audited(monkeypatch, activity):
+    # Direct member-add is 403 when self-serve is on (see test_self_serve_gates.py);
+    # pin the flag off so this test doesn't depend on the local .env value.
+    monkeypatch.setattr(settings, "self_serve_enabled", False)
     from src.api import workspace_routes
 
     async def _invite(_db, _ws_id, **kw):

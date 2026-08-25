@@ -116,9 +116,13 @@ async def create_self_serve(
     if not settings.self_serve_enabled:
         raise SelfServeDisabled()
     now = now or datetime.now(UTC)
-    await db.execute(select(User.id).where(User.id == user.id).with_for_update())
+    # Read once, before the FOR UPDATE: db.rollback() in the retry loop below
+    # expires every ORM instance, including `user` — a lazy load of user.id
+    # after that point crashes with MissingGreenlet.
+    user_id = user.id
+    await db.execute(select(User.id).where(User.id == user_id).with_for_update())
     if (
-        await count_created_by(db, user.id)
+        await count_created_by(db, user_id)
         >= settings.self_serve_max_workspaces_per_user
     ):
         raise SelfServeCapReached()
@@ -130,14 +134,14 @@ async def create_self_serve(
     if int(recent or 0) >= settings.self_serve_max_creates_per_hour:
         raise SelfServeThrottled()
     if slug is not None:
-        return await create_workspace(db, name=name, slug=slug, created_by=user.id)
+        return await create_workspace(db, name=name, slug=slug, created_by=user_id)
     for _ in range(3):
         try:
             return await create_workspace(
                 db,
                 name=name,
                 slug=f"{slugify(name)}-{secrets.token_hex(2)}",
-                created_by=user.id,
+                created_by=user_id,
             )
         except ValueError:
             # 1-in-65536 collision; the failed flush poisoned the transaction.

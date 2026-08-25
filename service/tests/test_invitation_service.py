@@ -290,6 +290,26 @@ async def test_redeem_dies_with_inviter_standing(db):
 
 
 @pytest.mark.asyncio
+async def test_redeem_dies_with_deactivated_inviter(db):
+    owner = await _user(db, "o@example.com")
+    ws = await _workspace(db, owner)
+    _, code = await svc.create(
+        db,
+        workspace_id=ws.id,
+        role="viewer",
+        created_by=owner.id,
+        actor_role="owner",
+        now=NOW,
+    )
+    owner.is_active = False
+    await db.commit()
+    invitee = await _user(db, "i@example.com")
+    with pytest.raises(svc.InvitationInvalid):
+        await svc.redeem(db, invitee, code, now=NOW)
+    assert await _role(db, ws, invitee) is None
+
+
+@pytest.mark.asyncio
 async def test_redeem_never_changes_existing_role(db):
     owner = await _user(db, "o@example.com")
     ws = await _workspace(db, owner)
