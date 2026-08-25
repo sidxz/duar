@@ -82,6 +82,11 @@ Four tiers, applied by endpoint sensitivity:
 
 Service keys are database-managed (`service_apps` table), not environment variables. Each key is stored as a SHA-256 hash with a display prefix (e.g., `sk_abc1****`). Keys are validated by `service_app_service.validate_key()` with Redis caching.
 
+**Self-serve mode** (`SELF_SERVE_ENABLED`, default off) adds a fifth, browser-only
+surface: the hosted `/onboard` pages authenticate with the signed session cookie
+set by Duar's own OAuth callback. It never grants admin access, and admin cookies
+never authenticate `/onboard`. While the flag is off, `POST /workspaces` is 403.
+
 ---
 
 ## JWT Security

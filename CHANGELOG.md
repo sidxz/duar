@@ -10,7 +10,13 @@ For versions prior to `0.11.0`, see the git tag history (`git log --oneline -- s
 
 ## [Unreleased]
 
-<!-- Add next-version entries here -->
+### Added
+- **Self-serve workspaces** (`SELF_SERVE_ENABLED`, default off): Duar-hosted `/onboard` pages where a public-instance user joins a workspace through a one-time invitation link (optionally email-locked, 7-day, single-use, valid only while the inviter is still owner/admin) or creates one (per-user cap, instance-wide hourly breaker, generated slug). Inviter page at `/onboard/invites`. New table `workspace_invitations`; new activity actions `invitation_*`, `self_serve_denied`; `self_serve` block in `/admin/system/settings`. Apps integrate with two links; SDKs unchanged.
+
+### Changed
+- **Behavior change:** proxy-mode `POST /workspaces` now requires `SELF_SERVE_ENABLED` (403 otherwise). It was open to any user already holding a workspace-scoped token.
+- HTML pages' CSP `form-action` is now `'self'` (was `'none'`); `/onboard` responses are `Cache-Control: no-store`.
+- The proxy and admin OAuth callbacks share one IdP profile extractor (`_idp_profile`); behavior unchanged.
 
 ---
 

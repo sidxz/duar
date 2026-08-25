@@ -48,13 +48,13 @@ Updates the authenticated user's profile. Both fields are optional.
 
 | Method | Path | Min Role | Description |
 |---|---|---|---|
-| POST | `/workspaces` | any | Create workspace (caller becomes owner) |
+| POST | `/workspaces` | any | Create workspace (caller becomes owner). Requires `SELF_SERVE_ENABLED`; subject to the self-serve cap and hourly breaker (403 / 429). |
 | GET | `/workspaces` | any | List user's workspaces |
 | GET | `/workspaces/{id}` | any | Get workspace details |
 | PATCH | `/workspaces/{id}` | admin | Update workspace |
 | DELETE | `/workspaces/{id}` | owner | Delete workspace |
 | GET | `/workspaces/{id}/members` | any | List/search members |
-| POST | `/workspaces/{id}/members/invite` | admin | Invite member |
+| POST | `/workspaces/{id}/members/invite` | admin | Add an existing member (403 while `SELF_SERVE_ENABLED` — use invitations) |
 | PATCH | `/workspaces/{id}/members/{user_id}` | admin | Change member role |
 | DELETE | `/workspaces/{id}/members/{user_id}` | admin | Remove member |
 
