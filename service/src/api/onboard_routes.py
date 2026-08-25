@@ -15,14 +15,14 @@ import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import structlog
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.responses import HTMLResponse, RedirectResponse
+from starlette.responses import HTMLResponse, RedirectResponse, Response
 
 from src.api.auth_routes import (
     IdpProfileError,
@@ -39,6 +39,7 @@ from src.logging_events import log_security
 from src.middleware.rate_limit import get_client_ip, limiter
 from src.models.user import User
 from src.models.workspace import Workspace
+from src.schemas.validators import strip_html
 from src.services import (
     activity_service,
     auth_service,
@@ -487,3 +488,169 @@ async def logout(
         return _csrf_page()
     _clear_onboard_session(request)
     return RedirectResponse(_url(), status_code=303)
+
+
+# ── join / create ─────────────────────────────────────────────────────
+
+
+def _extract_code(value: str) -> str:
+    """Accept a bare code or a full ``/onboard?code=…`` link."""
+    value = value.strip()
+    if "code=" in value:
+        return (parse_qs(urlparse(value).query).get("code") or [""])[0].strip()
+    return value
+
+
+@router.post("/join")
+@limiter.limit(settings.rate_limit_auth)
+async def join(
+    request: Request,
+    code: str = Form(...),
+    csrf: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_enabled()
+    user = await _session_user(request, db)
+    if user is None:
+        return RedirectResponse(_url(), status_code=303)
+    if not _csrf_ok(request, csrf):
+        return _csrf_page()
+    code = _extract_code(code)[:256]
+    try:
+        inv = await invitation_service.redeem(db, user, code)
+    except invitation_service.InvitationInvalid:
+        log_security(
+            "invitation.rejected",
+            outcome="denied",
+            reason="invalid",
+            actor=str(user.id),
+        )
+        await activity_service.log_activity(
+            db,
+            action="invitation_rejected",
+            target_type="user",
+            target_id=user.id,
+            actor_id=user.id,
+            detail={"reason": "invalid"},
+        )
+        await db.commit()
+        _flash(request, "This invitation is invalid, expired, or already used.")
+        return RedirectResponse(_home(), status_code=303)
+    except ValueError as e:  # org allowlist — about the user, safe to show
+        log_security(
+            "invitation.rejected",
+            outcome="denied",
+            reason="org_not_allowed",
+            actor=str(user.id),
+        )
+        await activity_service.log_activity(
+            db,
+            action="invitation_rejected",
+            target_type="user",
+            target_id=user.id,
+            actor_id=user.id,
+            detail={"reason": "org_not_allowed"},
+        )
+        await db.commit()
+        _flash(request, str(e))
+        return RedirectResponse(_home(), status_code=303)
+    ws = await db.get(Workspace, inv.workspace_id)
+    await activity_service.log_activity(
+        db,
+        action="invitation_accepted",
+        target_type="workspace",
+        target_id=ws.id,
+        actor_id=user.id,
+        workspace_id=ws.id,
+        detail={"role": inv.role},
+    )
+    await db.commit()
+    log_security(
+        "invitation.accepted",
+        outcome="success",
+        actor=str(user.id),
+        workspace_id=str(ws.id),
+        role=inv.role,
+    )
+    request.session.pop("onboard_code", None)
+    request.session["onboard_result"] = {"kind": "joined", "workspace": ws.name}
+    return RedirectResponse(_url("/done"), status_code=303)
+
+
+@router.post("/create")
+@limiter.limit(settings.rate_limit_auth)
+async def create(
+    request: Request,
+    name: str = Form(...),
+    csrf: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_enabled()
+    user = await _session_user(request, db)
+    if user is None:
+        return RedirectResponse(_url(), status_code=303)
+    if not _csrf_ok(request, csrf):
+        return _csrf_page()
+    name = strip_html(name)[:255]  # SafeStr does not apply to Form() params
+    if not name:
+        _flash(request, "A workspace name is required.")
+        return RedirectResponse(_home(), status_code=303)
+    try:
+        ws = await workspace_service.create_self_serve(db, user, name)
+    except workspace_service.SelfServeCapReached:
+        return await _deny_create(
+            request,
+            db,
+            user,
+            "cap",
+            "You've reached the limit of workspaces you can create.",
+        )
+    except workspace_service.SelfServeThrottled:
+        await _deny_create(request, db, user, "throttled", None)
+        return _error_page(
+            429,
+            "Too Many Workspaces",
+            "Too many workspaces are being created right now — try again later.",
+            back_href=_home(),
+        )
+    await activity_service.log_activity(
+        db,
+        action="workspace_created",
+        target_type="workspace",
+        target_id=ws.id,
+        actor_id=user.id,
+        workspace_id=ws.id,
+        detail={"name": ws.name, "slug": ws.slug, "self_serve": True},
+    )
+    await db.commit()
+    log_security(
+        "workspace.self_serve.created",
+        outcome="success",
+        actor=str(user.id),
+        workspace_id=str(ws.id),
+    )
+    request.session["onboard_result"] = {"kind": "created", "workspace": ws.name}
+    return RedirectResponse(_url("/done"), status_code=303)
+
+
+async def _deny_create(
+    request: Request, db: AsyncSession, user: User, reason: str, flash: str | None
+) -> Response:
+    log_security(
+        "workspace.self_serve.denied",
+        outcome="denied",
+        reason=reason,
+        actor=str(user.id),
+    )
+    await activity_service.log_activity(
+        db,
+        action="self_serve_denied",
+        target_type="user",
+        target_id=user.id,
+        actor_id=user.id,
+        detail={"reason": reason},
+    )
+    await db.commit()
+    if flash:
+        _flash(request, flash)
+    return RedirectResponse(_home(), status_code=303)
