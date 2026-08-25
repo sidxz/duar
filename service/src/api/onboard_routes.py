@@ -15,6 +15,7 @@ import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 import structlog
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -30,7 +31,7 @@ from src.api.auth_routes import (
     _log_login_failure,
     _profile_error_page,
 )
-from src.api.authz_routes import _validate_authz_redirect_uri
+from src.api.authz_routes import service_app_origin_allowed
 from src.auth.providers import get_configured_providers, oauth
 from src.config import settings
 from src.database import get_db
@@ -119,7 +120,7 @@ async def _session_user(request: Request, db: AsyncSession) -> User | None:
         return None
     try:
         user = await db.get(User, uuid.UUID(raw))
-    except ValueError:
+    except (TypeError, ValueError):
         user = None
     if user is None or not user.is_active:
         _clear_onboard_session(request)
@@ -146,7 +147,13 @@ async def _store_return_to(
     request: Request, db: AsyncSession, value: str
 ) -> HTMLResponse | None:
     """Validate ``return_to`` against the ServiceApp origin allowlist and stash
-    it; returns an error page instead of storing anything on failure."""
+    it; returns an error page instead of storing anything on failure.
+
+    Uses the pure ``service_app_origin_allowed`` predicate (not
+    ``_validate_authz_redirect_uri``): /onboard is public and delivers nothing
+    to ``return_to``, so a rejection here is an ordinary denied redirect, not
+    the token-exfil-severity event the idp-proxy flow logs.
+    """
     if len(value) > _MAX_RETURN_TO:
         return _error_page(
             400,
@@ -154,9 +161,19 @@ async def _store_return_to(
             "The return address is too long.",
             back_href=_url(),
         )
-    try:
-        await _validate_authz_redirect_uri(db, value)
-    except HTTPException:
+    if not await service_app_origin_allowed(db, value):
+        parsed = urlparse(value)
+        origin = (
+            f"{parsed.scheme}://{parsed.netloc}"
+            if parsed.scheme and parsed.hostname
+            else None
+        )
+        log_security(
+            "onboard.return_to_rejected",
+            outcome="denied",
+            reason="not_allowed",
+            origin=origin,
+        )
         return _error_page(
             400,
             "Invalid Return URL",
@@ -177,6 +194,15 @@ def _client_meta(request: Request) -> dict:
 # ── entry / login / callback ──────────────────────────────────────────
 
 
+def _next_or_home(request: Request) -> str:
+    """Pop ``onboard_next`` and use it only if it stays inside /onboard —
+    otherwise a session carrying an attacker-supplied absolute URL there
+    (e.g. planted before a same-cookie-domain redirect) becomes an open
+    redirect on sign-in."""
+    nxt = request.session.pop("onboard_next", None)
+    return nxt if nxt and nxt.startswith(_url()) else _home()
+
+
 @router.get("", response_class=HTMLResponse)
 async def entry(
     request: Request,
@@ -186,22 +212,32 @@ async def entry(
     db: AsyncSession = Depends(get_db),
 ):
     _require_enabled()
-    if return_to is not None or code is not None:
-        for key in _RESET_KEYS:
-            request.session.pop(key, None)
-        if return_to is not None:
+    if return_to or code:
+        # Validate BEFORE touching the session: a rejected return_to must
+        # leave any earlier round (code/return_to/next) untouched. Empty
+        # string ("return_to=") is treated as absent, not as a value to
+        # validate — an empty return_to must never drop an accompanying code.
+        if return_to:
             err = await _store_return_to(request, db, return_to)
             if err is not None:
                 return err
+        # Now that this round can't fail: start a fresh round (clears any
+        # stale code/return_to/next/flash/result from an earlier one), then
+        # store what's fresh. _store_return_to already wrote onboard_return_to
+        # above; the reset loop below pops it right back out, so it's set
+        # again here — simplest way to keep both "validate first" and
+        # "reset-then-set" true at once.
+        for key in _RESET_KEYS:
+            request.session.pop(key, None)
+        if return_to:
+            request.session["onboard_return_to"] = return_to
         if code:
             request.session["onboard_code"] = code.strip()[:128]
         # PRG: the code never persists in history / the address bar.
         return RedirectResponse(_url(), status_code=303)
 
     if await _session_user(request, db) is not None:
-        return RedirectResponse(
-            request.session.pop("onboard_next", None) or _home(), status_code=302
-        )
+        return RedirectResponse(_next_or_home(request), status_code=302)
 
     providers = get_configured_providers()
     target = (
@@ -360,9 +396,7 @@ async def callback(provider: str, request: Request, db: AsyncSession = Depends(g
         request.session["onboard_user_id"] = str(user.id)
         request.session["onboard_csrf"] = secrets.token_urlsafe(32)
         request.session["onboard_seen"] = int(time.time())
-        return RedirectResponse(
-            request.session.pop("onboard_next", None) or _home(), status_code=302
-        )
+        return RedirectResponse(_next_or_home(request), status_code=302)
     except HTTPException:
         raise
     except Exception as e:

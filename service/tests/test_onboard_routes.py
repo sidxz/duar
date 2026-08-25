@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 import pytest_asyncio
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.sessions import SessionMiddleware
@@ -103,7 +103,13 @@ def _login(client, user_id, extra=None):
 
 def test_everything_404_when_flag_off(client, monkeypatch):
     monkeypatch.setattr(settings, "self_serve_enabled", False)
-    for path in ("/onboard", "/onboard/home", "/onboard/login/google", "/onboard/done"):
+    for path in (
+        "/onboard",
+        "/onboard/home",
+        "/onboard/login/google",
+        "/onboard/callback/google",
+        "/onboard/done",
+    ):
         assert client.get(path).status_code == 404, path
     assert client.post("/onboard/logout", data={"csrf": "x"}).status_code == 404
 
@@ -114,7 +120,9 @@ def test_everything_404_when_flag_off(client, monkeypatch):
 @pytest.mark.asyncio
 async def test_entry_prg_stores_code_and_validated_return_to(client, db):
     with patch.object(
-        onboard_routes, "_validate_authz_redirect_uri", new_callable=AsyncMock
+        onboard_routes,
+        "service_app_origin_allowed",
+        AsyncMock(return_value=True),
     ):
         r = client.get(
             "/onboard", params={"code": "abc", "return_to": "https://app.example/login"}
@@ -139,12 +147,28 @@ async def test_entry_prg_stores_code_and_validated_return_to(client, db):
 def test_entry_rejects_off_allowlist_return_to(client):
     with patch.object(
         onboard_routes,
-        "_validate_authz_redirect_uri",
-        AsyncMock(side_effect=HTTPException(status_code=400, detail="nope")),
+        "service_app_origin_allowed",
+        AsyncMock(return_value=False),
     ):
         r = client.get("/onboard", params={"return_to": "https://evil.example/"})
     assert r.status_code == 400 and "Return" in r.text
     assert "session" not in client.cookies
+
+
+@pytest.mark.asyncio
+async def test_entry_empty_return_to_treated_as_absent_keeps_code(client, db):
+    # return_to="" must not validate-and-reject (which would also drop the
+    # accompanying code) — it's treated the same as return_to being absent.
+    r = client.get("/onboard", params={"return_to": "", "code": "abc"})
+    assert r.status_code == 303 and r.headers["location"] == "http://testserver/onboard"
+    from base64 import b64decode
+    import json
+    from itsdangerous import TimestampSigner
+
+    raw = TimestampSigner(SECRET).unsign(client.cookies["session"])
+    sess = json.loads(b64decode(raw))
+    assert sess["onboard_code"] == "abc"
+    assert "onboard_return_to" not in sess
 
 
 def test_entry_rejects_oversized_return_to(client):
@@ -182,6 +206,17 @@ async def test_entry_signed_in_goes_home_and_keeps_identity(client, db):
     assert r.status_code == 303
     r = client.get("/onboard")
     assert r.status_code == 302 and r.headers["location"].endswith("/onboard/home")
+
+
+@pytest.mark.asyncio
+async def test_entry_ignores_offsite_onboard_next(client, db):
+    u = await _user(db)
+    _login(client, u.id, {"onboard_next": "https://evil.example/"})
+    r = client.get("/onboard")
+    assert (
+        r.status_code == 302
+        and r.headers["location"] == "http://testserver/onboard/home"
+    )
 
 
 # ── login / callback ──────────────────────────────────────────────────
@@ -379,6 +414,8 @@ async def test_home_deactivated_user_is_logged_out(client, db):
     _login(client, u.id)
     r = client.get("/onboard/home")
     assert r.status_code == 302
+    # the onboard_* session was actually cleared, not just redirected past
+    assert "session=null" in r.headers.get("set-cookie", "")
 
 
 @pytest.mark.asyncio
@@ -425,6 +462,12 @@ async def test_home_already_member_shows_continue(client, db):
     page = client.get("/onboard/home").text
     assert "already a member of <strong>Acme</strong>" in page
     assert "Join Acme" not in page
+
+
+def test_logout_without_session_redirects_not_403(client):
+    # session-before-csrf: no cookie at all must never reach the CSRF check.
+    r = client.post("/onboard/logout", data={"csrf": "whatever"})
+    assert r.status_code == 303 and r.headers["location"].endswith("/onboard")
 
 
 @pytest.mark.asyncio
