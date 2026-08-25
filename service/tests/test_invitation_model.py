@@ -1,4 +1,3 @@
-import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -49,8 +48,16 @@ async def test_role_check_constraint(db):
 async def test_code_hash_unique(db):
     ws = await _ws(db)
     exp = datetime.now(UTC) + timedelta(days=7)
-    db.add(WorkspaceInvitation(workspace_id=ws.id, code_hash="h", role="viewer", expires_at=exp))
+    db.add(
+        WorkspaceInvitation(
+            workspace_id=ws.id, code_hash="h", role="viewer", expires_at=exp
+        )
+    )
     await db.flush()
-    db.add(WorkspaceInvitation(workspace_id=ws.id, code_hash="h", role="viewer", expires_at=exp))
+    db.add(
+        WorkspaceInvitation(
+            workspace_id=ws.id, code_hash="h", role="viewer", expires_at=exp
+        )
+    )
     with pytest.raises(IntegrityError):
         await db.flush()
