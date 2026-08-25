@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import uuid
 from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
@@ -366,3 +367,68 @@ async def test_peek_list_and_revoke(db):
     assert await svc.list_for_workspace(db, ws.id, now=NOW) == []
     with pytest.raises(svc.InvitationInvalid):
         await svc.revoke(db, inv.id, actor_id=owner.id, now=NOW)
+
+
+@pytest.mark.asyncio
+async def test_claim_gate_rejects_already_accepted_after_peek(db, monkeypatch):
+    """The atomic UPDATE's WHERE, not just peek's, must reject a stale claim.
+
+    Simulates the race peek can't see: another redeemer wins the claim between
+    peek's read and this caller's UPDATE. Force it by mutating the row behind
+    the service's back, then feeding redeem a stale (pre-mutation) peek result
+    so it falls through to the real conditional UPDATE.
+    """
+    owner = await _user(db, "o@example.com")
+    ws = await _workspace(db, owner)
+    invitee = await _user(db, "i@example.com")
+    other = await _user(db, "other@example.com")
+    inv, code = await svc.create(
+        db,
+        workspace_id=ws.id,
+        role="viewer",
+        created_by=owner.id,
+        actor_role="owner",
+        now=NOW,
+    )
+    inv.accepted_by = other.id
+    inv.accepted_at = NOW
+    await db.commit()
+    monkeypatch.setattr(svc, "peek", AsyncMock(return_value=inv))
+    with pytest.raises(svc.InvitationInvalid):
+        await svc.redeem(db, invitee, code, now=NOW)
+    assert await _role(db, ws, invitee) is None
+
+
+@pytest.mark.asyncio
+async def test_claim_gate_rejects_inviter_demoted_after_peek(db, monkeypatch):
+    """Same gate, other half of the WHERE: inviter standing evaluated at claim time.
+
+    The inviter loses admin standing between peek's read and this caller's
+    UPDATE; the correlated EXISTS in the UPDATE's WHERE (not peek) must catch it.
+    """
+    owner = await _user(db, "o@example.com")
+    ws = await _workspace(db, owner)
+    admin = await _user(db, "a@example.com")
+    db.add(WorkspaceMembership(workspace_id=ws.id, user_id=admin.id, role="admin"))
+    await db.commit()
+    invitee = await _user(db, "i@example.com")
+    inv, code = await svc.create(
+        db,
+        workspace_id=ws.id,
+        role="viewer",
+        created_by=admin.id,
+        actor_role="admin",
+        now=NOW,
+    )
+    m = await db.scalar(
+        select(WorkspaceMembership).where(
+            WorkspaceMembership.workspace_id == ws.id,
+            WorkspaceMembership.user_id == admin.id,
+        )
+    )
+    m.role = "editor"
+    await db.commit()
+    monkeypatch.setattr(svc, "peek", AsyncMock(return_value=inv))
+    with pytest.raises(svc.InvitationInvalid):
+        await svc.redeem(db, invitee, code, now=NOW)
+    assert await _role(db, ws, invitee) is None

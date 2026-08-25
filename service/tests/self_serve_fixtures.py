@@ -25,6 +25,16 @@ def _jsonb_sqlite(type_, compiler, **kw):
     return "JSON"
 
 
+# Gotcha for anyone hardcoding a UUID constant against this engine: SQLite gives
+# a column declared `postgresql.UUID` (our models' type for every id/fk) NUMERIC
+# affinity, since the literal type name "UUID" contains none of INT/CHAR/TEXT/
+# BLOB/REAL. An all-digit hex UUID (e.g. "...0000-0000-000000000001") gets
+# silently coerced to the Python int 1 on INSERT, then crashes on readback
+# (`AttributeError: 'int' object has no attribute 'replace'` from uuid.UUID()).
+# Real uuid4()-generated ids are safe (near-zero odds of being all-digit); a
+# hand-picked test constant must include at least one hex letter (a-f).
+
+
 TABLES = [
     "users",
     "social_accounts",
