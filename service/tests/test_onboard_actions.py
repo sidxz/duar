@@ -169,6 +169,21 @@ async def test_join_invalid_code_flashes_generic(client, db):
 # ── create ────────────────────────────────────────────────────────────
 
 
+def test_create_without_session_redirects_not_403(client):
+    r = client.post("/onboard/create", data={"name": "x", "csrf": "whatever"})
+    assert r.status_code == 303 and r.headers["location"].endswith("/onboard")
+
+
+@pytest.mark.asyncio
+async def test_create_wrong_csrf_403(client, db):
+    u = await _user(db)
+    _login(client, u.id)
+    assert (
+        client.post("/onboard/create", data={"name": "x", "csrf": "nope"}).status_code
+        == 403
+    )
+
+
 @pytest.mark.asyncio
 async def test_create_happy_path(client, db):
     u = await _user(db)
@@ -188,7 +203,11 @@ async def test_create_cap_flashes_and_audits(client, db):
     client.post("/onboard/create", data={"name": "One", "csrf": "tok"})
     r = client.post("/onboard/create", data={"name": "Two", "csrf": "tok"})
     assert r.status_code == 303 and r.headers["location"].endswith("/onboard/home")
-    assert "limit" in client.get("/onboard/home").text.lower()
+    page = client.get("/onboard/home").text
+    assert "reached the limit of workspaces you can create." in page
+    # distinguishes the flash rendering from home.html's static "at cap" paragraph,
+    # which contains the identical sentence regardless of any flash
+    assert 'class="flash">You' in page
     assert "self_serve_denied" in await _actions(db)
 
 
@@ -206,5 +225,19 @@ async def test_create_empty_name_flashes(client, db):
     u = await _user(db)
     _login(client, u.id)
     r = client.post("/onboard/create", data={"name": "<i></i>", "csrf": "tok"})
-    assert r.status_code == 303
-    assert "name" in client.get("/onboard/home").text.lower()
+    assert r.status_code == 303 and r.headers["location"].endswith("/onboard/home")
+    assert "A workspace name is required." in client.get("/onboard/home").text
+
+
+# ── flag ──────────────────────────────────────────────────────────────
+
+
+def test_join_and_create_404_when_flag_off(client, monkeypatch):
+    monkeypatch.setattr(settings, "self_serve_enabled", False)
+    assert (
+        client.post("/onboard/join", data={"code": "x", "csrf": "x"}).status_code == 404
+    )
+    assert (
+        client.post("/onboard/create", data={"name": "x", "csrf": "x"}).status_code
+        == 404
+    )
