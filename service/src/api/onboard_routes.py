@@ -15,7 +15,7 @@ import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 import structlog
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -654,3 +654,151 @@ async def _deny_create(
     if flash:
         _flash(request, flash)
     return RedirectResponse(_home(), status_code=303)
+
+
+# ── inviter side ──────────────────────────────────────────────────────
+
+
+def _invites_url(workspace_id: uuid.UUID | None) -> str:
+    return _url("/invites") + (f"?workspace={workspace_id}" if workspace_id else "")
+
+
+@router.get("/invites", response_class=HTMLResponse)
+async def invites(
+    request: Request,
+    workspace: str | None = None,
+    return_to: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    _require_enabled()
+    try:
+        wanted = uuid.UUID(workspace) if workspace else None
+    except ValueError:
+        wanted = None
+    if return_to is not None:
+        err = await _store_return_to(request, db, return_to)
+        if err is not None:
+            return err
+    user = await _session_user(request, db)
+    if user is None:
+        # Only ever a value WE build from a validated uuid — never raw input.
+        request.session["onboard_next"] = _invites_url(wanted)
+        return RedirectResponse(_url(), status_code=302)
+    admin_ws = await workspace_service.list_admin_workspaces(db, user.id)
+    selected = next(
+        (ws for ws, _r in admin_ws if ws.id == wanted),
+        admin_ws[0][0] if admin_ws else None,
+    )
+    pending = (
+        await invitation_service.list_for_workspace(db, selected.id) if selected else []
+    )
+    return _render(
+        request,
+        "invites.html",
+        admin_workspaces=admin_ws,
+        selected=selected,
+        pending=pending,
+        new_invite=request.session.pop("onboard_new_invite", None),
+    )
+
+
+@router.post("/invites")
+@limiter.limit(settings.rate_limit_auth)
+async def create_invite(
+    request: Request,
+    workspace_id: uuid.UUID = Form(...),
+    role: str = Form("viewer"),
+    email: str = Form(""),
+    csrf: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_enabled()
+    user = await _session_user(request, db)
+    if user is None:
+        return RedirectResponse(_url(), status_code=303)
+    if not _csrf_ok(request, csrf):
+        return _csrf_page()
+    actor_role = await workspace_service.get_member_role(db, workspace_id, user.id)
+    if actor_role not in ("owner", "admin"):
+        return _error_page(
+            403,
+            "Not Allowed",
+            "Only workspace owners and admins can invite.",
+            back_href=_invites_url(None),
+        )
+    try:
+        inv, code = await invitation_service.create(
+            db,
+            workspace_id=workspace_id,
+            role=role,
+            created_by=user.id,
+            actor_role=actor_role,
+            email=email.strip() or None,
+        )
+    except ValueError as e:
+        _flash(request, str(e))
+        return RedirectResponse(_invites_url(workspace_id), status_code=303)
+    await activity_service.log_activity(
+        db,
+        action="invitation_created",
+        target_type="workspace",
+        target_id=workspace_id,
+        actor_id=user.id,
+        workspace_id=workspace_id,
+        detail={"role": role, "locked": bool(inv.email)},
+    )
+    await db.commit()
+    log_security(
+        "invitation.created",
+        outcome="success",
+        actor=str(user.id),
+        workspace_id=str(workspace_id),
+        role=role,
+        locked=bool(inv.email),
+    )
+    params = {"code": code}
+    if request.session.get("onboard_return_to"):
+        params["return_to"] = request.session["onboard_return_to"]
+    # One-time display: PRG so a refresh does not re-POST; the next GET pops it.
+    request.session["onboard_new_invite"] = {
+        "link": f"{_url()}?{urlencode(params)}",
+        "code": code,
+    }
+    return RedirectResponse(_invites_url(workspace_id), status_code=303)
+
+
+@router.post("/invites/{invitation_id}/revoke")
+async def revoke_invite(
+    request: Request,
+    invitation_id: uuid.UUID,
+    csrf: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_enabled()
+    user = await _session_user(request, db)
+    if user is None:
+        return RedirectResponse(_url(), status_code=303)
+    if not _csrf_ok(request, csrf):
+        return _csrf_page()
+    try:
+        inv = await invitation_service.revoke(db, invitation_id, actor_id=user.id)
+    except (invitation_service.InvitationInvalid, PermissionError):
+        _flash(request, "That invitation could not be revoked.")
+        return RedirectResponse(_invites_url(None), status_code=303)
+    await activity_service.log_activity(
+        db,
+        action="invitation_revoked",
+        target_type="workspace",
+        target_id=inv.workspace_id,
+        actor_id=user.id,
+        workspace_id=inv.workspace_id,
+    )
+    await db.commit()
+    log_security(
+        "invitation.revoked",
+        outcome="success",
+        actor=str(user.id),
+        workspace_id=str(inv.workspace_id),
+    )
+    _flash(request, "Invitation revoked.", ok=True)
+    return RedirectResponse(_invites_url(inv.workspace_id), status_code=303)

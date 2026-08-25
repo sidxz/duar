@@ -131,7 +131,16 @@ async def revoke(
     _require_enabled()
     now = now or datetime.now(UTC)
     inv = await db.get(WorkspaceInvitation, invitation_id)
-    if inv is None or inv.accepted_at or inv.revoked_at or inv.expires_at <= now:
+    if inv is None or inv.accepted_at or inv.revoked_at:
+        raise InvitationInvalid()
+    # SQLite (tests) doesn't round-trip tzinfo on DateTime(timezone=True) the
+    # way Postgres (prod) does — a freshly-loaded row can come back naive.
+    # Everything this column ever holds is UTC, so treat naive as UTC rather
+    # than let it blow up the `now` comparison below.
+    expires_at = (
+        inv.expires_at if inv.expires_at.tzinfo else inv.expires_at.replace(tzinfo=UTC)
+    )
+    if expires_at <= now:
         raise InvitationInvalid()
     actor_role = await db.scalar(
         select(WorkspaceMembership.role).where(

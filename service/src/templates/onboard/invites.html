@@ -1,0 +1,72 @@
+{% extends "onboard/base.html" %}
+{% block title %}Invite people{% endblock %}
+{% block width %}600px{% endblock %}
+{% block content %}
+<h1>Invite people</h1>
+
+{% if new_invite %}
+<div class="card-inv">
+  <p><strong>Shown once — copy it now.</strong> Send this link to the person you're inviting.</p>
+  <label for="link">Invite link</label>
+  <input type="text" id="link" readonly value="{{ new_invite.link }}">
+  <label for="newcode">or just the code</label>
+  <input type="text" id="newcode" readonly value="{{ new_invite.code }}">
+</div>
+{% endif %}
+
+{% if not admin_workspaces %}
+<p>You're not an owner or admin of any workspace yet.</p>
+{% else %}
+<form method="get" action="{{ base_url }}/onboard/invites">
+  <label for="workspace">Workspace</label>
+  <select id="workspace" name="workspace">
+  {% for ws, role in admin_workspaces %}
+    <option value="{{ ws.id }}" {% if selected and ws.id == selected.id %}selected{% endif %}>{{ ws.name }} ({{ role }})</option>
+  {% endfor %}
+  </select>
+  <div class="row"><button class="btn secondary" type="submit">Switch</button></div>
+</form>
+
+<h2>New invitation for {{ selected.name }}</h2>
+<form method="post" action="{{ base_url }}/onboard/invites">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="workspace_id" value="{{ selected.id }}">
+  <label for="role">Role</label>
+  <select id="role" name="role">
+    <option value="viewer">viewer</option>
+    <option value="editor">editor</option>
+    <option value="admin">admin</option>
+  </select>
+  <label for="email">Lock to an email (optional)</label>
+  <input type="email" id="email" name="email" placeholder="anyone with the link" maxlength="254">
+  <div class="row"><button class="btn" type="submit">Create invite link</button></div>
+</form>
+
+<h2>Pending invitations</h2>
+{% if not pending %}<p>None.</p>{% else %}
+<table>
+  <tr><th>Who</th><th>Role</th><th>Expires</th><th></th></tr>
+  {% for inv in pending %}
+  <tr>
+    <td>{{ inv.email or 'anyone' }}</td>
+    <td>{{ inv.role }}</td>
+    <td>{{ inv.expires_at.strftime('%Y-%m-%d') }}</td>
+    <td>
+      <form method="post" action="{{ base_url }}/onboard/invites/{{ inv.id }}/revoke">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="btn secondary" type="submit">Revoke</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endif %}
+{% endblock %}
+{% block footer %}
+<div class="meta">
+  <a href="{{ base_url }}/onboard/home">Workspaces</a>
+  {% if return_to %}<a href="{{ return_to }}">Back to app</a>{% endif %}
+  <form method="post" action="{{ base_url }}/onboard/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button type="submit">Sign out</button></form>
+</div>
+{% endblock %}
