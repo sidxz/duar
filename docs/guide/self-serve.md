@@ -41,6 +41,12 @@ a `return_to`) → signs into the app (silent; the IdP session is live).
 lock) → **Create invite link** → copy the link, send it however you like.
 Duar does not send email.
 
+**Workspace admin — manage members** — the same `Manage workspaces` page lists
+the workspace's members with their roles: change a role (only owners can grant
+or demote `owner`; the last owner can never be demoted), remove a member
+(their live app sessions are revoked), or rename the workspace. Any member can
+leave a workspace from the `/onboard/home` list — except its last owner.
+
 ## App integration
 
 Two links; no SDK changes:

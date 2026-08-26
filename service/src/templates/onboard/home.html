@@ -34,7 +34,15 @@
 {% if workspaces %}
 <h2>You're already in</h2>
 <ul>
-{% for ws in workspaces %}<li>{{ ws.name }}</li>{% endfor %}
+{% for ws in workspaces %}
+<li class="row">{{ ws.name }}
+  <form method="post" action="{{ base_url }}/onboard/leave">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="workspace_id" value="{{ ws.id }}">
+    <button class="btn secondary" type="submit">Leave</button>
+  </form>
+</li>
+{% endfor %}
 </ul>
 <div class="row"><a class="btn secondary" href="{{ base_url }}/onboard/done">Continue</a></div>
 {% endif %}
@@ -55,7 +63,7 @@
 {% endblock %}
 {% block footer %}
 <div class="meta">
-  <a href="{{ base_url }}/onboard/invites">Invite people</a>
+  <a href="{{ base_url }}/onboard/invites">Manage workspaces</a>
   {% if return_to %}<a href="{{ return_to }}">Back to app</a>{% endif %}
   <form method="post" action="{{ base_url }}/onboard/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button type="submit">Sign out</button></form>
 </div>

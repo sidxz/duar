@@ -45,6 +45,12 @@ TABLES = [
     "workspace_memberships",
     "workspace_invitations",
     "activity_logs",
+    "groups",
+    "group_memberships",
+    "roles",
+    "user_roles",
+    "resource_permissions",
+    "resource_shares",
 ]
 
 

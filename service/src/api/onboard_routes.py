@@ -70,6 +70,7 @@ _RESET_KEYS = (
     "onboard_new_invite",
 )
 _MAX_RETURN_TO = 2048
+_ROLES = ("owner", "admin", "editor", "viewer")
 
 
 def _require_enabled() -> None:
@@ -695,12 +696,19 @@ async def invites(
     pending = (
         await invitation_service.list_for_workspace(db, selected.id) if selected else []
     )
+    members = await workspace_service.list_members(db, selected.id) if selected else []
+    actor_role = next(
+        (r for ws, r in admin_ws if selected and ws.id == selected.id), None
+    )
     return _render(
         request,
         "invites.html",
         admin_workspaces=admin_ws,
         selected=selected,
         pending=pending,
+        members=members,
+        actor_role=actor_role,
+        me=user.id,
         new_invite=request.session.pop("onboard_new_invite", None),
     )
 
@@ -805,3 +813,179 @@ async def revoke_invite(
     )
     _flash(request, "Invitation revoked.", ok=True)
     return RedirectResponse(_invites_url(inv.workspace_id), status_code=303)
+
+
+# ── workspace management ────────────────────────────────────────────────
+
+
+async def _manage_actor(
+    request: Request, db: AsyncSession, workspace_id: uuid.UUID, csrf: str
+) -> tuple[User, str] | Response:
+    """Session → CSRF → owner/admin of ``workspace_id``; returns (user, actor_role)
+    or the response to send instead."""
+    user = await _session_user(request, db)
+    if user is None:
+        return RedirectResponse(_url(), status_code=303)
+    if not _csrf_ok(request, csrf):
+        return _csrf_page()
+    actor_role = await workspace_service.get_member_role(db, workspace_id, user.id)
+    if actor_role not in ("owner", "admin"):
+        return _error_page(
+            403,
+            "Not Allowed",
+            "Only workspace owners and admins can manage members.",
+            back_href=_invites_url(None),
+        )
+    return user, actor_role
+
+
+@router.post("/members/{user_id}/role")
+@limiter.limit(settings.rate_limit_auth)
+async def change_member_role(
+    request: Request,
+    user_id: uuid.UUID,
+    workspace_id: uuid.UUID = Form(...),
+    role: str = Form(...),
+    csrf: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_enabled()
+    ctx = await _manage_actor(request, db, workspace_id, csrf)
+    if isinstance(ctx, Response):
+        return ctx
+    user, actor_role = ctx
+    if role not in _ROLES:
+        _flash(request, "Invalid role.")
+        return RedirectResponse(_invites_url(workspace_id), status_code=303)
+    try:
+        await workspace_service.update_member_role(
+            db, workspace_id, user_id, role=role, actor_role=actor_role
+        )
+    except ValueError as e:
+        _flash(request, str(e))
+        return RedirectResponse(_invites_url(workspace_id), status_code=303)
+    await activity_service.log_activity(
+        db,
+        action="member_role_changed",
+        target_type="user",
+        target_id=user_id,
+        actor_id=user.id,
+        workspace_id=workspace_id,
+        detail={"role": role},
+    )
+    await db.commit()
+    _flash(request, "Role updated.", ok=True)
+    return RedirectResponse(_invites_url(workspace_id), status_code=303)
+
+
+@router.post("/members/{user_id}/remove")
+@limiter.limit(settings.rate_limit_auth)
+async def remove_member(
+    request: Request,
+    user_id: uuid.UUID,
+    workspace_id: uuid.UUID = Form(...),
+    csrf: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_enabled()
+    ctx = await _manage_actor(request, db, workspace_id, csrf)
+    if isinstance(ctx, Response):
+        return ctx
+    user, actor_role = ctx
+    try:
+        await workspace_service.remove_member(
+            db, workspace_id, user_id, actor_role=actor_role
+        )
+    except ValueError as e:
+        _flash(request, str(e))
+        return RedirectResponse(_invites_url(workspace_id), status_code=303)
+    await activity_service.log_activity(
+        db,
+        action="member_removed",
+        target_type="user",
+        target_id=user_id,
+        actor_id=user.id,
+        workspace_id=workspace_id,
+    )
+    await db.commit()
+    _flash(request, "Member removed.", ok=True)
+    # Removing yourself as an admin is allowed by the service; the page you came from may now 403.
+    target = _home() if user_id == user.id else _invites_url(workspace_id)
+    return RedirectResponse(target, status_code=303)
+
+
+@router.post("/workspace/rename")
+@limiter.limit(settings.rate_limit_auth)
+async def rename_workspace(
+    request: Request,
+    workspace_id: uuid.UUID = Form(...),
+    name: str = Form(...),
+    csrf: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_enabled()
+    ctx = await _manage_actor(request, db, workspace_id, csrf)
+    if isinstance(ctx, Response):
+        return ctx
+    user, _actor_role = ctx
+    name = strip_html(name)[:255]
+    if not name:
+        _flash(request, "A workspace name is required.")
+        return RedirectResponse(_invites_url(workspace_id), status_code=303)
+    try:
+        await workspace_service.update_workspace(db, workspace_id, name=name)
+    except ValueError as e:
+        _flash(request, str(e))
+        return RedirectResponse(_invites_url(workspace_id), status_code=303)
+    await activity_service.log_activity(
+        db,
+        action="workspace_updated",
+        target_type="workspace",
+        target_id=workspace_id,
+        actor_id=user.id,
+        workspace_id=workspace_id,
+        detail={"name": name},
+    )
+    await db.commit()
+    _flash(request, "Workspace renamed.", ok=True)
+    return RedirectResponse(_invites_url(workspace_id), status_code=303)
+
+
+@router.post("/leave")
+@limiter.limit(settings.rate_limit_auth)
+async def leave_workspace(
+    request: Request,
+    workspace_id: uuid.UUID = Form(...),
+    csrf: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_enabled()
+    user = await _session_user(request, db)
+    if user is None:
+        return RedirectResponse(_url(), status_code=303)
+    if not _csrf_ok(request, csrf):
+        return _csrf_page()
+    own_role = await workspace_service.get_member_role(db, workspace_id, user.id)
+    if own_role is None:
+        _flash(request, "You're not a member of that workspace.")
+        return RedirectResponse(_home(), status_code=303)
+    ws = await db.get(Workspace, workspace_id)
+    try:
+        await workspace_service.remove_member(
+            db, workspace_id, user.id, actor_role=own_role
+        )
+    except ValueError as e:  # e.g. the last owner cannot leave
+        _flash(request, str(e))
+        return RedirectResponse(_home(), status_code=303)
+    await activity_service.log_activity(
+        db,
+        action="member_removed",
+        target_type="user",
+        target_id=user.id,
+        actor_id=user.id,
+        workspace_id=workspace_id,
+        detail={"left": True},
+    )
+    await db.commit()
+    _flash(request, f"You left {ws.name if ws else 'the workspace'}.", ok=True)
+    return RedirectResponse(_home(), status_code=303)
