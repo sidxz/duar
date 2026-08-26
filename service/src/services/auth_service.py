@@ -28,8 +28,14 @@ class CrossProviderEmailConflict(Exception):
     """Raised when an IdP login's email matches a user from a different provider."""
 
 
-def is_email_verified_claim(userinfo: dict, provider: str) -> bool:
+def is_email_verified_claim(
+    userinfo: dict, provider: str, *, strict: bool = False
+) -> bool:
     """Check that OIDC claims assert a verified email address.
+
+    ``strict=True`` (hosted /onboard) drops the Entra tenant-pin exemption below
+    and requires an explicit ``xms_edov: True`` — the pin does not verify
+    guest-account addresses.
 
     Per OIDC Core 1.0 §5.1, ``email_verified`` is a boolean. Some IdPs emit
     stringified booleans (``"true"``/``"false"``); the string ``"false"`` is
@@ -56,6 +62,8 @@ def is_email_verified_claim(userinfo: dict, provider: str) -> bool:
         return True
     if provider != "entra_id":
         return False
+    if strict:
+        return userinfo.get("xms_edov") is True
     # ponytail: tenant pin IS the verification. If this deployment ever accepts
     # multi-tenant Entra issuers (`organizations`/`common`), drop this branch and
     # require `xms_edov is True` — a foreign tenant vouches only for itself.

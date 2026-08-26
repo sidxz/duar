@@ -190,6 +190,19 @@ async def test_owner_promotes_editor_to_admin(client, db, _no_redis):
 
 
 @pytest.mark.asyncio
+async def test_unchanged_role_save_writes_no_audit(client, db):
+    ws, users = await _ws_with(db, {"owner": "owner", "editor": "editor"})
+    _login(client, users["owner"].id)
+    r = client.post(
+        f"/onboard/members/{users['editor'].id}/role",
+        data={"workspace_id": str(ws.id), "role": "editor", "csrf": "tok"},
+    )
+    assert r.status_code == 303
+    assert "member_role_changed" not in await _actions(db)
+    assert "Role unchanged" in client.get("/onboard/invites").text
+
+
+@pytest.mark.asyncio
 async def test_admin_cannot_grant_owner(client, db):
     ws, users = await _ws_with(
         db, {"owner": "owner", "admin": "admin", "editor": "editor"}
@@ -268,7 +281,10 @@ async def test_role_change_session_before_csrf(client, db):
         f"/onboard/members/{users['editor'].id}/role",
         data={"workspace_id": str(ws.id), "role": "admin", "csrf": "tok"},
     )
-    assert r.status_code == 303 and r.headers["location"] == "http://testserver/onboard"
+    assert (
+        r.status_code == 303
+        and r.headers["location"] == "http://testserver/onboard/login"
+    )
     _login(client, users["owner"].id)
     r2 = client.post(
         f"/onboard/members/{users['editor'].id}/role",
@@ -281,7 +297,10 @@ async def test_role_change_session_before_csrf(client, db):
 async def test_leave_session_before_csrf(client, db):
     ws, users = await _ws_with(db, {"owner": "owner", "editor": "editor"})
     r = client.post("/onboard/leave", data={"workspace_id": str(ws.id), "csrf": "tok"})
-    assert r.status_code == 303 and r.headers["location"] == "http://testserver/onboard"
+    assert (
+        r.status_code == 303
+        and r.headers["location"] == "http://testserver/onboard/login"
+    )
     _login(client, users["editor"].id)
     r2 = client.post(
         "/onboard/leave", data={"workspace_id": str(ws.id), "csrf": "nope"}

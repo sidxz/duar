@@ -87,7 +87,7 @@ def test_create_workspace_audited(monkeypatch, activity):
 
     new_id = uuid.uuid4()
 
-    async def _create(_db, _actor, name, slug=None):
+    async def _create(_db, _actor, name, slug=None, description=None):
         return _workspace_ns(ws_id=new_id)
 
     monkeypatch.setattr(

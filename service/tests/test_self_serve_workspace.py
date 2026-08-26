@@ -59,9 +59,9 @@ def test_slugify():
 @pytest.mark.asyncio
 async def test_creates_workspace_with_generated_slug_and_owner(db):
     user = await _user(db)
-    ws = await create_self_serve(db, user, "Acme Corp", now=NOW)
+    ws = await create_self_serve(db, user, "Acme Corp", description="d", now=NOW)
     assert ws.slug.startswith("acme-corp-") and len(ws.slug) == len("acme-corp-") + 4
-    assert ws.created_by == user.id
+    assert ws.created_by == user.id and ws.description == "d"
     role = await workspace_service.get_member_role(db, ws.id, user.id)
     assert role == "owner"
 
@@ -77,8 +77,11 @@ async def test_slug_collision_retry_does_not_expire_user(db, monkeypatch):
         workspace_service.secrets, "token_hex", Mock(side_effect=["aaaa", "bbbb"])
     )
     user = await _user(db)
+    await db.commit()  # persistent like a route's db.get() user: rollback EXPIRES it
+    user = await db.get(User, user.id)
     ws = await create_self_serve(db, user, "Acme", now=NOW)
     assert ws.slug == "acme-bbbb"
+    assert ws.created_by == user.id  # would MissingGreenlet if still expired
     assert await workspace_service.get_member_role(db, ws.id, user.id) == "owner"
 
 

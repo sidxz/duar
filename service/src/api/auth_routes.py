@@ -61,12 +61,14 @@ class IdpProfileError(Exception):
         self.count_for_stuffing = count_for_stuffing
 
 
-async def _idp_profile(client, token: dict, provider: str) -> IdpProfile:
+async def _idp_profile(
+    client, token: dict, provider: str, *, strict_email: bool = False
+) -> IdpProfile:
     """Extract the signed-in identity from an authlib token, provider-aware.
 
     GitHub: profile + /user/emails (primary AND verified only). OIDC providers:
     the ID-token claims, gated by ``is_email_verified_claim`` (strict boolean,
-    Entra tenant-pin exemption) and ``extract_email_claim``.
+    Entra tenant-pin exemption unless ``strict_email``) and ``extract_email_claim``.
     """
     if provider == "github":
         resp = await client.get("user", token=token)
@@ -87,7 +89,12 @@ async def _idp_profile(client, token: dict, provider: str) -> IdpProfile:
             provider_data=profile,
         )
     userinfo = token.get("userinfo", {})
-    if not auth_service.is_email_verified_claim(userinfo, provider):
+    if not auth_service.is_email_verified_claim(
+        userinfo, provider, strict=strict_email
+    ):
+        if strict_email and provider == "entra_id":
+            # Misconfigured/guest account, not a credential attack.
+            raise IdpProfileError("email_domain_unverified", count_for_stuffing=False)
         raise IdpProfileError("email_not_verified")
     email = auth_service.extract_email_claim(userinfo)
     if not email:
@@ -106,6 +113,13 @@ async def _idp_profile(client, token: dict, provider: str) -> IdpProfile:
 def _profile_error_page(
     provider: str, reason: str, back_href: str | None = None
 ) -> HTMLResponse:
+    if reason == "email_domain_unverified":
+        return _error_page(
+            403,
+            "Email Not Verified",
+            "Your Microsoft account's email domain is not owner-verified (xms_edov).",
+            back_href=back_href,
+        )
     if reason == "no_email_claim":
         return _error_page(
             403,
@@ -130,6 +144,103 @@ def _profile_error_page(
         "Please verify your email and try again.",
         back_href=back_href,
     )
+
+
+async def _complete_login(
+    db: AsyncSession,
+    request: Request,
+    client,
+    token: dict,
+    provider: str,
+    *,
+    flow: str = "user",
+    strict_email: bool = False,
+    back_href: str | None = None,
+) -> User | HTMLResponse:
+    """Token -> signed-in User, shared by the proxy and hosted callbacks: IdP
+    profile -> org gate -> find_or_create -> active check -> ``user_login``
+    audit -> commit -> login signals. Returns the error page to send instead
+    when a step fails (the failure is already audited). The admin callback has
+    its own sequence: no org gate, admin-eligibility pre-check, redirects."""
+    try:
+        prof = await _idp_profile(client, token, provider, strict_email=strict_email)
+    except IdpProfileError as e:
+        await _log_login_failure(
+            db,
+            request,
+            provider,
+            e.reason,
+            flow=flow,
+            count_for_stuffing=e.count_for_stuffing,
+        )
+        return _profile_error_page(provider, e.reason, back_href=back_href)
+
+    org = await organization_service.resolve_organization(db, prof.email)
+    if org is None:
+        await _log_login_failure(
+            db, request, provider, "org_not_permitted", flow=flow, email=prof.email
+        )
+        return _error_page(
+            403,
+            "Sign-In Not Permitted",
+            "Your email domain is not associated with an organization on this "
+            "server, and public sign-in is disabled. Contact your administrator.",
+            back_href=back_href,
+        )
+    try:
+        user = await auth_service.find_or_create_user(
+            db=db,
+            provider=provider,
+            provider_user_id=prof.provider_user_id,
+            email=prof.email,
+            name=prof.name,
+            organization_id=org.id,
+            avatar_url=prof.avatar_url,
+            provider_data=prof.provider_data,
+        )
+    except auth_service.CrossProviderEmailConflict:
+        await _log_login_failure(
+            db,
+            request,
+            provider,
+            "cross_provider_conflict",
+            flow=flow,
+            email=prof.email,
+        )
+        return _error_page(
+            409,
+            "Email Already Used",
+            "An account with this email address already exists under a "
+            "different sign-in provider. Please sign in with your original "
+            "provider, or contact your administrator to link accounts.",
+            back_href=back_href,
+        )
+    if not user.is_active:
+        await _log_login_failure(
+            db, request, provider, "inactive_user", flow=flow, count_for_stuffing=False
+        )
+        return _error_page(
+            403,
+            "Account Inactive",
+            "This account has been deactivated.",
+            back_href=back_href,
+        )
+
+    ip = get_client_ip(request)
+    user_agent = request.headers.get("user-agent", "")[:200]
+    await activity_service.log_activity(
+        db,
+        action="user_login",
+        target_type="user",
+        target_id=user.id,
+        actor_id=user.id,
+        detail={"provider": provider, "flow": flow, "ip": ip, "user_agent": user_agent},
+    )
+    await db.commit()
+    await signal_service.on_login_success(
+        db, user_id=user.id, ip=ip, user_agent=user_agent
+    )
+    return user
 
 
 def _error_page(
@@ -192,6 +303,7 @@ async def _log_login_failure(
         detail: dict = {
             "provider": provider,
             "reason": reason,
+            "flow": flow,
             "ip": get_client_ip(request),
             "user_agent": request.headers.get("user-agent", "")[:200],
         }
@@ -337,77 +449,9 @@ async def callback(
 
         client = oauth.create_client(provider)
         token = await client.authorize_access_token(request)
-
-        try:
-            prof = await _idp_profile(client, token, provider)
-        except IdpProfileError as e:
-            await _log_login_failure(
-                db, request, provider, e.reason, count_for_stuffing=e.count_for_stuffing
-            )
-            return _profile_error_page(provider, e.reason)
-        provider_user_id, email, name, avatar_url, profile = (
-            prof.provider_user_id,
-            prof.email,
-            prof.name,
-            prof.avatar_url,
-            prof.provider_data,
-        )
-
-        org = await organization_service.resolve_organization(db, email)
-        if org is None:
-            await _log_login_failure(
-                db, request, provider, "org_not_permitted", email=email
-            )
-            return _error_page(
-                403,
-                "Sign-In Not Permitted",
-                "Your email domain is not associated with an organization on "
-                "this server, and public sign-in is disabled. Contact your "
-                "administrator.",
-            )
-
-        try:
-            user = await auth_service.find_or_create_user(
-                db=db,
-                provider=provider,
-                provider_user_id=provider_user_id,
-                email=email,
-                name=name,
-                organization_id=org.id,
-                avatar_url=avatar_url,
-                provider_data=profile,
-            )
-        except auth_service.CrossProviderEmailConflict:
-            await _log_login_failure(
-                db, request, provider, "cross_provider_conflict", email=email
-            )
-            return _error_page(
-                409,
-                "Email Already Used",
-                "An account with this email address already exists under a "
-                "different sign-in provider. Please sign in with your original "
-                "provider, or contact your administrator to link accounts.",
-            )
-
-        await activity_service.log_activity(
-            db,
-            action="user_login",
-            target_type="user",
-            target_id=user.id,
-            actor_id=user.id,
-            detail={
-                "provider": provider,
-                "ip": get_client_ip(request),
-                "user_agent": request.headers.get("user-agent", "")[:200],
-            },
-        )
-        await db.commit()
-        await signal_service.on_login_success(
-            db,
-            user_id=user.id,
-            ip=get_client_ip(request),
-            user_agent=request.headers.get("user-agent", "")[:200],
-        )
+        user = await _complete_login(db, request, client, token, provider)
+        if not isinstance(user, User):
+            return user
 
         # Retrieve redirect_uri, PKCE challenge, and client binding from session
         redirect_uri = request.session.pop("redirect_uri", None)
@@ -415,7 +459,8 @@ async def callback(
         code_challenge_method = request.session.pop("code_challenge_method", None)
         session_client_app_id = request.session.pop("client_app_id", None)
         spa_state = request.session.pop("spa_state", None)
-        request.session.clear()
+        # Only OUR keys are popped — never session.clear(): the same cookie
+        # carries a hosted /onboard sign-in (onboard_*) from another tab.
         if not redirect_uri or not session_client_app_id:
             return _error_page(
                 400,

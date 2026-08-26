@@ -42,6 +42,15 @@ router = APIRouter(prefix="/authz", tags=["authz"])
 idp_router = APIRouter(prefix="/authz", tags=["authz-idp"])
 
 
+def safe_urlparse(url: str):
+    """``urlparse`` that returns None instead of raising: an unbalanced ``[``
+    (``http://[``) is a ValueError, which must read as "malformed", not a 500."""
+    try:
+        return urlparse(url)
+    except ValueError:
+        return None
+
+
 async def service_app_origin_allowed(db: AsyncSession, redirect_uri: str) -> bool:
     """Pure predicate: is ``redirect_uri`` well-formed and its origin registered
     on an active ServiceApp? No logging, no raising — callers own how they react
@@ -51,8 +60,8 @@ async def service_app_origin_allowed(db: AsyncSession, redirect_uri: str) -> boo
     security-relevant at token-exfil severity; /onboard delivers nothing, so a
     stale bookmark is just a denied redirect, not an exfil attempt).
     """
-    parsed = urlparse(redirect_uri)
-    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+    parsed = safe_urlparse(redirect_uri)
+    if parsed is None or parsed.scheme not in {"http", "https"} or not parsed.hostname:
         return False
     if parsed.fragment:
         return False
@@ -75,8 +84,8 @@ async def _validate_authz_redirect_uri(db: AsyncSession, redirect_uri: str) -> N
     """
     if await service_app_origin_allowed(db, redirect_uri):
         return
-    parsed = urlparse(redirect_uri)
-    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+    parsed = safe_urlparse(redirect_uri)
+    if parsed is None or parsed.scheme not in {"http", "https"} or not parsed.hostname:
         raise HTTPException(status_code=400, detail="Invalid redirect_uri")
     if parsed.fragment:
         raise HTTPException(

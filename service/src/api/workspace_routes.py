@@ -45,18 +45,18 @@ async def create_workspace(
     user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if not settings.self_serve_enabled:
-        raise HTTPException(
-            status_code=403, detail="Workspace creation is disabled on this server"
-        )
-    # Flag on: the API is a self-serve create like the hosted one — same cap and
+    # The API is a self-serve create like the hosted one — same flag, cap and
     # breaker — otherwise one workspace would unlock unlimited creation here.
     actor = await db.get(User, user.user_id)
     if actor is None:
         raise HTTPException(status_code=404, detail="User not found")
     try:
         workspace = await workspace_service.create_self_serve(
-            db, actor, body.name, slug=body.slug
+            db, actor, body.name, slug=body.slug, description=body.description
+        )
+    except workspace_service.SelfServeDisabled:
+        raise HTTPException(
+            status_code=403, detail="Workspace creation is disabled on this server"
         )
     except workspace_service.SelfServeCapReached:
         raise HTTPException(status_code=403, detail="Workspace limit reached")
@@ -68,8 +68,6 @@ async def create_workspace(
         )
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
-    if body.description:
-        workspace.description = body.description
     await activity_service.log_activity(
         db,
         action="workspace_created",

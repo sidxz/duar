@@ -56,6 +56,7 @@ async def test_writes_login_failed_row():
     assert kwargs["detail"]["ip"] == "203.0.113.9"
     assert kwargs["detail"]["user_agent"] == "TestUA/1.0"
     assert kwargs["detail"]["email"] == "eve@evil.example"
+    assert kwargs["detail"]["flow"] == "user"  # admin Activity can tell flows apart
 
     # Partial flow state discarded BEFORE the audit row is added, then committed.
     ops = [c[0] for c in db.mock_calls if c[0] in ("rollback", "commit")]

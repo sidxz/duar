@@ -23,6 +23,8 @@ from src.api.role_routes import router as role_router
 from src.api.user_routes import router as user_router
 from src.api.workspace_routes import router as workspace_router
 from src.api.onboard_routes import router as onboard_router
+from src.api.onboard_routes import validation_error_page
+from fastapi.exceptions import RequestValidationError
 from slowapi.errors import RateLimitExceeded
 
 from src.auth.providers import get_configured_providers
@@ -312,6 +314,8 @@ def create_app(tier: str) -> FastAPI:
     # Rate limiting state + handler
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+    # /onboard/* gets HTML 400s for malformed forms; everything else keeps JSON 422.
+    app.add_exception_handler(RequestValidationError, validation_error_page)
 
     routers = []
     if tier in ("public", "all"):

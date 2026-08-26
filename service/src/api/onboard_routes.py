@@ -10,25 +10,21 @@ docs/superpowers/specs/2026-08-25-self-serve-workspaces-design.md.
 """
 
 import hmac
+import re
 import secrets
 import time
 import uuid
 from datetime import UTC, datetime
-from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.parse import urlencode
 
 import structlog
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi.exception_handlers import request_validation_exception_handler
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import HTMLResponse, RedirectResponse, Response
 
-from src.api.auth_routes import (
-    IdpProfileError,
-    _error_page,
-    _idp_profile,
-    _log_login_failure,
-    _profile_error_page,
-)
-from src.api.authz_routes import service_app_origin_allowed
+from src.api.auth_routes import _complete_login, _error_page, _log_login_failure
+from src.api.authz_routes import safe_urlparse, service_app_origin_allowed
 from src.api.pages import templates
 from src.auth.providers import get_configured_providers, oauth
 from src.config import settings
@@ -38,18 +34,24 @@ from src.middleware.rate_limit import get_client_ip, limiter
 from src.models.user import User
 from src.models.workspace import Workspace
 from src.schemas.validators import strip_html
-from src.services import (
-    activity_service,
-    auth_service,
-    invitation_service,
-    organization_service,
-    signal_service,
-    workspace_service,
-)
+from src.services import activity_service, invitation_service, workspace_service
 
 logger = structlog.get_logger()
 
-router = APIRouter(prefix="/onboard", tags=["onboard"], include_in_schema=False)
+
+def _require_enabled() -> None:
+    if not settings.self_serve_enabled:
+        raise HTTPException(status_code=404, detail="Not found")
+
+
+# Router-level so the 404 wins over FastAPI's 422 for malformed forms/paths
+# when the feature is off (nothing about the flow is fingerprintable).
+router = APIRouter(
+    prefix="/onboard",
+    tags=["onboard"],
+    include_in_schema=False,
+    dependencies=[Depends(_require_enabled)],
+)
 
 # Keys GET /onboard resets. NEVER onboard_user_id / onboard_csrf, and never
 # request.session.clear(): the same cookie carries in-flight proxy/admin/authz-idp
@@ -66,17 +68,33 @@ _MAX_RETURN_TO = 2048
 _ROLES = ("owner", "admin", "editor", "viewer")
 
 
-def _require_enabled() -> None:
-    if not settings.self_serve_enabled:
-        raise HTTPException(status_code=404, detail="Not found")
-
-
 def _url(path: str = "") -> str:
     return f"{settings.base_url}/onboard{path}"
 
 
 def _home() -> str:
     return _url("/home")
+
+
+def _to_login() -> RedirectResponse:
+    """Where a POST lands once signed out (logout, expired session). Always the
+    200 chooser page, never GET /onboard: Chrome enforces the submitting page's
+    CSP ``form-action 'self'`` across the post-submit redirect chain, so
+    303 -> /onboard -> 302 -> IdP would be refused there."""
+    return RedirectResponse(_url("/login"), status_code=303)
+
+
+async def validation_error_page(request: Request, exc: Exception) -> Response:
+    """App-level RequestValidationError handler (registered in main.py): the
+    zero-JS pages get an HTML 400 instead of FastAPI's JSON 422."""
+    if "/onboard" not in request.url.path:
+        return await request_validation_exception_handler(request, exc)
+    return _error_page(
+        400,
+        "Bad Request",
+        "The form was incomplete or malformed. Please go back and try again.",
+        back_href=_home(),
+    )
 
 
 def _render(request: Request, template: str, status: int = 200, **ctx) -> HTMLResponse:
@@ -127,7 +145,10 @@ async def _session_user(request: Request, db: AsyncSession) -> User | None:
 
 def _csrf_ok(request: Request, token: str | None) -> bool:
     expected = request.session.get("onboard_csrf")
-    return bool(expected and token) and hmac.compare_digest(expected, token)
+    # bytes: compare_digest raises TypeError on non-ASCII str.
+    return bool(expected and token) and hmac.compare_digest(
+        expected.encode(), token.encode()
+    )
 
 
 def _csrf_page() -> HTMLResponse:
@@ -158,10 +179,10 @@ async def _store_return_to(
             back_href=_url(),
         )
     if not await service_app_origin_allowed(db, value):
-        parsed = urlparse(value)
+        parsed = safe_urlparse(value)
         origin = (
             f"{parsed.scheme}://{parsed.netloc}"
-            if parsed.scheme and parsed.hostname
+            if parsed and parsed.scheme and parsed.hostname
             else None
         )
         log_security(
@@ -207,7 +228,6 @@ async def entry(
     provider: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    _require_enabled()
     if return_to or code:
         # Validate BEFORE touching the session: a rejected return_to must
         # leave any earlier round (code/return_to/next) untouched. Empty
@@ -246,10 +266,17 @@ async def entry(
     return _render(request, "login.html", providers=providers)
 
 
+@router.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    """The provider chooser, always rendered (no single-provider auto-redirect):
+    the landing for sign-out and for every "Back to sign-in" link, so a
+    rejected account can pick a different one instead of looping."""
+    return _render(request, "login.html", providers=get_configured_providers())
+
+
 @router.get("/login/{provider}")
 @limiter.limit(settings.rate_limit_auth)
 async def login(provider: str, request: Request):
-    _require_enabled()
     if provider not in get_configured_providers():
         return _error_page(
             400,
@@ -258,14 +285,17 @@ async def login(provider: str, request: Request):
             back_href=_url(),
         )
     client = oauth.create_client(provider)
-    return await client.authorize_redirect(request, _url(f"/callback/{provider}"))
+    # prompt=select_account: the IdP shows its account picker instead of
+    # silently re-using the live session (GitHub ignores unknown params).
+    return await client.authorize_redirect(
+        request, _url(f"/callback/{provider}"), prompt="select_account"
+    )
 
 
 @router.get("/callback/{provider}")
 @limiter.limit(settings.rate_limit_auth)
 async def callback(provider: str, request: Request, db: AsyncSession = Depends(get_db)):
-    _require_enabled()
-    back = _url()
+    back = _url("/login")
     try:
         if provider not in get_configured_providers():
             return _error_page(
@@ -276,111 +306,20 @@ async def callback(provider: str, request: Request, db: AsyncSession = Depends(g
             )
         client = oauth.create_client(provider)
         token = await client.authorize_access_token(request)
-        try:
-            prof = await _idp_profile(client, token, provider)
-        except IdpProfileError as e:
-            await _log_login_failure(
-                db,
-                request,
-                provider,
-                e.reason,
-                flow="onboard",
-                count_for_stuffing=e.count_for_stuffing,
-            )
-            return _profile_error_page(provider, e.reason, back_href=back)
-
-        if provider == "entra_id" and prof.provider_data.get("xms_edov") is not True:
-            # The tenant pin does not verify guest-account addresses; the
-            # optional xms_edov claim does. Fail closed on the hosted flow.
-            await _log_login_failure(
-                db,
-                request,
-                provider,
-                "email_domain_unverified",
-                flow="onboard",
-                count_for_stuffing=False,
-            )
-            return _error_page(
-                403,
-                "Email Not Verified",
-                "Your Microsoft account's email domain is not owner-verified (xms_edov).",
-                back_href=back,
-            )
-
-        org = await organization_service.resolve_organization(db, prof.email)
-        if org is None:
-            await _log_login_failure(
-                db,
-                request,
-                provider,
-                "org_not_permitted",
-                flow="onboard",
-                email=prof.email,
-            )
-            return _error_page(
-                403,
-                "Sign-In Not Permitted",
-                "Your email domain is not associated with an organization on this "
-                "server, and public sign-in is disabled. Contact your administrator.",
-                back_href=back,
-            )
-        try:
-            user = await auth_service.find_or_create_user(
-                db=db,
-                provider=provider,
-                provider_user_id=prof.provider_user_id,
-                email=prof.email,
-                name=prof.name,
-                organization_id=org.id,
-                avatar_url=prof.avatar_url,
-                provider_data=prof.provider_data,
-            )
-        except auth_service.CrossProviderEmailConflict:
-            await _log_login_failure(
-                db,
-                request,
-                provider,
-                "cross_provider_conflict",
-                flow="onboard",
-                email=prof.email,
-            )
-            return _error_page(
-                409,
-                "Email Already Used",
-                "An account with this email address already exists under a "
-                "different sign-in provider. Please sign in with your original "
-                "provider, or contact your administrator to link accounts.",
-                back_href=back,
-            )
-        if not user.is_active:
-            await _log_login_failure(
-                db,
-                request,
-                provider,
-                "inactive_user",
-                flow="onboard",
-                count_for_stuffing=False,
-            )
-            return _error_page(
-                403,
-                "Account Inactive",
-                "This account has been deactivated.",
-                back_href=back,
-            )
-
-        meta = _client_meta(request)
-        await activity_service.log_activity(
+        # strict_email: the Entra tenant pin does not verify guest-account
+        # addresses; the hosted flow requires xms_edov=True.
+        user = await _complete_login(
             db,
-            action="user_login",
-            target_type="user",
-            target_id=user.id,
-            actor_id=user.id,
-            detail={"provider": provider, "flow": "onboard", **meta},
+            request,
+            client,
+            token,
+            provider,
+            flow="onboard",
+            strict_email=True,
+            back_href=back,
         )
-        await db.commit()
-        await signal_service.on_login_success(
-            db, user_id=user.id, ip=meta["ip"], user_agent=meta["user_agent"]
-        )
+        if not isinstance(user, User):
+            return user
         log_security(
             "auth.login.succeeded",
             outcome="success",
@@ -418,7 +357,6 @@ async def callback(provider: str, request: Request, db: AsyncSession = Depends(g
 
 @router.get("/home", response_class=HTMLResponse)
 async def home(request: Request, db: AsyncSession = Depends(get_db)):
-    _require_enabled()
     user = await _session_user(request, db)
     if user is None:
         return RedirectResponse(_url(), status_code=302)
@@ -477,14 +415,15 @@ async def confirm(
 ):
     """Confirmation page for Leave / Remove — the only place their POST forms
     live now, so a stray click on the list can't drop a membership."""
-    _require_enabled()
     try:
         ws_id = uuid.UUID(workspace)
         target_id = uuid.UUID(user) if user else None
     except ValueError:
-        raise HTTPException(status_code=404, detail="Not found") from None
-    if action not in ("leave", "remove"):
-        raise HTTPException(status_code=404, detail="Not found")
+        ws_id = target_id = None
+    if ws_id is None or action not in ("leave", "remove"):
+        return _error_page(
+            404, "Not Found", "That page doesn't exist.", back_href=_home()
+        )
     me = await _session_user(request, db)
     if me is None:
         return RedirectResponse(_url(), status_code=302)
@@ -518,7 +457,6 @@ async def confirm(
 
 @router.get("/done", response_class=HTMLResponse)
 async def done(request: Request, db: AsyncSession = Depends(get_db)):
-    _require_enabled()
     user = await _session_user(request, db)
     if user is None:
         return RedirectResponse(_url(), status_code=302)
@@ -531,24 +469,21 @@ async def done(request: Request, db: AsyncSession = Depends(get_db)):
 async def logout(
     request: Request, csrf: str = Form(""), db: AsyncSession = Depends(get_db)
 ):
-    _require_enabled()
     if await _session_user(request, db) is None:
-        return RedirectResponse(_url(), status_code=303)
+        return _to_login()
     if not _csrf_ok(request, csrf):
         return _csrf_page()
     _clear_onboard_session(request)
-    return RedirectResponse(_url(), status_code=303)
+    return _to_login()
 
 
 # ── join / create ─────────────────────────────────────────────────────
 
 
 def _extract_code(value: str) -> str:
-    """Accept a bare code or a full ``/onboard?code=…`` link."""
-    value = value.strip()
-    if "code=" in value:
-        return (parse_qs(urlparse(value).query).get("code") or [""])[0].strip()
-    return value
+    """Accept a bare code, ``code=…``, or a full ``/onboard?code=…`` link."""
+    m = re.search(r"code=([^&#\s]+)", value)
+    return (m.group(1) if m else value).strip()
 
 
 @router.post("/join")
@@ -559,10 +494,9 @@ async def join(
     csrf: str = Form(""),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_enabled()
     user = await _session_user(request, db)
     if user is None:
-        return RedirectResponse(_url(), status_code=303)
+        return _to_login()
     if not _csrf_ok(request, csrf):
         return _csrf_page()
     code = _extract_code(code)[:256]
@@ -635,10 +569,9 @@ async def create(
     csrf: str = Form(""),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_enabled()
     user = await _session_user(request, db)
     if user is None:
-        return RedirectResponse(_url(), status_code=303)
+        return _to_login()
     if not _csrf_ok(request, csrf):
         return _csrf_page()
     name = strip_html(name)[:255]  # SafeStr does not apply to Form() params
@@ -720,12 +653,11 @@ async def invites(
     return_to: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    _require_enabled()
     try:
         wanted = uuid.UUID(workspace) if workspace else None
     except ValueError:
         wanted = None
-    if return_to is not None:
+    if return_to:  # "return_to=" is absent, as on GET /onboard
         err = await _store_return_to(request, db, return_to)
         if err is not None:
             return err
@@ -735,10 +667,22 @@ async def invites(
         request.session["onboard_next"] = _invites_url(wanted)
         return RedirectResponse(_url(), status_code=302)
     admin_ws = await workspace_service.list_admin_workspaces(db, user.id)
-    selected = next(
-        (ws for ws, _r in admin_ws if ws.id == wanted),
-        admin_ws[0][0] if admin_ws else None,
-    )
+    if wanted and not any(ws.id == wanted for ws, _r in admin_ws):
+        # Never silently manage a different workspace than the one asked for.
+        _flash(request, "You're not an owner or admin of that workspace.")
+        return RedirectResponse(_invites_url(None), status_code=303)
+    selected = admin_ws[0][0] if admin_ws else None
+    for ws, _r in admin_ws:
+        if ws.id == wanted:
+            selected = ws
+    new_invite = None
+    if new_code := request.session.pop("onboard_new_invite", None):
+        # Link built here, not stored: return_to already lives in the cookie
+        # once, and a second (url-encoded) copy pushed it past 4 KB.
+        params = {"code": new_code}
+        if request.session.get("onboard_return_to"):
+            params["return_to"] = request.session["onboard_return_to"]
+        new_invite = {"link": f"{_url()}?{urlencode(params)}", "code": new_code}
     pending = (
         await invitation_service.list_for_workspace(db, selected.id) if selected else []
     )
@@ -755,7 +699,7 @@ async def invites(
         members=members,
         actor_role=actor_role,
         me=user.id,
-        new_invite=request.session.pop("onboard_new_invite", None),
+        new_invite=new_invite,
     )
 
 
@@ -769,10 +713,9 @@ async def create_invite(
     csrf: str = Form(""),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_enabled()
     user = await _session_user(request, db)
     if user is None:
-        return RedirectResponse(_url(), status_code=303)
+        return _to_login()
     if not _csrf_ok(request, csrf):
         return _csrf_page()
     actor_role = await workspace_service.get_member_role(db, workspace_id, user.id)
@@ -813,14 +756,8 @@ async def create_invite(
         role=role,
         locked=bool(inv.email),
     )
-    params = {"code": code}
-    if request.session.get("onboard_return_to"):
-        params["return_to"] = request.session["onboard_return_to"]
     # One-time display: PRG so a refresh does not re-POST; the next GET pops it.
-    request.session["onboard_new_invite"] = {
-        "link": f"{_url()}?{urlencode(params)}",
-        "code": code,
-    }
+    request.session["onboard_new_invite"] = code
     return RedirectResponse(_invites_url(workspace_id), status_code=303)
 
 
@@ -831,10 +768,9 @@ async def revoke_invite(
     csrf: str = Form(""),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_enabled()
     user = await _session_user(request, db)
     if user is None:
-        return RedirectResponse(_url(), status_code=303)
+        return _to_login()
     if not _csrf_ok(request, csrf):
         return _csrf_page()
     try:
@@ -871,7 +807,7 @@ async def _manage_actor(
     or the response to send instead."""
     user = await _session_user(request, db)
     if user is None:
-        return RedirectResponse(_url(), status_code=303)
+        return _to_login()
     if not _csrf_ok(request, csrf):
         return _csrf_page()
     actor_role = await workspace_service.get_member_role(db, workspace_id, user.id)
@@ -895,13 +831,15 @@ async def change_member_role(
     csrf: str = Form(""),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_enabled()
     ctx = await _manage_actor(request, db, workspace_id, csrf)
     if isinstance(ctx, Response):
         return ctx
     user, actor_role = ctx
     if role not in _ROLES:
         _flash(request, "Invalid role.")
+        return RedirectResponse(_invites_url(workspace_id), status_code=303)
+    if await workspace_service.get_member_role(db, workspace_id, user_id) == role:
+        _flash(request, "Role unchanged.", ok=True)  # no audit row for a no-op Save
         return RedirectResponse(_invites_url(workspace_id), status_code=303)
     try:
         await workspace_service.update_member_role(
@@ -933,7 +871,6 @@ async def remove_member(
     csrf: str = Form(""),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_enabled()
     ctx = await _manage_actor(request, db, workspace_id, csrf)
     if isinstance(ctx, Response):
         return ctx
@@ -971,7 +908,6 @@ async def rename_workspace(
     csrf: str = Form(""),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_enabled()
     ctx = await _manage_actor(request, db, workspace_id, csrf)
     if isinstance(ctx, Response):
         return ctx
@@ -1007,10 +943,9 @@ async def leave_workspace(
     csrf: str = Form(""),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_enabled()
     user = await _session_user(request, db)
     if user is None:
-        return RedirectResponse(_url(), status_code=303)
+        return _to_login()
     if not _csrf_ok(request, csrf):
         return _csrf_page()
     own_role = await workspace_service.get_member_role(db, workspace_id, user.id)

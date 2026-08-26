@@ -27,7 +27,7 @@ from src.middleware.rate_limit import limiter
 from src.models.organization import Organization
 from src.models.user import User
 from src.models.workspace import Workspace, WorkspaceMembership
-from src.services import invitation_service
+from src.services import invitation_service, signal_service
 from tests.self_serve_fixtures import make_engine, session_cookie
 
 SECRET = "test-secret"
@@ -109,9 +109,13 @@ def test_everything_404_when_flag_off(client, monkeypatch):
         "/onboard/login/google",
         "/onboard/callback/google",
         "/onboard/done",
+        "/onboard/login",
+        "/onboard/confirm",  # would be a 422 (missing params) if validation ran first
     ):
         assert client.get(path).status_code == 404, path
     assert client.post("/onboard/logout", data={"csrf": "x"}).status_code == 404
+    assert client.post("/onboard/join", data={}).status_code == 404
+    assert client.post("/onboard/members/not-a-uuid/role", data={}).status_code == 404
 
 
 # ── entry ─────────────────────────────────────────────────────────────
@@ -153,6 +157,12 @@ def test_entry_rejects_off_allowlist_return_to(client):
         r = client.get("/onboard", params={"return_to": "https://evil.example/"})
     assert r.status_code == 400 and "Return" in r.text
     assert "session" not in client.cookies
+
+
+def test_entry_malformed_return_to_is_400_not_500(client):
+    # urlparse raises ValueError on an unbalanced '[' — must read as "malformed".
+    r = client.get("/onboard", params={"return_to": "http://["})
+    assert r.status_code == 400 and "Return" in r.text
 
 
 @pytest.mark.asyncio
@@ -248,6 +258,15 @@ def test_login_redirects_to_idp_with_onboard_callback(client):
     assert r.status_code == 302
     args, kwargs = fake.authorize_redirect.await_args
     assert args[1] == "http://testserver/onboard/callback/google"
+    assert kwargs["prompt"] == "select_account"  # never silently re-use the IdP session
+
+
+def test_login_page_is_the_chooser_even_with_one_provider(client):
+    with patch.object(
+        onboard_routes, "get_configured_providers", return_value=["google"]
+    ):
+        r = client.get("/onboard/login")
+    assert r.status_code == 200 and "Continue with Google" in r.text
 
 
 def _fake_oidc_client(userinfo):
@@ -273,9 +292,7 @@ async def test_callback_provisions_user_sets_session_and_audits(client, db):
             "create_client",
             return_value=_fake_oidc_client(userinfo),
         ),
-        patch.object(
-            onboard_routes.signal_service, "on_login_success", new_callable=AsyncMock
-        ) as sig,
+        patch.object(signal_service, "on_login_success", new_callable=AsyncMock) as sig,
     ):
         r = client.get("/onboard/callback/google")
     assert r.status_code == 302 and r.headers["location"].endswith("/onboard/home")
@@ -309,9 +326,7 @@ async def test_callback_honors_onboard_next(client, db):
             "create_client",
             return_value=_fake_oidc_client(userinfo),
         ),
-        patch.object(
-            onboard_routes.signal_service, "on_login_success", new_callable=AsyncMock
-        ),
+        patch.object(signal_service, "on_login_success", new_callable=AsyncMock),
     ):
         r = client.get("/onboard/callback/google")
     assert r.headers["location"] == "http://testserver/onboard/invites"
@@ -329,9 +344,7 @@ async def test_callback_unverified_email_is_403_with_back_link(client, db):
             "create_client",
             return_value=_fake_oidc_client(userinfo),
         ),
-        patch.object(
-            onboard_routes.signal_service, "on_login_failure", new_callable=AsyncMock
-        ),
+        patch.object(signal_service, "on_login_failure", new_callable=AsyncMock),
     ):
         r = client.get("/onboard/callback/google")
     assert r.status_code == 403 and "Back to sign-in" in r.text
@@ -350,9 +363,7 @@ async def test_callback_entra_requires_xms_edov(client, db, monkeypatch):
             "create_client",
             return_value=_fake_oidc_client(userinfo),
         ),
-        patch.object(
-            onboard_routes.signal_service, "on_login_failure", new_callable=AsyncMock
-        ),
+        patch.object(signal_service, "on_login_failure", new_callable=AsyncMock),
     ):
         r = client.get("/onboard/callback/entra_id")
     assert r.status_code == 403
@@ -366,9 +377,7 @@ async def test_callback_entra_requires_xms_edov(client, db, monkeypatch):
             "create_client",
             return_value=_fake_oidc_client(userinfo),
         ),
-        patch.object(
-            onboard_routes.signal_service, "on_login_success", new_callable=AsyncMock
-        ),
+        patch.object(signal_service, "on_login_success", new_callable=AsyncMock),
     ):
         r = client.get("/onboard/callback/entra_id")
     assert r.status_code == 302
@@ -392,9 +401,7 @@ async def test_callback_inactive_user_403(client, db):
             "create_client",
             return_value=_fake_oidc_client(userinfo),
         ),
-        patch.object(
-            onboard_routes.signal_service, "on_login_failure", new_callable=AsyncMock
-        ),
+        patch.object(signal_service, "on_login_failure", new_callable=AsyncMock),
     ):
         r = client.get("/onboard/callback/google")
     assert r.status_code == 403
@@ -490,7 +497,7 @@ async def test_home_locked_invite_for_other_email_shows_invalid(client, db):
 def test_logout_without_session_redirects_not_403(client):
     # session-before-csrf: no cookie at all must never reach the CSRF check.
     r = client.post("/onboard/logout", data={"csrf": "whatever"})
-    assert r.status_code == 303 and r.headers["location"].endswith("/onboard")
+    assert r.status_code == 303 and r.headers["location"].endswith("/onboard/login")
 
 
 @pytest.mark.asyncio
@@ -508,9 +515,35 @@ async def test_done_and_logout(client, db):
     assert page.status_code == 200 and "You joined <strong>Acme</strong>" in page.text
     assert 'href="https://app.example/login"' in page.text
     assert client.post("/onboard/logout", data={"csrf": "wrong"}).status_code == 403
+    # non-ASCII token: compare_digest on str would TypeError -> 500
+    assert client.post("/onboard/logout", data={"csrf": "\u00e9"}).status_code == 403
     r = client.post("/onboard/logout", data={"csrf": "tok"})
-    assert r.status_code == 303
+    # POST lands on the 200 chooser, not the auto-redirecting /onboard (CSP form-action)
+    assert r.status_code == 303 and r.headers["location"].endswith("/onboard/login")
     assert client.get("/onboard/home").status_code == 302
+
+
+@pytest.mark.asyncio
+async def test_proxy_callback_keeps_onboard_session(client, db):
+    """/auth/callback pops only its own keys: a proxy login in another tab must
+    not wipe an in-flight hosted sign-in (it used to session.clear())."""
+    from src.api import auth_routes
+    from src.api.auth_routes import router as auth_router
+
+    client.app.include_router(auth_router)
+    u = await _user(db)
+    _login(client, u.id)
+    userinfo = {"sub": "g-9", "email": u.email, "email_verified": True, "name": "U"}
+    with (
+        patch.object(auth_routes, "get_configured_providers", return_value=["google"]),
+        patch.object(
+            auth_routes.oauth, "create_client", return_value=_fake_oidc_client(userinfo)
+        ),
+        patch.object(signal_service, "on_login_success", new_callable=AsyncMock),
+    ):
+        r = client.get("/auth/callback/google")
+    assert r.status_code == 400 and "Session Expired" in r.text  # no proxy round here
+    assert client.get("/onboard/home").status_code == 200  # onboard_user_id survived
 
 
 @pytest.mark.asyncio

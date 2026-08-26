@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 import pytest_asyncio
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -66,6 +67,9 @@ def client(db):
         SessionMiddleware, secret_key=SECRET, same_site="lax", max_age=600
     )
     app.include_router(onboard_router)
+    app.add_exception_handler(
+        RequestValidationError, onboard_routes.validation_error_page
+    )
 
     async def _db():
         yield db
@@ -145,6 +149,39 @@ async def test_invites_validates_return_to(client, db):
             ).status_code
             == 400
         )
+        # empty return_to is absent (as on GET /onboard), not a value to reject
+        assert client.get("/onboard/invites?return_to=").status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_invites_unknown_workspace_flashes_instead_of_fallback(client, db):
+    u, ws = await _user_with_ws(db)
+    _login(client, u.id)
+    r = client.get("/onboard/invites", params={"workspace": str(uuid.uuid4())})
+    assert r.status_code == 303 and r.headers["location"].endswith("/onboard/invites")
+    assert (
+        "not an owner or admin of that workspace" in client.get("/onboard/invites").text
+    )
+
+
+@pytest.mark.asyncio
+async def test_malformed_form_is_html_400(client, db):
+    u, _ = await _user_with_ws(db)
+    _login(client, u.id)
+    r = client.post("/onboard/invites", data={"workspace_id": "abc", "csrf": "tok"})
+    assert r.status_code == 400 and "Bad Request" in r.text
+    assert r.headers["content-type"].startswith("text/html")
+
+
+@pytest.mark.asyncio
+async def test_invite_cookie_stays_under_4k_with_long_return_to(client, db):
+    u, ws = await _user_with_ws(db)
+    _login(client, u.id, {"onboard_return_to": "https://app.example/" + "x" * 2000})
+    r = client.post(
+        "/onboard/invites", data={"workspace_id": str(ws.id), "csrf": "tok"}
+    )
+    assert r.status_code == 303 and len(client.cookies["session"]) < 4000
+    assert "Shown once" in client.get("/onboard/invites").text
 
 
 @pytest.mark.asyncio

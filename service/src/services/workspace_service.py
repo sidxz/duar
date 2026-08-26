@@ -103,6 +103,7 @@ async def create_self_serve(
     name: str,
     *,
     slug: str | None = None,
+    description: str | None = None,
     now: datetime | None = None,
 ) -> Workspace:
     """Self-serve workspace creation: flag -> per-user cap -> hourly breaker -> create.
@@ -134,7 +135,9 @@ async def create_self_serve(
     if int(recent or 0) >= settings.self_serve_max_creates_per_hour:
         raise SelfServeThrottled()
     if slug is not None:
-        return await create_workspace(db, name=name, slug=slug, created_by=user_id)
+        return await create_workspace(
+            db, name=name, slug=slug, created_by=user_id, description=description
+        )
     for _ in range(3):
         try:
             return await create_workspace(
@@ -142,12 +145,16 @@ async def create_self_serve(
                 name=name,
                 slug=f"{slugify(name)}-{secrets.token_hex(2)}",
                 created_by=user_id,
+                description=description,
             )
         except ValueError:
             # 1-in-65536 collision; the failed flush poisoned the transaction.
             # ponytail: rollback drops the FOR UPDATE lock for the retry — a
             # same-user race here is bounded by the breaker, accepted.
             await db.rollback()
+            # rollback expired `user`; re-load it so the caller's `user.id`
+            # after we return is not a lazy load (MissingGreenlet under async).
+            await db.refresh(user)
     raise ValueError("Could not allocate a unique slug")
 
 

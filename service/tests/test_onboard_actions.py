@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.sessions import SessionMiddleware
 
+from src.api.onboard_routes import _extract_code
 from src.api.onboard_routes import router as onboard_router
 from src.config import settings
 from src.database import get_db
@@ -122,7 +123,13 @@ async def _actions(db):
 
 def test_join_without_session_redirects_not_403(client):
     r = client.post("/onboard/join", data={"code": "x", "csrf": "whatever"})
-    assert r.status_code == 303 and r.headers["location"].endswith("/onboard")
+    assert r.status_code == 303 and r.headers["location"].endswith("/onboard/login")
+
+
+def test_extract_code_accepts_bare_pair_and_full_link():
+    assert _extract_code("code=abc") == "abc"
+    assert _extract_code("https://h/onboard?code=abc&return_to=x#f") == "abc"
+    assert _extract_code(" abc ") == "abc"
 
 
 @pytest.mark.asyncio
@@ -171,7 +178,7 @@ async def test_join_invalid_code_flashes_generic(client, db):
 
 def test_create_without_session_redirects_not_403(client):
     r = client.post("/onboard/create", data={"name": "x", "csrf": "whatever"})
-    assert r.status_code == 303 and r.headers["location"].endswith("/onboard")
+    assert r.status_code == 303 and r.headers["location"].endswith("/onboard/login")
 
 
 @pytest.mark.asyncio
