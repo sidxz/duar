@@ -478,14 +478,16 @@ async def confirm(
     """Confirmation page for Leave / Remove — the only place their POST forms
     live now, so a stray click on the list can't drop a membership."""
     _require_enabled()
-    me = await _session_user(request, db)
-    if me is None:
-        return RedirectResponse(_url(), status_code=302)
     try:
         ws_id = uuid.UUID(workspace)
         target_id = uuid.UUID(user) if user else None
     except ValueError:
         raise HTTPException(status_code=404, detail="Not found") from None
+    if action not in ("leave", "remove"):
+        raise HTTPException(status_code=404, detail="Not found")
+    me = await _session_user(request, db)
+    if me is None:
+        return RedirectResponse(_url(), status_code=302)
     ws = await db.get(Workspace, ws_id)
     my_role = await workspace_service.get_member_role(db, ws_id, me.id)
     if ws is None or my_role is None:
@@ -500,11 +502,17 @@ async def confirm(
                 "Only workspace owners and admins can manage members.",
                 back_href=_invites_url(None),
             )
-        target = await db.get(User, target_id) if target_id else None
-        if target is None:
+        # Only a current member's profile is ever rendered here, and only one the
+        # actor could actually remove (admins can't touch owners) — the page must
+        # not be a user-directory oracle for arbitrary UUIDs.
+        target_role = (
+            await workspace_service.get_member_role(db, ws_id, target_id)
+            if target_id
+            else None
+        )
+        if target_role is None or (target_role == "owner" and my_role != "owner"):
             return RedirectResponse(_invites_url(ws_id), status_code=303)
-    elif action != "leave":
-        raise HTTPException(status_code=404, detail="Not found")
+        target = await db.get(User, target_id)
     return _render(request, "confirm.html", action=action, workspace=ws, target=target)
 
 

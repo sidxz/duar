@@ -323,9 +323,9 @@ def create_app(tier: str) -> FastAPI:
     if tier in ("public", "all"):
         # Self-hosted fonts for the server-rendered HTML pages (CSP font-src 'self').
         app.mount(
-            "/static",
-            StaticFiles(directory=Path(__file__).resolve().parent / "static"),
-            name="static",
+            "/static/fonts",
+            StaticFiles(directory=Path(__file__).resolve().parent / "static" / "fonts"),
+            name="fonts",
         )
 
     @app.get("/health")

@@ -475,3 +475,33 @@ async def test_admin_sees_owner_row_as_text_not_select(client, db):
     assert f"user={users['owner'].id}" not in page
     # the admin's own row is still editable
     assert '<option value="admin" selected>admin</option>' in page
+
+
+@pytest.mark.asyncio
+async def test_confirm_remove_never_renders_non_members(client, db):
+    ws, users = await _ws_with(db, {"owner": "owner"})
+    outsider = User(
+        email="outsider@example.com", name="Outsider", organization_id=PUBLIC_ORG_ID
+    )
+    db.add(outsider)
+    await db.commit()
+    _login(client, users["owner"].id)
+    # a non-member UUID must not turn the page into a user-directory oracle
+    r = client.get(
+        f"/onboard/confirm?action=remove&workspace={ws.id}&user={outsider.id}"
+    )
+    assert r.status_code == 303 and "outsider@example.com" not in r.text
+    # ...and neither must a missing one
+    r = client.get(f"/onboard/confirm?action=remove&workspace={ws.id}")
+    assert r.status_code == 303 and r.headers["location"].endswith(
+        f"/onboard/invites?workspace={ws.id}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_confirm_remove_admin_cannot_target_owner(client, db):
+    ws, users = await _ws_with(db, {"owner": "owner", "admin": "admin"})
+    _login(client, users["admin"].id)
+    oid = users["owner"].id
+    r = client.get(f"/onboard/confirm?action=remove&workspace={ws.id}&user={oid}")
+    assert r.status_code == 303 and "owner@example.com" not in r.text

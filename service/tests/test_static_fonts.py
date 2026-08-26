@@ -18,7 +18,9 @@ def test_public_tier_serves_fonts():
 
 
 def test_static_does_not_escape_its_directory():
-    r = _client("public").get("/static/../main.py")
+    # httpx normalises a literal ".." away client-side; the encoded form reaches
+    # StaticFiles as "/static/fonts/../../main.py" and exercises its guard.
+    r = _client("public").get("/static/fonts/%2e%2e/%2e%2e/main.py")
     assert r.status_code == 404
 
 

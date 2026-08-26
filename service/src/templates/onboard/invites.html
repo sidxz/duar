@@ -82,7 +82,7 @@
     <div class="pend">
       <span>{{ inv.email or 'anyone' }}</span>
       <span class="chip mono">{{ inv.role }}</span>
-      <span class="fine">expires {{ inv.expires_at.strftime('%b %-d') }}</span>
+      <span class="fine">expires {{ inv.expires_at.strftime('%b') }} {{ inv.expires_at.day }}</span>
       <form method="post" action="{{ base_url }}/onboard/invites/{{ inv.id }}/revoke">
         <input type="hidden" name="csrf" value="{{ csrf }}">
         <button class="quiet" type="submit">Revoke</button>
