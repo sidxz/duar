@@ -222,6 +222,9 @@ async def test_sole_owner_cannot_demote_self(client, db):
     assert (
         "Cannot demote the last workspace owner" in client.get("/onboard/invites").text
     )
+    assert (
+        await workspace_service.get_member_role(db, ws.id, users["owner"].id) == "owner"
+    )
 
 
 @pytest.mark.asyncio
@@ -270,6 +273,18 @@ async def test_role_change_session_before_csrf(client, db):
     r2 = client.post(
         f"/onboard/members/{users['editor'].id}/role",
         data={"workspace_id": str(ws.id), "role": "admin", "csrf": "bad"},
+    )
+    assert r2.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_leave_session_before_csrf(client, db):
+    ws, users = await _ws_with(db, {"owner": "owner", "editor": "editor"})
+    r = client.post("/onboard/leave", data={"workspace_id": str(ws.id), "csrf": "tok"})
+    assert r.status_code == 303 and r.headers["location"] == "http://testserver/onboard"
+    _login(client, users["editor"].id)
+    r2 = client.post(
+        "/onboard/leave", data={"workspace_id": str(ws.id), "csrf": "nope"}
     )
     assert r2.status_code == 403
 

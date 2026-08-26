@@ -46,6 +46,9 @@ the workspace's members with their roles: change a role (only owners can grant
 or demote `owner`; the last owner can never be demoted), remove a member
 (their live app sessions are revoked), or rename the workspace. Any member can
 leave a workspace from the `/onboard/home` list — except its last owner.
+Removing a member or leaving revokes that user's sessions on every app on this
+Duar instance, not just the workspace they left — token revocation is per
+user, not per workspace.
 
 ## App integration
 

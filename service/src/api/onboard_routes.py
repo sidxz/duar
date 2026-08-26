@@ -899,6 +899,7 @@ async def remove_member(
     except ValueError as e:
         _flash(request, str(e))
         return RedirectResponse(_invites_url(workspace_id), status_code=303)
+    self_removal = user_id == user.id
     await activity_service.log_activity(
         db,
         action="member_removed",
@@ -906,11 +907,12 @@ async def remove_member(
         target_id=user_id,
         actor_id=user.id,
         workspace_id=workspace_id,
+        detail={"left": True} if self_removal else None,
     )
     await db.commit()
     _flash(request, "Member removed.", ok=True)
     # Removing yourself as an admin is allowed by the service; the page you came from may now 403.
-    target = _home() if user_id == user.id else _invites_url(workspace_id)
+    target = _home() if self_removal else _invites_url(workspace_id)
     return RedirectResponse(target, status_code=303)
 
 

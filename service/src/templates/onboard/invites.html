@@ -39,7 +39,7 @@
         <input type="hidden" name="csrf" value="{{ csrf }}">
         <input type="hidden" name="workspace_id" value="{{ selected.id }}">
         <select name="role" class="inline" aria-label="Role for {{ m.email }}">
-          {% for r in ['owner', 'admin', 'editor', 'viewer'] %}
+          {% for r in (['owner', 'admin', 'editor', 'viewer'] if actor_role == 'owner' else ['admin', 'editor', 'viewer']) %}
           <option value="{{ r }}" {% if r == m.role %}selected{% endif %}>{{ r }}</option>
           {% endfor %}
         </select>
@@ -47,11 +47,13 @@
       </form>
     </td>
     <td>
+      {% if m.role != 'owner' or actor_role == 'owner' %}
       <form method="post" action="{{ base_url }}/onboard/members/{{ m.user_id }}/remove">
         <input type="hidden" name="csrf" value="{{ csrf }}">
         <input type="hidden" name="workspace_id" value="{{ selected.id }}">
         <button class="btn secondary" type="submit">Remove</button>
       </form>
+      {% endif %}
     </td>
   </tr>
   {% endfor %}
