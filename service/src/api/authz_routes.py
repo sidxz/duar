@@ -42,6 +42,38 @@ router = APIRouter(prefix="/authz", tags=["authz"])
 idp_router = APIRouter(prefix="/authz", tags=["authz-idp"])
 
 
+def safe_urlparse(url: str):
+    """``urlparse`` that returns None instead of raising: an unbalanced ``[``
+    (``http://[``) is a ValueError, which must read as "malformed", not a 500."""
+    try:
+        return urlparse(url)
+    except ValueError:
+        return None
+
+
+async def service_app_origin_allowed(db: AsyncSession, redirect_uri: str) -> bool:
+    """Pure predicate: is ``redirect_uri`` well-formed and its origin registered
+    on an active ServiceApp? No logging, no raising — callers own how they react
+    to False. Shared by the AuthZ idp-proxy allowlist (below) and the hosted
+    /onboard return_to check, which log/react to a rejection differently (the
+    idp-proxy flow hands a raw IdP token to redirect_uri — a rejection there is
+    security-relevant at token-exfil severity; /onboard delivers nothing, so a
+    stale bookmark is just a denied redirect, not an exfil attempt).
+    """
+    parsed = safe_urlparse(redirect_uri)
+    if parsed is None or parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        return False
+    if parsed.fragment:
+        return False
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    stmt = select(ServiceApp.id).where(
+        ServiceApp.is_active.is_(True),
+        ServiceApp.allowed_origins.any(origin),
+    )
+    result = await db.execute(stmt)
+    return bool(result.first())
+
+
 async def _validate_authz_redirect_uri(db: AsyncSession, redirect_uri: str) -> None:
     """Assert ``redirect_uri``'s origin is registered on an active ServiceApp.
 
@@ -50,32 +82,28 @@ async def _validate_authz_redirect_uri(db: AsyncSession, redirect_uri: str) -> N
     AuthZ-mode proxy flow (``/authz/idp/*``) — in AuthZ mode trust is rooted in
     ServiceApp registration, so redirect targets must match a registered origin.
     """
-    parsed = urlparse(redirect_uri)
-    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+    if await service_app_origin_allowed(db, redirect_uri):
+        return
+    parsed = safe_urlparse(redirect_uri)
+    if parsed is None or parsed.scheme not in {"http", "https"} or not parsed.hostname:
         raise HTTPException(status_code=400, detail="Invalid redirect_uri")
     if parsed.fragment:
         raise HTTPException(
             status_code=400, detail="redirect_uri must not contain a fragment"
         )
     origin = f"{parsed.scheme}://{parsed.netloc}"
-    stmt = select(ServiceApp.id).where(
-        ServiceApp.is_active.is_(True),
-        ServiceApp.allowed_origins.any(origin),
+    # This flow delivers a raw IdP token to redirect_uri in the URL
+    # fragment — an allowlist probe here is an attempted token exfil.
+    log_security(
+        "authz.idp.redirect_rejected",
+        outcome="denied",
+        reason="origin_not_allowed",
+        origin=origin,
     )
-    result = await db.execute(stmt)
-    if not result.first():
-        # This flow delivers a raw IdP token to redirect_uri in the URL
-        # fragment — an allowlist probe here is an attempted token exfil.
-        log_security(
-            "authz.idp.redirect_rejected",
-            outcome="denied",
-            reason="origin_not_allowed",
-            origin=origin,
-        )
-        raise HTTPException(
-            status_code=400,
-            detail="redirect_uri origin is not registered on any active service",
-        )
+    raise HTTPException(
+        status_code=400,
+        detail="redirect_uri origin is not registered on any active service",
+    )
 
 
 @idp_router.get("/idp/{provider}/login")

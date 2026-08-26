@@ -86,6 +86,10 @@ POST /workspaces/{workspace_id}/members/invite
 { "email": "alice@example.com", "role": "editor" }
 ```
 
+!!! note "Self-serve mode"
+    With `SELF_SERVE_ENABLED=true` this endpoint returns `403`: members join
+    through one-time invitation links instead. See [Self-serve Workspaces](self-serve.md).
+
 ### Change Role
 
 ```

@@ -241,6 +241,12 @@ class ServiceInfo(BaseModel):
     admin_url: str
 
 
+class SelfServeInfo(BaseModel):
+    enabled: bool
+    max_workspaces_per_user: int
+    max_creates_per_hour: int
+
+
 class SystemSettingsResponse(BaseModel):
     oauth_providers: list[OAuthProviderInfo]
     jwt: JwtInfo
@@ -248,6 +254,7 @@ class SystemSettingsResponse(BaseModel):
     rate_limits: list[RateLimitInfo]
     service_keys: list[ServiceKeyInfo]
     service: ServiceInfo
+    self_serve: SelfServeInfo
 
 
 # ── Bulk Operations ──────────────────────────────────────────────────

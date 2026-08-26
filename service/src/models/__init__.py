@@ -4,6 +4,7 @@ from src.models.service_app import ServiceApp
 from src.models.realm import Realm
 from src.models.user import User, SocialAccount
 from src.models.workspace import Workspace, WorkspaceMembership
+from src.models.invitation import WorkspaceInvitation
 from src.models.group import Group, GroupMembership
 from src.models.permission import ResourcePermission, ResourceShare
 from src.models.role import (
@@ -29,6 +30,7 @@ __all__ = [
     "SocialAccount",
     "Workspace",
     "WorkspaceMembership",
+    "WorkspaceInvitation",
     "Group",
     "GroupMembership",
     "ResourcePermission",

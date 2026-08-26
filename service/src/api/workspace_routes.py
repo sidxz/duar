@@ -12,6 +12,7 @@ from src.api.dependencies import (
     get_current_user_flexible,
 )
 from src.database import get_db
+from src.models.user import User
 from src.schemas.workspace import (
     InviteMemberRequest,
     UpdateMemberRoleRequest,
@@ -44,13 +45,26 @@ async def create_workspace(
     user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # The API is a self-serve create like the hosted one — same flag, cap and
+    # breaker — otherwise one workspace would unlock unlimited creation here.
+    actor = await db.get(User, user.user_id)
+    if actor is None:
+        raise HTTPException(status_code=404, detail="User not found")
     try:
-        workspace = await workspace_service.create_workspace(
-            db,
-            name=body.name,
-            slug=body.slug,
-            created_by=user.user_id,
-            description=body.description,
+        workspace = await workspace_service.create_self_serve(
+            db, actor, body.name, slug=body.slug, description=body.description
+        )
+    except workspace_service.SelfServeDisabled:
+        raise HTTPException(
+            status_code=403, detail="Workspace creation is disabled on this server"
+        )
+    except workspace_service.SelfServeCapReached:
+        raise HTTPException(status_code=403, detail="Workspace limit reached")
+    except workspace_service.SelfServeThrottled:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many workspaces are being created right now",
+            headers={"Retry-After": "3600"},
         )
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
@@ -61,7 +75,7 @@ async def create_workspace(
         target_id=workspace.id,
         actor_id=user.user_id,
         workspace_id=workspace.id,
-        detail={"name": workspace.name, "slug": workspace.slug},
+        detail={"name": workspace.name, "slug": workspace.slug, "self_serve": True},
     )
     await db.commit()
     return workspace
@@ -167,6 +181,13 @@ async def invite_member(
     user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    if settings.self_serve_enabled:
+        # Consent rule (spec): in self-serve mode nobody is added to a workspace
+        # without their own action, and this endpoint is an email-existence oracle.
+        raise HTTPException(
+            status_code=403,
+            detail="Direct member add is disabled in self-serve mode; use invitations",
+        )
     _require_workspace_match(user, workspace_id)
     _require_role(user, "admin")
     try:

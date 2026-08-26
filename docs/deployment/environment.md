@@ -142,6 +142,19 @@ service app's allowed IdP audiences. See
 
 ---
 
+## Self-serve Workspaces
+
+| Variable | Default | Required |
+|----------|---------|----------|
+| `SELF_SERVE_ENABLED` | `false` | No |
+| `SELF_SERVE_MAX_WORKSPACES_PER_USER` | `1` | No |
+| `SELF_SERVE_MAX_CREATES_PER_HOUR` | `30` | No |
+
+With the flag on, also register `{BASE_URL}/onboard/callback/{provider}` as a
+redirect URI at each IdP (next to `{BASE_URL}/auth/callback/{provider}`).
+
+---
+
 ## Docker / Infrastructure
 
 These are used by `docker-compose.prod.yml` and `.env.prod`. They are not read by the FastAPI application.

@@ -1,0 +1,113 @@
+{% extends "onboard/base.html" %}
+{% block title %}Manage workspace{% endblock %}
+{% block body_class %}wide{% endblock %}
+{% block content %}
+<span class="eyebrow mono">Manage workspace</span>
+{% if not admin_workspaces %}
+<h1>Nothing to manage yet</h1>
+<p class="lede">You're not an owner or admin of any workspace yet.</p>
+{% else %}
+<h1>{{ selected.name }}</h1>
+<p class="lede">You're an {{ actor_role }} here. Invite people, set roles, or rename the workspace.</p>
+{% if admin_workspaces|length > 1 %}
+<div class="tabs">
+{% for ws, role in admin_workspaces %}
+  <a{% if ws.id == selected.id %} class="on"{% endif %} href="{{ base_url }}/onboard/invites?workspace={{ ws.id }}">{{ ws.name }}</a>
+{% endfor %}
+</div>
+{% endif %}
+
+{% if new_invite %}
+<div class="oneshot">
+  <span class="eyebrow mono red">New invite link</span>
+  <p><strong>Shown once — copy it now.</strong> Send this link to the person you're inviting. It works once and expires in 7 days.</p>
+  <label for="link">Invite link</label>
+  <input type="text" id="link" readonly value="{{ new_invite.link }}">
+  <label for="newcode">or just the code</label>
+  <input type="text" id="newcode" readonly value="{{ new_invite.code }}">
+</div>
+{% endif %}
+
+<h2>Members <span class="fine">· {{ members|length }}</span></h2>
+{% for m in members %}
+<div class="member">
+  <div class="tile" aria-hidden="true">{{ (m.name or m.email)[:1]|upper }}</div>
+  <div class="id">
+    <div class="n">{{ m.name }}{% if m.user_id == me %} <span class="fine">(you)</span>{% endif %}</div>
+    <div class="e">{{ m.email }}</div>
+  </div>
+  <div class="act">
+  {% if m.role == 'owner' and actor_role != 'owner' %}
+    <span class="chip mono">owner</span>
+  {% else %}
+    <form method="post" action="{{ base_url }}/onboard/members/{{ m.user_id }}/role" class="inline">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="workspace_id" value="{{ selected.id }}">
+      <select name="role" class="auto" aria-label="Role for {{ m.email }}">
+        {% for r in (['owner', 'admin', 'editor', 'viewer'] if actor_role == 'owner' else ['admin', 'editor', 'viewer']) %}
+        <option value="{{ r }}" {% if r == m.role %}selected{% endif %}>{{ r }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn secondary sm" type="submit">Save</button>
+    </form>
+    <a class="quiet" href="{{ base_url }}/onboard/confirm?action=remove&amp;workspace={{ selected.id }}&amp;user={{ m.user_id }}">Remove</a>
+  {% endif %}
+  </div>
+</div>
+{% endfor %}
+
+<div class="section twocol">
+  <div>
+    <h2>New invitation for {{ selected.name }}</h2>
+    <p class="fine">You'll get a one-time link to send them.</p>
+    <form method="post" action="{{ base_url }}/onboard/invites">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="workspace_id" value="{{ selected.id }}">
+      <label for="role">Role</label>
+      <select id="role" name="role" class="stack">
+        <option value="viewer">viewer</option>
+        <option value="editor">editor</option>
+        <option value="admin">admin</option>
+      </select>
+      <label for="email">Lock to an email <span class="fine">(optional)</span></label>
+      <input type="email" id="email" name="email" placeholder="anyone with the link" maxlength="254" class="stack">
+      <button class="btn" type="submit">Create invite link</button>
+    </form>
+  </div>
+  <div>
+    <h2>Pending invitations</h2>
+    <p class="fine">Links that haven't been used yet.</p>
+    {% if not pending %}<p>None.</p>{% else %}
+    {% for inv in pending %}
+    <div class="pend">
+      <span>{{ inv.email or 'anyone' }}</span>
+      <span class="chip mono">{{ inv.role }}</span>
+      <span class="fine">expires {{ inv.expires_at.strftime('%b') }} {{ inv.expires_at.day }}</span>
+      <form method="post" action="{{ base_url }}/onboard/invites/{{ inv.id }}/revoke">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="quiet" type="submit">Revoke</button>
+      </form>
+    </div>
+    {% endfor %}
+    {% endif %}
+  </div>
+</div>
+
+<div class="section">
+  <h2>Rename</h2>
+  <form method="post" action="{{ base_url }}/onboard/workspace/rename" class="inline" style="max-width:420px">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="workspace_id" value="{{ selected.id }}">
+    <input type="text" id="wsname" name="name" value="{{ selected.name }}" required maxlength="255" aria-label="Workspace name">
+    <button class="btn secondary" type="submit">Rename</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}
+{% block footer %}
+<div class="meta">
+  <a href="{{ base_url }}/onboard/home">Workspaces</a>
+  {% if return_to %}<a href="{{ return_to }}">Back to app</a>{% endif %}
+  <form method="post" action="{{ base_url }}/onboard/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button type="submit">Sign out</button></form>
+</div>
+{% endblock %}

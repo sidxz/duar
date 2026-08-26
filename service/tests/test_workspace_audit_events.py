@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 
 from src.api.dependencies import CurrentUser, get_current_user
 from src.api.workspace_routes import router as workspace_router
+from src.config import settings
 from src.database import get_db
 from src.middleware.rate_limit import limiter
 
@@ -37,6 +38,9 @@ def _disable_limiter():
 class _FakeDB:
     async def commit(self):
         pass
+
+    async def get(self, model, pk):
+        return SimpleNamespace(id=pk)
 
 
 def _build_app(role="owner"):
@@ -78,20 +82,23 @@ def _workspace_ns(ws_id=WS_ID):
 
 
 def test_create_workspace_audited(monkeypatch, activity):
+    monkeypatch.setattr(settings, "self_serve_enabled", True)
     from src.api import workspace_routes
 
     new_id = uuid.uuid4()
 
-    async def _create(_db, **kw):
+    async def _create(_db, _actor, name, slug=None, description=None):
         return _workspace_ns(ws_id=new_id)
 
-    monkeypatch.setattr(workspace_routes.workspace_service, "create_workspace", _create)
+    monkeypatch.setattr(
+        workspace_routes.workspace_service, "create_self_serve", _create
+    )
     resp = _build_app().post("/workspaces", json={"name": "Acme", "slug": "acme"})
     assert resp.status_code == 201
     assert activity[0]["action"] == "workspace_created"
     assert activity[0]["target_id"] == new_id
     assert activity[0]["actor_id"] == ACTOR_ID
-    assert activity[0]["detail"] == {"name": "Acme", "slug": "acme"}
+    assert activity[0]["detail"] == {"name": "Acme", "slug": "acme", "self_serve": True}
 
 
 def test_update_workspace_audited(monkeypatch, activity):
@@ -128,6 +135,9 @@ def test_delete_workspace_audited(monkeypatch, activity):
 
 
 def test_invite_member_audited(monkeypatch, activity):
+    # Direct member-add is 403 when self-serve is on (see test_self_serve_gates.py);
+    # pin the flag off so this test doesn't depend on the local .env value.
+    monkeypatch.setattr(settings, "self_serve_enabled", False)
     from src.api import workspace_routes
 
     async def _invite(_db, _ws_id, **kw):

@@ -49,6 +49,7 @@ Every response includes 11 security headers set by `SecurityHeadersMiddleware`:
 | `X-XSS-Protection` | `0` | Disables legacy XSS filter (CSP preferred) |
 | `Permissions-Policy` | `camera=(), microphone=(), geolocation=()` | Restricts browser APIs |
 | `Content-Security-Policy` | `default-src 'none'; frame-ancestors 'none'` | Blocks all resource loading and framing |
+| `Content-Security-Policy` (HTML pages) | `default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; font-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'` | Server-rendered `/onboard` and error pages: inline styles, same-origin fonts and forms, no scripts |
 | `Cross-Origin-Embedder-Policy` | `require-corp` | Prevents cross-origin resource leaks |
 | `Cross-Origin-Opener-Policy` | `same-origin` | Isolates browsing context |
 | `Cross-Origin-Resource-Policy` | `same-origin` | Restricts resource sharing |
@@ -81,6 +82,11 @@ Four tiers, applied by endpoint sensitivity:
 | **Admin Cookie** | `admin_token` HttpOnly cookie | Admin panel operations | `/admin/*` |
 
 Service keys are database-managed (`service_apps` table), not environment variables. Each key is stored as a SHA-256 hash with a display prefix (e.g., `sk_abc1****`). Keys are validated by `service_app_service.validate_key()` with Redis caching.
+
+**Self-serve mode** (`SELF_SERVE_ENABLED`, default off) adds a fifth, browser-only
+surface: the hosted `/onboard` pages authenticate with the signed session cookie
+set by Duar's own OAuth callback. It never grants admin access, and admin cookies
+never authenticate `/onboard`. While the flag is off, `POST /workspaces` is 403.
 
 ---
 

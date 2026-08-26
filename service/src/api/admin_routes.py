@@ -275,6 +275,12 @@ async def system_settings(
         "admin_url": settings.admin_url,
     }
 
+    self_serve = {
+        "enabled": settings.self_serve_enabled,
+        "max_workspaces_per_user": settings.self_serve_max_workspaces_per_user,
+        "max_creates_per_hour": settings.self_serve_max_creates_per_hour,
+    }
+
     await activity_service.log_activity(
         db,
         action="view_system_settings",
@@ -291,6 +297,7 @@ async def system_settings(
         rate_limits=rate_limits,
         service_keys=service_keys,
         service=service_info,
+        self_serve=self_serve,
     )
 
 

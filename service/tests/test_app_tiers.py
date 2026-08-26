@@ -37,6 +37,7 @@ def test_public_tier_has_browser_routes_not_service_key_surface():
     assert _has_prefix(app, "/auth")  # auth proxy — public
     assert _has_prefix(app, "/admin")  # admin — public
     assert _has_prefix(app, "/users")  # public
+    assert _has_prefix(app, "/onboard")  # self-serve onboarding — public
     # Service-key surface must be ABSENT from the public listener:
     assert "/authz/resolve" not in _paths(app)  # authz SERVICE surface — internal only
     assert not _has_prefix(app, "/permissions")
@@ -60,6 +61,7 @@ def test_internal_tier_has_service_key_surface_not_browser_routes():
     assert not _has_prefix(app, "/admin")
     assert not _has_prefix(app, "/users")
     assert not _has_prefix(app, "/workspaces")
+    assert not _has_prefix(app, "/onboard")
 
 
 def test_all_tier_is_todays_app_superset():
@@ -73,6 +75,7 @@ def test_all_tier_is_todays_app_superset():
         "/permissions",
         "/realm",
         "/roles",
+        "/onboard",
     ):
         assert _has_prefix(app, prefix), prefix
     assert "/authz/resolve" in _paths(app)

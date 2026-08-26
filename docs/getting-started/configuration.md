@@ -153,6 +153,18 @@ Add emails before starting the service. You can also promote existing users with
 
 ---
 
+## Self-serve workspaces
+
+Public instances only — see [Self-serve Workspaces](../guide/self-serve.md).
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SELF_SERVE_ENABLED` | `false` | Hosts `/onboard` (join by invitation link / create a workspace). Off: `/onboard` is 404 and `POST /workspaces` is 403. |
+| `SELF_SERVE_MAX_WORKSPACES_PER_USER` | `1` | Workspaces one user may create. `0` = join-only. |
+| `SELF_SERVE_MAX_CREATES_PER_HOUR` | `30` | Instance-wide breaker on successful creations. |
+
+---
+
 ## Notes
 
 **Service API keys** are managed through the admin panel (Service Apps), not environment variables. Each key is scoped to a `service_name` and stored as a SHA-256 hash.

@@ -1,0 +1,95 @@
+{% extends "onboard/base.html" %}
+{% block title %}Workspaces{% endblock %}
+{% block content %}
+{% set first = ((user.name or '').strip() or user.email).split()[0] %}
+{% if invite %}
+<h1>Hi {{ first }}</h1>
+<p class="lede">You have an invitation waiting.</p>
+{% elif workspaces %}
+<h1>Welcome back, {{ first }}</h1>
+<p class="lede">Continue to a workspace, or join another one.</p>
+{% else %}
+<h1>Welcome, {{ first }}</h1>
+<p class="lede">Join a workspace with an invite{% if show_create_section and can_create %}, or start your own{% endif %}.</p>
+{% endif %}
+
+{% if invite_invalid %}
+<div class="flash">That invite link is invalid, expired, or already used.</div>
+{% endif %}
+
+{% if invite %}
+<div class="invite">
+  <span class="eyebrow mono red">Invitation</span>
+  <div class="who">
+    <div class="tile" aria-hidden="true">{{ invite_ws.name[:1]|upper }}</div>
+    <div>
+      <div class="name">{{ invite_ws.name }}</div>
+      {% if invite_member %}
+      <p>You're already a member of <strong>{{ invite_ws.name }}</strong>.</p>
+      {% else %}
+      <p>You're invited to join <strong>{{ invite_ws.name }}</strong> as <strong>{{ invite.role }}</strong>.{% if inviter %} Invited by {{ inviter.name or inviter.email }}.{% endif %}</p>
+      {% endif %}
+    </div>
+  </div>
+  {% if invite_member %}
+  <a class="btn secondary wide" href="{{ base_url }}/onboard/done">Continue</a>
+  {% else %}
+  <form method="post" action="{{ base_url }}/onboard/join">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="code" value="{{ invite_code }}">
+    <button class="btn wide" type="submit">Join {{ invite_ws.name }}</button>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if workspaces %}
+<span class="eyebrow mono">Your workspaces</span>
+{% for ws, role in workspaces %}
+<div class="ws">
+  <div class="tile" aria-hidden="true">{{ ws.name[:1]|upper }}</div>
+  <span class="name">{{ ws.name }}</span>
+  <span class="chip mono">{{ role }}</span>
+  <a class="quiet" href="{{ base_url }}/onboard/confirm?action=leave&amp;workspace={{ ws.id }}">Leave</a>
+</div>
+{% endfor %}
+{% if not invite %}<a class="btn secondary wide" href="{{ base_url }}/onboard/done" style="margin-top:1rem">Continue</a>{% endif %}
+{% endif %}
+
+<details{% if not invite and not workspaces %} open{% endif %}>
+  <summary>Have {% if invite %}another{% else %}an{% endif %} invite link or code?</summary>
+  <p class="fine">Paste the whole link or just the code.</p>
+  <form method="post" action="{{ base_url }}/onboard/join" class="inline">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="text" id="code" name="code" required autocomplete="off" aria-label="Invite link or code" placeholder="https://… or the code">
+    <button class="btn secondary" type="submit">Join</button>
+  </form>
+</details>
+
+{% if show_create_section %}
+<details{% if not invite and not workspaces %} open{% endif %}>
+  <summary>Create a workspace{% if invite or workspaces %} instead{% endif %}</summary>
+  {% if can_create %}
+  <p class="fine">You'll be its owner and can invite others.</p>
+  <form method="post" action="{{ base_url }}/onboard/create">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label for="name">Workspace name</label>
+    <div class="inline">
+      <input type="text" id="name" name="name" required maxlength="255">
+      <button class="btn{% if invite %} secondary{% endif %}" type="submit">Create</button>
+    </div>
+  </form>
+  {% else %}
+  <p class="fine">You've reached the limit of workspaces you can create.</p>
+  {% endif %}
+</details>
+{% endif %}
+{% endblock %}
+{% block footer %}
+<div class="meta">
+  <div class="who">Signed in as <strong>{{ user.email }}</strong> · Not you?
+    <form method="post" action="{{ base_url }}/onboard/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button type="submit">Sign out</button></form></div>
+  <a href="{{ base_url }}/onboard/invites">Manage workspaces</a>
+  {% if return_to %}<a href="{{ return_to }}">Back to app</a>{% endif %}
+</div>
+{% endblock %}

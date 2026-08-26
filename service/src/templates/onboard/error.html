@@ -1,0 +1,8 @@
+{% extends "onboard/base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<span class="eyebrow mono">Error {{ status_code }}</span>
+<h1>{{ title }}</h1>
+<p class="lede">{{ message }}</p>
+{% if back_href %}<a class="btn secondary" href="{{ back_href }}">Back to sign-in</a>{% endif %}
+{% endblock %}
