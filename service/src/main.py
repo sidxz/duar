@@ -1,10 +1,12 @@
 import os
 import time
+from pathlib import Path
 from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from src.api.admin_routes import router as admin_router
@@ -318,6 +320,13 @@ def create_app(tier: str) -> FastAPI:
         routers += INTERNAL_ROUTERS
     for router in routers:
         app.include_router(router)
+    if tier in ("public", "all"):
+        # Self-hosted fonts for the server-rendered HTML pages (CSP font-src 'self').
+        app.mount(
+            "/static",
+            StaticFiles(directory=Path(__file__).resolve().parent / "static"),
+            name="static",
+        )
 
     @app.get("/health")
     @limiter.exempt  # health probes must never be throttled

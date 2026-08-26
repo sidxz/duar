@@ -1,4 +1,3 @@
-import html
 import uuid
 from dataclasses import dataclass
 from urllib.parse import urlencode
@@ -12,6 +11,7 @@ from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 from src.api.dependencies import CurrentUser, get_current_user, require_admin
 from src.auth.jwt import create_admin_token, decode_token
 from src.auth.providers import get_configured_providers, oauth
+from src.api.pages import templates
 from src.config import settings
 from src.database import get_db
 from src.models.client_app import ClientApp
@@ -135,60 +135,15 @@ def _profile_error_page(
 def _error_page(
     status_code: int, title: str, message: str, back_href: str | None = None
 ) -> HTMLResponse:
-    # Base64-encoded splash.png is too large — use an inline SVG shield instead.
-    # The response overrides the global CSP to allow inline styles and the SVG.
-    safe_title = html.escape(title)
-    safe_message = html.escape(message)
-    back = (
-        f'<p class="back"><a href="{html.escape(back_href, quote=True)}">Back to sign-in</a></p>'
-        if back_href
-        else ""
+    # Same Jinja base (autoescaped) as the hosted /onboard pages. The response
+    # overrides the global CSP to allow the inline styles + self-hosted fonts.
+    page = templates.env.get_template("onboard/error.html").render(
+        base_url=settings.base_url,
+        status_code=status_code,
+        title=title,
+        message=message,
+        back_href=back_href,
     )
-    page = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{safe_title} — Duar</title>
-<style>
-  *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{ min-height: 100vh; display: flex; align-items: center; justify-content: center;
-         background: #09090b; color: #e4e4e7; font-family: system-ui, -apple-system, sans-serif; }}
-  .card {{ max-width: 420px; width: 100%; border: 1px solid #27272a;
-           border-radius: 0.75rem; background: #18181b; overflow: hidden; }}
-  .header {{ background: #f43737; padding: 1.5rem; text-align: center; }}
-  .shield {{ width: 40px; height: 40px; margin: 0 auto 0.5rem; }}
-  .brand {{ font-size: 0.625rem; font-weight: 700; letter-spacing: 0.15em;
-            text-transform: uppercase; color: rgba(255,255,255,0.85); }}
-  .body {{ padding: 2rem 2rem 1.75rem; text-align: center; }}
-  h1 {{ font-size: 1.125rem; font-weight: 600; margin-bottom: 0.75rem; }}
-  p {{ font-size: 0.875rem; color: #a1a1aa; line-height: 1.6; }}
-  .meta {{ font-size: 0.75rem; color: #3f3f46; margin-top: 1.5rem;
-           padding-top: 1rem; border-top: 1px solid #27272a; }}
-  .back {{ margin-top: 1rem; }}
-  .back a {{ color: #f43737; text-decoration: none; }}
-</style>
-</head>
-<body>
-  <div class="card">
-    <div class="header">
-      <svg class="shield" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.25C17.25 22.15 21 17.25 21 12V7l-9-5z"
-              fill="rgba(0,0,0,0.2)" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
-        <rect x="10" y="9" width="4" height="5" rx="0.5" fill="white" opacity="0.9"/>
-        <circle cx="12" cy="8.5" r="2" fill="none" stroke="white" stroke-width="1.5" opacity="0.9"/>
-      </svg>
-      <div class="brand">Duar</div>
-    </div>
-    <div class="body">
-      <h1>{safe_title}</h1>
-      <p>{safe_message}</p>
-      {back}
-      <div class="meta">Error {status_code}</div>
-    </div>
-  </div>
-</body>
-</html>"""
     resp = HTMLResponse(content=page, status_code=status_code)
     resp.headers["X-CSP-Override"] = "html-page"
     return resp

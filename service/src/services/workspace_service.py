@@ -162,6 +162,19 @@ async def list_user_workspaces(db: AsyncSession, user_id: uuid.UUID) -> list[Wor
     return list(result.scalars().all())
 
 
+async def list_user_memberships(
+    db: AsyncSession, user_id: uuid.UUID
+) -> list[tuple[Workspace, str]]:
+    """Every workspace the user belongs to, with their role."""
+    stmt = (
+        select(Workspace, WorkspaceMembership.role)
+        .join(WorkspaceMembership)
+        .where(WorkspaceMembership.user_id == user_id)
+        .order_by(Workspace.created_at)
+    )
+    return [(ws, role) for ws, role in (await db.execute(stmt)).all()]
+
+
 async def get_workspace(db: AsyncSession, workspace_id: uuid.UUID) -> Workspace | None:
     return await db.get(Workspace, workspace_id)
 

@@ -14,8 +14,8 @@ the changelog notes.
 
 ## How it works
 
-- Pages are server-rendered by Duar (no JavaScript) and use Duar's **own**
-  IdP client — the same code flow proxy mode and the admin panel use. Sign-in
+- Pages are server-rendered by Duar (no JavaScript; fonts are self-hosted
+  under `/static/fonts`) and use Duar's **own** IdP client — the same code flow proxy mode and the admin panel use. Sign-in
   audits and security signals fire exactly as for any login.
 - **Invitations** are one-time links minted by a workspace owner/admin on
   `/onboard/invites`. A link is shown once, expires after 7 days, can grant
@@ -82,7 +82,9 @@ Show the "Sign up" link permanently on the login page and make your
    recommended on a public instance; if used it must be single-tenant and the
    app registration must emit `xms_edov` — onboarding sign-in fails with 403
    unless the claim is present.
-5. `TIER` must include the public listener (`public` or `all`).
+5. `TIER` must include the public listener (`public` or `all`). Path-prefix
+   deployments must route `{prefix}/static/*` to Duar as well as
+   `{prefix}/onboard/*` — the pages load their fonts from there.
 6. Raise `RATE_LIMIT_AUTHZ_RESOLVE` (one bucket per calling service) and put
    per-IP rate limiting at the edge; edge logs will contain single-use
    `?code=` URLs.

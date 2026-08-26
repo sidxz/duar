@@ -73,6 +73,12 @@ def test_html_override_still_allows_inline_styles_for_login_page():
     assert "style-src 'unsafe-inline'" in csp
 
 
+def test_html_override_allows_self_hosted_fonts_only():
+    # The hosted pages self-host their fonts under /static; the API CSP stays font-free.
+    assert "font-src 'self'" in _csp("/html")
+    assert "font-src" not in _csp("/plain")
+
+
 def test_onboard_pages_are_no_store():
     resp = TestClient(_app()).get("/onboard/home")
     assert resp.headers["Cache-Control"] == "no-store"

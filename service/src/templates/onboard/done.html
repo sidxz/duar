@@ -1,14 +1,17 @@
 {% extends "onboard/base.html" %}
 {% block title %}All set{% endblock %}
 {% block content %}
+<div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="var(--ok-fg)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
 <h1>You're all set</h1>
 {% if result and result.kind == 'joined' %}
-<p>You joined <strong>{{ result.workspace }}</strong>.</p>
+<p class="lede">You joined <strong>{{ result.workspace }}</strong>.</p>
 {% elif result and result.kind == 'created' %}
-<p>You created <strong>{{ result.workspace }}</strong> and are its owner.</p>
+<p class="lede">You created <strong>{{ result.workspace }}</strong> and are its owner.</p>
+{% else %}
+<p class="lede">Your workspaces are ready.</p>
 {% endif %}
 {% if return_to %}
-<div class="row"><a class="btn" href="{{ return_to }}">Continue to app</a></div>
+<a class="btn wide" href="{{ return_to }}">Continue to app</a>
 {% else %}
 <p>Go back to the app and sign in — your workspace will be there.</p>
 {% endif %}

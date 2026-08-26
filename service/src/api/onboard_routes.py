@@ -14,13 +14,10 @@ import secrets
 import time
 import uuid
 from datetime import UTC, datetime
-from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import structlog
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.templating import Jinja2Templates
-from jinja2 import Environment, FileSystemLoader
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import HTMLResponse, RedirectResponse, Response
 
@@ -32,6 +29,7 @@ from src.api.auth_routes import (
     _profile_error_page,
 )
 from src.api.authz_routes import service_app_origin_allowed
+from src.api.pages import templates
 from src.auth.providers import get_configured_providers, oauth
 from src.config import settings
 from src.database import get_db
@@ -52,11 +50,6 @@ from src.services import (
 logger = structlog.get_logger()
 
 router = APIRouter(prefix="/onboard", tags=["onboard"], include_in_schema=False)
-
-_TEMPLATES_DIR = str(Path(__file__).resolve().parent.parent / "templates")
-templates = Jinja2Templates(
-    env=Environment(loader=FileSystemLoader(_TEMPLATES_DIR), autoescape=True)
-)
 
 # Keys GET /onboard resets. NEVER onboard_user_id / onboard_csrf, and never
 # request.session.clear(): the same cookie carries in-flight proxy/admin/authz-idp
@@ -436,6 +429,7 @@ async def home(request: Request, db: AsyncSession = Depends(get_db)):
         "invite_member": False,
         "invite_invalid": False,
         "invite_code": None,
+        "inviter": None,
     }
     code = request.session.get("onboard_code")
     if code:
@@ -456,6 +450,9 @@ async def home(request: Request, db: AsyncSession = Depends(get_db)):
                 )
                 is not None,
                 invite_code=code,
+                inviter=(
+                    await db.get(User, inv.created_by) if inv.created_by else None
+                ),
             )
     cap = settings.self_serve_max_workspaces_per_user
     created = await workspace_service.count_created_by(db, user.id)
@@ -463,11 +460,52 @@ async def home(request: Request, db: AsyncSession = Depends(get_db)):
         request,
         "home.html",
         user=user,
-        workspaces=await workspace_service.list_user_workspaces(db, user.id),
+        workspaces=await workspace_service.list_user_memberships(db, user.id),
         show_create_section=cap > 0,
         can_create=created < cap,
         **ctx,
     )
+
+
+@router.get("/confirm", response_class=HTMLResponse)
+async def confirm(
+    request: Request,
+    action: str,
+    workspace: str,
+    user: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Confirmation page for Leave / Remove — the only place their POST forms
+    live now, so a stray click on the list can't drop a membership."""
+    _require_enabled()
+    me = await _session_user(request, db)
+    if me is None:
+        return RedirectResponse(_url(), status_code=302)
+    try:
+        ws_id = uuid.UUID(workspace)
+        target_id = uuid.UUID(user) if user else None
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Not found") from None
+    ws = await db.get(Workspace, ws_id)
+    my_role = await workspace_service.get_member_role(db, ws_id, me.id)
+    if ws is None or my_role is None:
+        _flash(request, "You're not a member of that workspace.")
+        return RedirectResponse(_home(), status_code=303)
+    target = None
+    if action == "remove":
+        if my_role not in ("owner", "admin"):
+            return _error_page(
+                403,
+                "Not Allowed",
+                "Only workspace owners and admins can manage members.",
+                back_href=_invites_url(None),
+            )
+        target = await db.get(User, target_id) if target_id else None
+        if target is None:
+            return RedirectResponse(_invites_url(ws_id), status_code=303)
+    elif action != "leave":
+        raise HTTPException(status_code=404, detail="Not found")
+    return _render(request, "confirm.html", action=action, workspace=ws, target=target)
 
 
 @router.get("/done", response_class=HTMLResponse)

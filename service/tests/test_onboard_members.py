@@ -397,3 +397,81 @@ async def test_leave_non_member_flashes(client, db):
     assert (
         "You&#39;re not a member of that workspace." in client.get("/onboard/home").text
     )
+
+
+# ── two-step confirm pages (zero-JS) ───────────────────────────────────
+
+
+def test_confirm_404_when_flag_off(client, monkeypatch):
+    monkeypatch.setattr(settings, "self_serve_enabled", False)
+    r = client.get(f"/onboard/confirm?action=leave&workspace={uuid.uuid4()}")
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_confirm_leave_renders_form_for_member(client, db):
+    ws, users = await _ws_with(db, {"owner": "owner", "editor": "editor"})
+    _login(client, users["editor"].id)
+    r = client.get(f"/onboard/confirm?action=leave&workspace={ws.id}")
+    assert r.status_code == 200
+    assert "Leave Acme?" in r.text
+    assert 'action="http://testserver/onboard/leave"' in r.text
+    assert f'name="workspace_id" value="{ws.id}"' in r.text
+    assert 'name="csrf" value="tok"' in r.text
+    # the home page only links here — no leave form on the list itself
+    home = client.get("/onboard/home").text
+    assert f"/onboard/confirm?action=leave&amp;workspace={ws.id}" in home
+    assert 'action="http://testserver/onboard/leave"' not in home
+
+
+@pytest.mark.asyncio
+async def test_confirm_leave_non_member_redirects_home(client, db):
+    ws, users = await _ws_with(db, {"owner": "owner"})
+    outsider = User(email="x@example.com", name="X", organization_id=PUBLIC_ORG_ID)
+    db.add(outsider)
+    await db.commit()
+    _login(client, outsider.id)
+    r = client.get(f"/onboard/confirm?action=leave&workspace={ws.id}")
+    assert r.status_code == 303 and r.headers["location"].endswith("/onboard/home")
+
+
+@pytest.mark.asyncio
+async def test_confirm_remove_owner_sees_target(client, db):
+    ws, users = await _ws_with(db, {"owner": "owner", "editor": "editor"})
+    _login(client, users["owner"].id)
+    eid = users["editor"].id
+    r = client.get(f"/onboard/confirm?action=remove&workspace={ws.id}&user={eid}")
+    assert r.status_code == 200
+    assert "Remove Editor?" in r.text and "editor@example.com" in r.text
+    assert f'action="http://testserver/onboard/members/{eid}/remove"' in r.text
+
+
+@pytest.mark.asyncio
+async def test_confirm_remove_denied_for_editor(client, db):
+    ws, users = await _ws_with(db, {"owner": "owner", "editor": "editor"})
+    _login(client, users["editor"].id)
+    oid = users["owner"].id
+    r = client.get(f"/onboard/confirm?action=remove&workspace={ws.id}&user={oid}")
+    assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_confirm_rejects_unknown_action_and_bad_ids(client, db):
+    ws, users = await _ws_with(db, {"owner": "owner"})
+    _login(client, users["owner"].id)
+    assert (
+        client.get(f"/onboard/confirm?action=nuke&workspace={ws.id}").status_code == 404
+    )
+    assert client.get("/onboard/confirm?action=leave&workspace=nope").status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_admin_sees_owner_row_as_text_not_select(client, db):
+    ws, users = await _ws_with(db, {"owner": "owner", "admin": "admin"})
+    _login(client, users["admin"].id)
+    page = client.get(f"/onboard/invites?workspace={ws.id}").text
+    # no role <select> (and no Remove link) for the owner's row when the actor is an admin
+    assert '<option value="owner"' not in page
+    assert f"user={users['owner'].id}" not in page
+    # the admin's own row is still editable
+    assert '<option value="admin" selected>admin</option>' in page

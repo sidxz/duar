@@ -130,7 +130,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # trade-off so the rendered HTML can use inline styles.)
         _HTML_CSP = (
             "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; "
-            "frame-ancestors 'none'; form-action 'self'; base-uri 'none'"
+            "font-src 'self'; frame-ancestors 'none'; form-action 'self'; "
+            "base-uri 'none'"
         )
         csp_override = response.headers.get("X-CSP-Override")
         if csp_override == "html-page":

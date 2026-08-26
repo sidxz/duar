@@ -103,5 +103,5 @@ def test_error_page_back_link_is_escaped_and_optional():
     plain = _error_page(400, "T", "M").body.decode()
     assert "Back to" not in plain
     linked = _error_page(400, "T", "M", back_href='https://x/"><s>').body.decode()
-    assert 'href="https://x/&quot;&gt;&lt;s&gt;"' in linked
+    assert 'href="https://x/&#34;&gt;&lt;s&gt;"' in linked  # Jinja autoescape
     assert "Back to sign-in" in linked

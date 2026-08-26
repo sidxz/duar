@@ -49,6 +49,7 @@ Every response includes 11 security headers set by `SecurityHeadersMiddleware`:
 | `X-XSS-Protection` | `0` | Disables legacy XSS filter (CSP preferred) |
 | `Permissions-Policy` | `camera=(), microphone=(), geolocation=()` | Restricts browser APIs |
 | `Content-Security-Policy` | `default-src 'none'; frame-ancestors 'none'` | Blocks all resource loading and framing |
+| `Content-Security-Policy` (HTML pages) | `default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; font-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'` | Server-rendered `/onboard` and error pages: inline styles, same-origin fonts and forms, no scripts |
 | `Cross-Origin-Embedder-Policy` | `require-corp` | Prevents cross-origin resource leaks |
 | `Cross-Origin-Opener-Policy` | `same-origin` | Isolates browsing context |
 | `Cross-Origin-Resource-Policy` | `same-origin` | Restricts resource sharing |
