@@ -6,7 +6,6 @@
 <title>{% block title %}Onboarding{% endblock %} — Duar</title>
 <style>
 @font-face{font-family:"Overused Grotesk";src:url({{ base_url }}/static/fonts/OverusedGrotesk-VF.woff2) format("woff2");font-weight:300 900;font-display:swap}
-@font-face{font-family:"IBM Plex Mono";src:url({{ base_url }}/static/fonts/IBMPlexMono-Medium.woff2) format("woff2");font-weight:500;font-display:swap}
 :root{
   --paper:#ffffff; --wash:#f5f5f5; --line:#e6e6e6; --ink:#0b0b0d; --muted:#6b6b71;
   --brand:#f43737; --brand-dark:#c42020; --brand-tint:#ffd1d1; --brand-wash:#fff1f1;
@@ -25,7 +24,7 @@ html{-webkit-text-size-adjust:100%}
 body{min-height:100vh;display:flex;background:var(--paper);color:var(--ink);
   font:400 1rem/1.5 "Overused Grotesk",ui-sans-serif,system-ui,sans-serif}
 body.wide{--col:760px}
-.mono{font:500 .6875rem/1 "IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.12em}
+.mono{font-size:.6875rem;line-height:1;font-weight:500;text-transform:uppercase;letter-spacing:.12em}
 
 .brand{display:none}
 main{flex:1;display:flex;padding:2.5rem 1.25rem}
@@ -78,7 +77,7 @@ input[type=text],input[type=email],select{width:100%;font:inherit;padding:.65rem
   border-radius:6px;background:var(--field);color:var(--ink)}
 input:focus,select:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-tint);outline:none}
 input::placeholder{color:var(--muted)}
-input[readonly]{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.875rem;background:var(--wash)}
+input[readonly]{font-size:.9375rem;background:var(--wash)}
 .inline{display:flex;gap:.5rem}
 .inline input,.inline select{flex:1;min-width:0}
 select.auto{width:auto}

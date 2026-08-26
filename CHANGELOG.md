@@ -15,7 +15,7 @@ For versions prior to `0.11.0`, see the git tag history (`git log --oneline -- s
 
 ### Changed
 - **Behavior change:** proxy-mode `POST /workspaces` now requires `SELF_SERVE_ENABLED` (403 otherwise). It was open to any user already holding a workspace-scoped token.
-- HTML pages' CSP `form-action` is now `'self'` (was `'none'`) and gains `font-src 'self'`; `/onboard` responses are `Cache-Control: no-store`. The public tier now serves `/static/fonts/*` (self-hosted Overused Grotesk + IBM Plex Mono for the hosted pages).
+- HTML pages' CSP `form-action` is now `'self'` (was `'none'`) and gains `font-src 'self'`; `/onboard` responses are `Cache-Control: no-store`. The public tier now serves `/static/fonts/*` (self-hosted Overused Grotesk for the hosted pages).
 - The proxy and admin OAuth callbacks share one IdP profile extractor (`_idp_profile`); behavior unchanged.
 
 ---
