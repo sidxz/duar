@@ -195,7 +195,7 @@ export function RealmDetail() {
         <h2 className="text-sm font-semibold text-foreground">Member services</h2>
         {members.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No services yet — add a standalone service below. Members share this
+            No services yet. Add a standalone service below. Members share this
             realm's permission scope.
           </p>
         ) : (

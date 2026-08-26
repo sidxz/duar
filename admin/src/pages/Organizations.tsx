@@ -63,7 +63,7 @@ export function Organizations() {
       header: "Domains",
       render: (o: Organization) => (
         <span className="text-sm text-muted-foreground">
-          {o.is_public ? "—" : o.domain_count}
+          {o.is_public ? "-" : o.domain_count}
         </span>
       ),
       className: "w-24",
@@ -128,7 +128,7 @@ export function Organizations() {
           </div>
           <div className="space-y-1">
             <Label htmlFor="org-slug">
-              Slug (in the token's org claim — immutable)
+              Slug (in the token's org claim; immutable)
             </Label>
             <Input
               id="org-slug"

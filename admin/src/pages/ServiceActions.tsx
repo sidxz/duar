@@ -78,7 +78,7 @@ export function ServiceActions() {
               {grouped[svc].map((a) => (
                 <tr key={a.id} className="hover:bg-muted/50 group">
                   <td className="px-4 py-2 font-mono text-xs text-foreground">{a.action}</td>
-                  <td className="px-4 py-2 text-muted-foreground">{a.description || "—"}</td>
+                  <td className="px-4 py-2 text-muted-foreground">{a.description || "-"}</td>
                   <td className="px-4 py-2 text-xs text-muted-foreground">
                     {new Date(a.created_at).toLocaleDateString()}
                   </td>

@@ -78,7 +78,7 @@ export function Insights() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Derived from the IP address and user-agent captured at sign-in — no data is collected from
+        Derived from the IP address and user-agent captured at sign-in. No data is collected from
         client applications.
       </p>
     </div>

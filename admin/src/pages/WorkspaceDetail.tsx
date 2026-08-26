@@ -1076,7 +1076,7 @@ function AccessTabInner({
       </label>
       {!restrict && (
         <p className="text-xs text-muted-foreground -mt-2">
-          Open — members from any organization may be added.
+          Open: members from any organization may be added.
         </p>
       )}
 
@@ -1099,8 +1099,8 @@ function AccessTabInner({
           </ul>
           {selected.size === 0 && (
             <p className="text-xs text-amber-700 dark:text-amber-400 -mt-2">
-              Select at least one organization, or turn off the restriction —
-              saving with none selected leaves the workspace open to all.
+              Select at least one organization, or turn off the restriction.
+              Saving with none selected leaves the workspace open to all.
             </p>
           )}
         </>

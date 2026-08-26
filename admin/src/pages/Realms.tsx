@@ -110,7 +110,7 @@ export function Realms() {
           </div>
           <div className="space-y-1">
             <Label htmlFor="realm-slug">
-              Slug (the shared permission scope — immutable)
+              Slug (the shared permission scope; immutable)
             </Label>
             <Input
               id="realm-slug"

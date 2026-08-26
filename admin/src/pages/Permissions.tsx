@@ -198,7 +198,7 @@ function PermissionRow({
         <td className="px-4 py-2.5 font-mono text-foreground">{perm.service_name}</td>
         <td className="px-4 py-2.5 font-mono text-muted-foreground">{perm.resource_type}</td>
         <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground">{String(perm.resource_id).slice(0, 8)}...</td>
-        <td className="px-4 py-2.5 text-muted-foreground text-xs">{perm.owner_email ?? "—"}</td>
+        <td className="px-4 py-2.5 text-muted-foreground text-xs">{perm.owner_email ?? "-"}</td>
         <td className="px-4 py-2.5"><VisibilityBadge visibility={perm.visibility} /></td>
         <td className="px-4 py-2.5 text-muted-foreground tabular-nums">{perm.share_count}</td>
       </tr>

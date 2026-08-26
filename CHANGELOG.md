@@ -10,13 +10,26 @@ For versions prior to `0.11.0`, see the git tag history (`git log --oneline -- s
 
 ## [Unreleased]
 
+<!-- Add next-version entries here -->
+
+---
+
+## [1.3.0] - 2026-08-26 — Self-serve workspaces
+
 ### Added
 - **Self-serve workspaces** (`SELF_SERVE_ENABLED`, default off): Duar-hosted `/onboard` pages where a public-instance user joins a workspace through a one-time invitation link (optionally email-locked, 7-day, single-use, valid only while the inviter is still owner/admin) or creates one (per-user cap, instance-wide hourly breaker, generated slug). Inviter page at `/onboard/invites`. New table `workspace_invitations`; new activity actions `invitation_*`, `self_serve_denied`; `self_serve` block in `/admin/system/settings`. Apps integrate with two links; SDKs unchanged. The hosted page also lets workspace owners/admins list members, change roles, remove members, and rename the workspace; members can leave a workspace.
+- Hosted flow: `GET /onboard/login` always renders the provider chooser (sign-out and error pages land there), and the IdP redirect carries `prompt=select_account` so a rejected account can pick another instead of looping.
 
 ### Changed
 - **Behavior change:** proxy-mode `POST /workspaces` now requires `SELF_SERVE_ENABLED` (403 otherwise). It was open to any user already holding a workspace-scoped token.
 - HTML pages' CSP `form-action` is now `'self'` (was `'none'`) and gains `font-src 'self'`; `/onboard` responses are `Cache-Control: no-store`. The public tier now serves `/static/fonts/*` (self-hosted Overused Grotesk for the hosted pages).
-- The proxy and admin OAuth callbacks share one IdP profile extractor (`_idp_profile`); behavior unchanged.
+- The proxy and hosted OAuth callbacks share one post-token sign-in sequence (`_complete_login`). Consequence for proxy mode: a **deactivated user is now rejected at `/auth/callback`** (403 page, `inactive_user` audit) instead of receiving an auth code that fails at exchange.
+- Proxy `/auth/callback` pops only its own session keys instead of clearing the whole cookie, so a proxy-mode login in one tab no longer wipes an in-flight hosted sign-in in another.
+- `user_login` and `login_failed` activity rows record `flow` (`user` / `admin` / `onboard`).
+- Admin and hosted-page copy no longer uses em dashes.
+
+### Fixed
+- A malformed `redirect_uri` / `return_to` (e.g. an unbalanced `[`) on `/authz/idp/*/login` or `/onboard` is a 400, not a 500.
 
 ---
 

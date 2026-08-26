@@ -593,7 +593,7 @@ async def create(
         return _error_page(
             429,
             "Too Many Workspaces",
-            "Too many workspaces are being created right now — try again later.",
+            "Too many workspaces are being created right now. Try again later.",
             back_href=_home(),
         )
     await activity_service.log_activity(

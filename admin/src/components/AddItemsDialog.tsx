@@ -258,7 +258,7 @@ export async function batchAdd(
       `Added ${added}, ${failures.length} failed: ${failures
         .map(
           (f) =>
-            `${f.item.label} — ${
+            `${f.item.label}: ${
               f.result.reason instanceof Error
                 ? f.result.reason.message
                 : "error"

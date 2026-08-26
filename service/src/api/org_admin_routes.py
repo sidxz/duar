@@ -314,7 +314,7 @@ async def set_allowed_orgs(
     )
     await _commit_or_conflict(
         db,
-        conflict_detail="Allowed organizations changed concurrently — re-open the "
+        conflict_detail="Allowed organizations changed concurrently. Re-open the "
         "tab and save again.",
         fk_detail="One of the selected organizations was just deleted. Refresh the "
         "list and try again.",

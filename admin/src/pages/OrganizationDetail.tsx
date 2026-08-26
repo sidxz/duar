@@ -208,7 +208,7 @@ export function OrganizationDetail() {
           <h2 className="text-sm font-semibold text-foreground">Email domains</h2>
           {org.domains.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No domains yet — users from this org can't be resolved until you add
+              No domains yet. Users from this org can't be resolved until you add
               one.
             </p>
           ) : (
@@ -335,7 +335,7 @@ export function OrganizationDetail() {
           <p className="text-sm text-muted-foreground">
             Deleting an org un-assigns its users (they fall back to the public org
             on next sign-in). Deletion is blocked while the org is in <b>any</b>{" "}
-            workspace's allowed-organizations list — remove it from those
+            workspace's allowed-organizations list; remove it from those
             workspaces' access settings first.
           </p>
           <Button
