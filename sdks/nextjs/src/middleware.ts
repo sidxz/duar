@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { verifyToken, payloadToUser } from '@duar-auth/js/server'
+import { verifyToken, payloadToUser, type DuarUser } from '@duar-auth/js/server'
 import { encodeHeaderValue } from './header-codec'
 import { issuerFromJwksUrl } from './issuer'
 
@@ -19,6 +19,23 @@ export interface DuarMiddlewareConfig {
 }
 
 /**
+ * The middleware's access-token check (signature, audience, issuer, workspace allowlist),
+ * shared with createDuarServer so the two can't drift. Throws if the token is rejected.
+ * @internal Not part of the public API.
+ */
+export function createAccessVerifier(config: DuarMiddlewareConfig) {
+  const { jwksUrl, audience = 'duar:access', allowedWorkspaces } = config
+  const issuer = config.issuer ?? issuerFromJwksUrl(jwksUrl)
+  return async (token: string): Promise<DuarUser> => {
+    const user = payloadToUser(await verifyToken(token, { jwksUrl, audience, issuer }))
+    if (allowedWorkspaces && !allowedWorkspaces.includes(user.workspaceId)) {
+      throw new Error('Workspace not allowed')
+    }
+    return user
+  }
+}
+
+/**
  * Create a Next.js Edge Middleware that verifies Duar JWTs.
  *
  * Usage in `middleware.ts`:
@@ -32,14 +49,8 @@ export interface DuarMiddlewareConfig {
  * ```
  */
 export function createDuarMiddleware(config: DuarMiddlewareConfig) {
-  const {
-    jwksUrl,
-    publicPaths = [],
-    loginPath = '/login',
-    audience = 'duar:access',
-    allowedWorkspaces,
-  } = config
-  const issuer = config.issuer ?? issuerFromJwksUrl(jwksUrl)
+  const { jwksUrl, publicPaths = [], loginPath = '/login' } = config
+  const verify = createAccessVerifier(config)
 
   // Warn if JWKS URL is plain HTTP on a non-localhost host
   try {
@@ -81,13 +92,7 @@ export function createDuarMiddleware(config: DuarMiddlewareConfig) {
     }
 
     try {
-      const payload = await verifyToken(token, { jwksUrl, audience, issuer })
-      const user = payloadToUser(payload)
-
-      // Check workspace allowlist
-      if (allowedWorkspaces && !allowedWorkspaces.includes(user.workspaceId)) {
-        return handleUnauthenticated(req, loginPath)
-      }
+      const user = await verify(token)
 
       // Forward verified user info in request headers for server components/route handlers
       requestHeaders.set('x-duar-user-id', user.userId)

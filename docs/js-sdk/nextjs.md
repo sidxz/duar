@@ -103,9 +103,11 @@ Both variants set these on success, readable in Server Components and Route Hand
 
 > **These headers are only trustworthy behind the middleware.** It deletes every client-sent
 > `x-duar-*` header on every path, then sets verified values. On a route its `matcher`
-> excludes, or if the middleware is skipped, `getUser()`, `requireUser()` and `withAuth()`
-> read whatever the client sent. Keep the `matcher` covering every route that calls them,
-> and keep Next.js on the latest patch of its release line: middleware bypasses recur
+> excludes, or if the middleware is skipped, anything that reads them, including the
+> deprecated bare `getUser()`, `requireUser()` and `withAuth()`, sees whatever the client
+> sent. The [server helpers](#server-helpers) verify the token instead, so prefer them. Keep
+> the `matcher` covering every route anyway (it does the redirects and 401s and mints
+> auto-resolve tokens), and keep Next.js on the latest patch of its release line: middleware bypasses recur
 > (CVE-2025-29927, then CVE-2026-44573, -44574, -44575, -45109 and -64642). The peer range
 > `^14.2.25 || ^15.5.18 || ^16.2.11` excludes the versions with known App Router bypasses,
 > but it is only a floor: npm refuses a conflicting install, while pnpm, yarn and
@@ -121,22 +123,51 @@ Both variants set these on success, readable in Server Components and Route Hand
 > (`AUTHZ_TOKEN_EXPIRE_MINUTES`, default 5). When a check must see a revocation immediately,
 > call [`RoleClient.checkAction()`](server.md#roleclient).
 
-> **Prefer `getUser()` over reading these directly.** `x-duar-email` and
-> `x-duar-name` are percent-encoded on the wire (HTTP header values are
-> Latin-1, so a display name like `中文` or `Zoë` would otherwise throw). `getUser()`
-> decodes them for you; if you read the raw headers, `decodeURIComponent()` them.
+> **Prefer the [server helpers](#server-helpers) over reading these directly.** If you do read
+> the raw headers, `decodeURIComponent()` `x-duar-email` and `x-duar-name`: they are
+> percent-encoded on the wire (HTTP header values are Latin-1, so a display name like `中文`
+> or `Zoë` would otherwise throw).
 
 ## Server helpers
 
+Build them from the same config object you pass the middleware. They verify the request's
+token themselves, with the middleware's exact checks, instead of trusting the `x-duar-*`
+headers. On a route the middleware skipped (a `matcher` gap, a Next.js middleware-bypass bug)
+they return the verified user or `null`, never a forged one.
+
 ```typescript
-import { getUser, requireUser, getToken, withAuth } from '@duar-auth/nextjs/server'
+// duar.config.ts: plain data, so both middleware.ts and server code can import it
+import type { DuarMiddlewareConfig } from '@duar-auth/nextjs/middleware'
+
+export const duarConfig: DuarMiddlewareConfig = {
+  jwksUrl: process.env.DUAR_JWKS_URL!,
+  publicPaths: ['/login', '/auth/callback'],
+}
 ```
 
-**getUser()** -- returns `DuarUser | null` from middleware headers.
+```typescript
+// lib/auth.ts
+import { createDuarServer } from '@duar-auth/nextjs/server'
+import { duarConfig } from '@/duar.config'
+
+export const { getUser, requireUser, withAuth } = createDuarServer(duarConfig)
+```
+
+| Factory | Use with | Verifies |
+|---------|----------|----------|
+| `createDuarServer(config)` | `createDuarMiddleware` | The access token from `Authorization: Bearer` or the `duar_access_token` cookie: signature, audience, issuer, `allowedWorkspaces` |
+| `createDuarAuthzServer(config)` | `createDuarAuthzMiddleware` | The IdP token (`Authorization`) and `X-Authz-Token`: both signatures, audiences and issuers, plus the `idp_sub` and `svc` bindings. It never mints: on the auto-resolve path the middleware forwards the token it minted, so an auto-resolve request the middleware didn't handle gets `null`. |
+
+Signing keys are cached (refetched every 10 minutes, or sooner when a token names an unknown
+key), so a call usually costs a signature check or two, well under a millisecond. The config is
+validated on the first call rather than at import, so building the helpers at module scope
+doesn't break `next build` when the env vars only exist at runtime.
+
+**getUser()** -- returns `DuarUser | null`.
 
 ```tsx
 // app/dashboard/page.tsx (Server Component)
-import { getUser } from '@duar-auth/nextjs/server'
+import { getUser } from '@/lib/auth'
 
 export default async function DashboardPage() {
   const user = await getUser()
@@ -145,20 +176,25 @@ export default async function DashboardPage() {
 }
 ```
 
-**requireUser()** -- returns `DuarUser` or throws.
+**requireUser()** -- returns `DuarUser` or throws `Error('Unauthorized')`.
 
-**getToken()** -- raw JWT string from Authorization header.
-
-**withAuth(handler)** -- HOC for Route Handlers.
+**withAuth(handler)** -- HOC for Route Handlers. Without a verified user it answers `401`
+`{"detail": "Unauthorized"}`, the middleware's shape, and never runs the handler.
 
 ```typescript
 // app/api/notes/route.ts
-import { withAuth } from '@duar-auth/nextjs/server'
+import { withAuth } from '@/lib/auth'
 
 export const GET = withAuth(async (req, user) => {
   return Response.json({ workspace: user.workspaceId })
 })
 ```
+
+**getToken()** -- raw JWT string from the Authorization header, imported from `@duar-auth/nextjs/server`.
+
+> **Deprecated:** the bare `getUser()`, `requireUser()` and `withAuth()` exported from
+> `@duar-auth/nextjs/server` read the `x-duar-*` headers without verifying anything, so they
+> are only as safe as the middleware's coverage. Switch to the factories above.
 
 ## Client components
 
@@ -174,17 +210,27 @@ See [React Integration](react.md) for hook and component details.
 ## Complete example
 
 ```typescript
-// middleware.ts
-import { createDuarAuthzMiddleware } from '@duar-auth/nextjs/authz-middleware'
-export default createDuarAuthzMiddleware({
+// duar.config.ts
+import type { DuarAuthzMiddlewareConfig } from '@duar-auth/nextjs/authz-middleware'
+
+export const duarConfig: DuarAuthzMiddlewareConfig = {
   duarUrl: process.env.DUAR_URL!,
   idpJwksUrl: 'https://www.googleapis.com/oauth2/v3/certs',
   idpAudience: process.env.GOOGLE_CLIENT_ID!,
   idpIssuer: 'https://accounts.google.com',
   serviceName: 'my-app',
-  publicPaths: ['/login', '/auth/callback'],
-})
-export const config = { matcher: ['/((?!_next|favicon.ico).*)'] }
+}
+```
+
+```typescript
+// middleware.ts
+import { createDuarAuthzMiddleware } from '@duar-auth/nextjs/authz-middleware'
+import { duarConfig } from './duar.config'
+
+export default createDuarAuthzMiddleware(duarConfig)
+// AuthZ tokens travel in request headers, which page navigations never carry: the middleware
+// guards the API, and pages protect themselves client-side with <AuthzGuard>.
+export const config = { matcher: ['/api/:path*'] }
 ```
 
 ```tsx
@@ -226,11 +272,16 @@ export default function CallbackPage() {
 }
 ```
 
-```tsx
-// app/dashboard/page.tsx (Server Component)
-import { getUser } from '@duar-auth/nextjs/server'
-export default async function DashboardPage() {
-  const user = await getUser()
-  return <h1>Welcome, {user?.name}</h1>
-}
+Server-side checks live in Route Handlers that the browser calls with `useAuthzFetch()`:
+
+```typescript
+// app/api/notes/route.ts
+import { createDuarAuthzServer } from '@duar-auth/nextjs/server'
+import { duarConfig } from '@/duar.config'
+
+const { withAuth } = createDuarAuthzServer(duarConfig)
+
+export const GET = withAuth(async (req, user) => {
+  return Response.json({ workspace: user.workspaceId, actions: user.actions })
+})
 ```
