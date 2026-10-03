@@ -29,6 +29,12 @@ export function useAuthzHasRole(minimum: WorkspaceRole): boolean {
   return userLevel >= requiredLevel
 }
 
+/** True if the authz token grants `action`. A UI hint only; the backend must still enforce. */
+export function useAuthzHasAction(action: string): boolean {
+  const { user } = useAuthz()
+  return user?.actions?.includes(action) ?? false
+}
+
 export function useAuthzFetch(): (
   input: RequestInfo | URL,
   init?: RequestInit,

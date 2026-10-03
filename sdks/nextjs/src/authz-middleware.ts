@@ -108,6 +108,37 @@ function resolveErrorResponse(e: ResolveError): NextResponse {
 }
 
 /**
+ * The middleware's token checks, shared with createDuarAuthzServer so the two can't drift:
+ * IdP token (signature + audience + optional issuer), authz token (signature + duar:authz +
+ * issuer), and the idp_sub / svc bindings between them.
+ * @internal Not part of the public API.
+ */
+export function createAuthzVerifier(config: DuarAuthzMiddlewareConfig) {
+  const { idpJwksUrl, idpAudience, idpIssuer, serviceName, effectiveScope } = config
+  if (!serviceName) {
+    throw new Error('@duar-auth/nextjs: serviceName is required')
+  }
+  if (!idpAudience || (Array.isArray(idpAudience) && idpAudience.length === 0)) {
+    throw new Error('@duar-auth/nextjs: idpAudience is required')
+  }
+  const duarBase = config.duarUrl.replace(/\/+$/, '')
+  const duarJwksUrl = `${duarBase}/.well-known/jwks.json`
+  const issuer = config.issuer ?? duarBase
+  const idpOptions = idpIssuer ? { audience: idpAudience, issuer: idpIssuer } : { audience: idpAudience }
+  // The authz token was minted for this service's shared scope: its own name (standalone)
+  // or its realm slug (effectiveScope).
+  const allowedSvc = new Set([serviceName, effectiveScope].filter(Boolean))
+
+  return {
+    idp: async (token: string) => (await jwtVerify(token, getJWKS(idpJwksUrl), idpOptions)).payload,
+    authz: (token: string) => verifyToken(token, { jwksUrl: duarJwksUrl, audience: 'duar:authz', issuer }),
+    /** The authz token belongs to this IdP user (idp_sub) and this service (svc). */
+    bound: (idp: JWTPayload, authz: Record<string, unknown>) =>
+      !!idp.sub && authz.idp_sub === idp.sub && allowedSvc.has(authz.svc as string),
+  }
+}
+
+/**
  * Create a Next.js Edge Middleware that validates dual tokens (AuthZ mode).
  *
  * Validates:
@@ -133,26 +164,8 @@ function resolveErrorResponse(e: ResolveError): NextResponse {
  * ```
  */
 export function createDuarAuthzMiddleware(config: DuarAuthzMiddlewareConfig) {
-  const {
-    duarUrl,
-    idpJwksUrl,
-    idpAudience,
-    idpIssuer,
-    serviceName,
-    effectiveScope,
-    publicPaths = [],
-    loginPath = '/login',
-    autoResolve = false,
-    serviceKey,
-    idpProvider,
-  } = config
-
-  if (!serviceName) {
-    throw new Error('createDuarAuthzMiddleware: serviceName is required')
-  }
-  if (!idpAudience || (Array.isArray(idpAudience) && idpAudience.length === 0)) {
-    throw new Error('createDuarAuthzMiddleware: idpAudience is required')
-  }
+  const { publicPaths = [], loginPath = '/login', autoResolve = false, serviceKey, idpProvider } = config
+  const verify = createAuthzVerifier(config)
   if (autoResolve && !serviceKey) {
     throw new Error('createDuarAuthzMiddleware: autoResolve requires serviceKey')
   }
@@ -160,9 +173,7 @@ export function createDuarAuthzMiddleware(config: DuarAuthzMiddlewareConfig) {
     throw new Error('createDuarAuthzMiddleware: autoResolve requires idpProvider')
   }
 
-  const duarBase = duarUrl.replace(/\/+$/, '')
-  const duarJwksUrl = `${duarBase}/.well-known/jwks.json`
-  const issuer = config.issuer ?? duarBase
+  const duarBase = config.duarUrl.replace(/\/+$/, '')
 
   // Auto-resolve state lives in this closure (not module scope) so each middleware
   // instance — and each test — gets its own cache.
@@ -215,25 +226,15 @@ export function createDuarAuthzMiddleware(config: DuarAuthzMiddlewareConfig) {
     return pending
   }
 
-  const DUAR_HEADERS = [
-    'x-duar-user-id',
-    'x-duar-email',
-    'x-duar-name',
-    'x-duar-workspace-id',
-    'x-duar-workspace-slug',
-    'x-duar-workspace-role',
-    'x-duar-idp-sub',
-  ] as const
-
   return async function middleware(req: NextRequest): Promise<NextResponse> {
     const { pathname } = req.nextUrl
 
-    // Strip any client-sent x-duar-* headers to prevent spoofing.
-    // This runs on ALL paths (public and protected) so that downstream
-    // server components / route handlers can never see forged identity.
+    // Strip every client-sent x-duar-* header (by prefix, so the strip can't drift
+    // from what we set). This runs on ALL paths (public and protected) so that
+    // downstream server components / route handlers can never see forged identity.
     const requestHeaders = new Headers(req.headers)
-    for (const h of DUAR_HEADERS) {
-      requestHeaders.delete(h)
+    for (const h of [...requestHeaders.keys()]) {
+      if (h.startsWith('x-duar-')) requestHeaders.delete(h)
     }
 
     // Skip public paths
@@ -262,29 +263,16 @@ export function createDuarAuthzMiddleware(config: DuarAuthzMiddlewareConfig) {
       autoPath ? NextResponse.json({ detail }, { status: 401 }) : handleUnauthenticated(req, loginPath)
 
     try {
-      const idpVerifyOptions: {
-        audience: string | string[]
-        issuer?: string
-      } = { audience: idpAudience }
-      if (idpIssuer) idpVerifyOptions.issuer = idpIssuer
-
       let idpPayload: JWTPayload
       let authzPayload: Awaited<ReturnType<typeof verifyToken>>
 
       if (authzToken) {
         // Verify both tokens in parallel.
-        // IdP token: signature + audience (+ optional issuer).
-        // Authz token: signature + audience via Duar's verifyToken.
-        const [idpResult, verified] = await Promise.all([
-          jwtVerify(idpToken, getJWKS(idpJwksUrl), idpVerifyOptions),
-          verifyToken(authzToken, { jwksUrl: duarJwksUrl, audience: 'duar:authz', issuer }),
-        ])
-        idpPayload = idpResult.payload
-        authzPayload = verified
+        [idpPayload, authzPayload] = await Promise.all([verify.idp(idpToken), verify.authz(authzToken)])
       } else {
         // Auto-resolve: verify the IdP token FIRST so junk never reaches Duar's rate
         // bucket, then mint (or reuse) an authz token for X-Workspace-Id.
-        idpPayload = (await jwtVerify(idpToken, getJWKS(idpJwksUrl), idpVerifyOptions)).payload
+        idpPayload = await verify.idp(idpToken)
         if (!idpPayload.sub) return unauthorized() // never build the cache key from a missing identity
         const workspaceId = req.headers.get('x-workspace-id')
         if (!workspaceId) {
@@ -301,7 +289,7 @@ export function createDuarAuthzMiddleware(config: DuarAuthzMiddlewareConfig) {
           throw e
         }
         try {
-          authzPayload = await verifyToken(authzToken, { jwksUrl: duarJwksUrl, audience: 'duar:authz', issuer })
+          authzPayload = await verify.authz(authzToken)
         } catch {
           resolveCache.delete(key) // a minted token we cannot verify must not be served from cache again
           return unauthorized('Invalid authz token')
@@ -310,16 +298,9 @@ export function createDuarAuthzMiddleware(config: DuarAuthzMiddlewareConfig) {
         requestHeaders.set('x-authz-token', authzToken)
       }
 
-      // Check idp_sub binding: authz token's idp_sub must match IdP token's sub.
+      // idp_sub + svc bindings: the authz token must belong to this IdP user and this service.
       const authzClaims = authzPayload as unknown as Record<string, unknown>
-      if (!idpPayload.sub || !authzClaims.idp_sub || authzClaims.idp_sub !== idpPayload.sub) {
-        return unauthorized()
-      }
-
-      // Enforce svc binding: the authz token was minted for this service's shared
-      // scope — its own name (standalone) or its realm slug (effectiveScope).
-      const allowedSvc = new Set([serviceName, effectiveScope].filter(Boolean))
-      if (!authzClaims.svc || !allowedSvc.has(authzClaims.svc as string)) {
+      if (!verify.bound(idpPayload, authzClaims)) {
         return unauthorized()
       }
 
@@ -339,6 +320,12 @@ export function createDuarAuthzMiddleware(config: DuarAuthzMiddlewareConfig) {
       requestHeaders.set('x-duar-workspace-slug', String(authzPayload.wslug))
       requestHeaders.set('x-duar-workspace-role', String(authzPayload.wrole))
       requestHeaders.set('x-duar-idp-sub', String(authzClaims.idp_sub))
+      // Action names match ^[a-z][a-z0-9_.:-]*$ — no commas, header-safe.
+      requestHeaders.set('x-duar-actions', ((authzClaims.actions as string[] | undefined) ?? []).join(','))
+      // Org slugs match ^[a-z0-9][a-z0-9-]*[a-z0-9]$ — header-safe, no encoding needed.
+      if (authzClaims.oid) requestHeaders.set('x-duar-org-id', String(authzClaims.oid))
+      if (authzClaims.oslug) requestHeaders.set('x-duar-org-slug', String(authzClaims.oslug))
+      requestHeaders.set('x-duar-org-public', String(authzClaims.opub === true))
 
       return NextResponse.next({ request: { headers: requestHeaders } })
     } catch {

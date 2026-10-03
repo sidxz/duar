@@ -164,7 +164,7 @@ The action check is a 4-table join: `user_roles -> roles -> role_actions -> serv
 
 ## Key Properties
 
-- **Real-time**: Action checks are live database queries, never cached in JWTs. Revoking a role takes effect immediately.
+- **Real-time**: `check_action` / `require_action` (JS: `RoleClient.checkAction`) are live database queries, so revoking a role takes effect on the next check. The `actions` claim in an authz token (`DuarUser.actions`, `x-duar-actions`) is a snapshot that can lag by up to the token lifetime (`AUTHZ_TOKEN_EXPIRE_MINUTES`, default 5).
 - **Workspace-scoped**: Roles exist only within a workspace. No global roles.
 - **Registered actions only**: Actions must be pre-registered by services before they can be added to roles. This prevents privilege escalation through invented action names.
 - **CASCADE delete**: Deleting a workspace removes all its roles and user assignments. Deleting a user removes their role assignments.

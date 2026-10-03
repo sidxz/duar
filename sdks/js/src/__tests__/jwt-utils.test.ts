@@ -18,6 +18,9 @@ const samplePayload = {
   wslug: 'my-workspace',
   wrole: 'editor',
   groups: ['group-a'],
+  oid: 'org-1',
+  oslug: 'acme',
+  opub: false,
   aud: 'duar:access',
   iss: 'duar',
   exp: Math.floor(Date.now() / 1000) + 3600,
@@ -76,7 +79,15 @@ describe('tokenToUser', () => {
       workspaceSlug: 'my-workspace',
       workspaceRole: 'editor',
       groups: ['group-a'],
+      orgId: 'org-1',
+      orgSlug: 'acme',
+      orgIsPublic: false,
     })
+  })
+
+  it('treats only a boolean true opub as public', () => {
+    expect(tokenToUser(makeJwt({ ...samplePayload, opub: 'true' })).orgIsPublic).toBe(false)
+    expect(tokenToUser(makeJwt({ ...samplePayload, opub: true })).orgIsPublic).toBe(true)
   })
 })
 
@@ -88,6 +99,9 @@ const authzPayload = {
   wslug: 'my-workspace',
   wrole: 'editor',
   actions: ['notes:create'],
+  oid: 'org-public',
+  oslug: 'public',
+  opub: true,
   aud: 'duar:authz',
   iss: 'duar',
   exp: Math.floor(Date.now() / 1000) + 300,
@@ -108,7 +122,30 @@ describe('authzTokenToUser', () => {
       workspaceSlug: 'my-workspace',
       workspaceRole: 'editor',
       groups: [],
+      actions: ['notes:create'],
+      orgId: 'org-public',
+      orgSlug: 'public',
+      orgIsPublic: true,
     })
+  })
+
+  it('defaults org fields when the claims are absent', () => {
+    const { oid: _a, oslug: _b, opub: _c, ...noOrg } = authzPayload
+    const user = authzTokenToUser(makeJwt(noOrg), null)
+    expect([user.orgId, user.orgSlug, user.orgIsPublic]).toEqual([null, null, false])
+  })
+
+  it('defaults actions to [] when the claim is absent', () => {
+    const { actions: _, ...noActions } = authzPayload
+    const user = authzTokenToUser(makeJwt(noActions), null)
+    expect(user.actions).toEqual([])
+  })
+
+  it('ignores wrong-typed actions / opub claims', () => {
+    // A string actions claim would make includes() a substring match ('admin:all'.includes('admin')).
+    const user = authzTokenToUser(makeJwt({ ...authzPayload, actions: 'admin:all', opub: 'true' }), null)
+    expect(user.actions).toEqual([])
+    expect(user.orgIsPublic).toBe(false)
   })
 
   it('returns empty strings when identity is null', () => {

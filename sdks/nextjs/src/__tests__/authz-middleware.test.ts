@@ -13,7 +13,7 @@ import { createDuarAuthzMiddleware } from '../authz-middleware'
 
 const WS = '5e60ba90-4b3e-4b1a-9dcb-9d76b1a1e3a1'
 const IDP_PAYLOAD = { sub: 'google|1', email: 'a@acme.com', name: 'A' }
-const AUTHZ_PAYLOAD = { sub: 'u1', idp_sub: 'google|1', svc: 'my-app', wid: WS, wslug: 'acme', wrole: 'editor' }
+const AUTHZ_PAYLOAD = { sub: 'u1', idp_sub: 'google|1', svc: 'my-app', wid: WS, wslug: 'acme', wrole: 'editor', actions: ['notes:create', 'notes:delete'], oid: 'org-1', oslug: 'acme', opub: false }
 
 function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -83,6 +83,36 @@ describe('createDuarAuthzMiddleware autoResolve', () => {
     expect(res.headers.get('x-middleware-request-x-authz-token')).toBe('minted')
     expect(res.headers.get('x-middleware-request-x-duar-user-id')).toBe('u1')
     expect(res.headers.get('x-middleware-request-x-duar-workspace-id')).toBe(WS)
+    expect(res.headers.get('x-middleware-request-x-duar-actions')).toBe('notes:create,notes:delete')
+    expect(res.headers.get('x-middleware-request-x-duar-org-id')).toBe('org-1')
+    expect(res.headers.get('x-middleware-request-x-duar-org-slug')).toBe('acme')
+    expect(res.headers.get('x-middleware-request-x-duar-org-public')).toBe('false')
+  })
+
+  it('strips every client-sent x-duar-* header on public paths', async () => {
+    const forged = { 'x-duar-actions': 'admin:all', 'x-duar-idp-sub': 'google|victim', 'x-duar-org-id': 'evil', 'x-duar-org-slug': 'evil', 'x-duar-org-public': 'true', 'x-duar-anything': 'evil' }
+    const res = await mw({ publicPaths: ['/public'] })(api(forged, '/public'))
+    expect(res.status).toBe(200)
+    // Without the override, Next passes the original headers through and the nulls below prove nothing.
+    expect(res.headers.get('x-middleware-override-headers')).not.toBeNull()
+    for (const h of Object.keys(forged)) expect(res.headers.get(`x-middleware-request-${h}`)).toBeNull()
+  })
+
+  it('strips forged x-duar-* on the authenticated path, incl. org headers a no-org token never sets', async () => {
+    vi.mocked(verifyToken).mockResolvedValueOnce({ ...AUTHZ_PAYLOAD, oid: null, oslug: null } as any)
+    const forged = { 'x-duar-actions': 'admin:all', 'x-duar-org-id': 'evil', 'x-duar-org-slug': 'evil', 'x-duar-org-public': 'true', 'x-duar-anything': 'evil' }
+    const res = await mw()(api({ authorization: 'Bearer idp-ok', 'x-authz-token': 'authz-ok', ...forged }))
+    expect(res.status).toBe(200)
+    const fwd = (h: string) => res.headers.get(`x-middleware-request-${h}`)
+    expect(fwd('x-duar-actions')).toBe('notes:create,notes:delete')
+    expect(fwd('x-duar-org-public')).toBe('false')
+    for (const h of ['x-duar-org-id', 'x-duar-org-slug', 'x-duar-anything']) expect(fwd(h)).toBeNull()
+  })
+
+  it('forwards x-duar-org-public=true for a public-org token', async () => {
+    vi.mocked(verifyToken).mockResolvedValueOnce({ ...AUTHZ_PAYLOAD, oslug: 'public', opub: true } as any)
+    const res = await mw()(api({ authorization: 'Bearer idp-ok', 'x-authz-token': 'authz-ok' }))
+    expect(res.headers.get('x-middleware-request-x-duar-org-public')).toBe('true')
   })
 
   it('second request for the same user+workspace is served from cache', async () => {
