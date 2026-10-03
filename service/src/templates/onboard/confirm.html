@@ -1,0 +1,25 @@
+{% extends "onboard/base.html" %}
+{% block title %}{% if action == 'leave' %}Leave workspace{% else %}Remove member{% endif %}{% endblock %}
+{% block content %}
+{% if action == 'leave' %}
+<span class="eyebrow mono">Leave workspace</span>
+<h1>Leave {{ workspace.name }}?</h1>
+<p class="lede">You'll lose access to everything in it. An owner or admin can invite you back later.</p>
+<form method="post" action="{{ base_url }}/onboard/leave" class="inline">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="workspace_id" value="{{ workspace.id }}">
+  <button class="btn" type="submit">Leave workspace</button>
+  <a class="btn secondary" href="{{ base_url }}/onboard/home">Cancel</a>
+</form>
+{% else %}
+<span class="eyebrow mono">Remove member</span>
+<h1>Remove {{ target.name or target.email }}?</h1>
+<p class="lede"><strong>{{ target.email }}</strong> will lose access to {{ workspace.name }}. You can invite them again later.</p>
+<form method="post" action="{{ base_url }}/onboard/members/{{ target.id }}/remove" class="inline">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="workspace_id" value="{{ workspace.id }}">
+  <button class="btn" type="submit">Remove member</button>
+  <a class="btn secondary" href="{{ base_url }}/onboard/invites?workspace={{ workspace.id }}">Cancel</a>
+</form>
+{% endif %}
+{% endblock %}

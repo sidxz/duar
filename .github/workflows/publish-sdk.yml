@@ -1,0 +1,46 @@
+name: Publish SDK to PyPI
+
+on:
+  push:
+    tags:
+      - "sdk-v*"
+  workflow_dispatch:
+
+jobs:
+  publish:
+    name: Build & Publish SDK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # PyPI trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install SDK dev deps
+        run: cd sdk && uv sync --extra dev
+
+      - name: Lint
+        run: cd sdk && uv run ruff check src/ tests/
+
+      - name: Format check
+        run: cd sdk && uv run ruff format --check src/ tests/
+
+      - name: Test
+        run: cd sdk && uv run pytest -q
+
+      - name: Build
+        run: cd sdk && uv build --out-dir dist/
+
+      - name: Publish to PyPI
+        # v1.12.4 bundles twine 6, which rejects the `Metadata-Version: 2.5`
+        # that current hatchling emits ("not a valid metadata version") — it
+        # failed the 0.20.1 publish while every other artifact went out. v1.14.2
+        # ships twine 7, which accepts 2.5.
+        uses: pypa/gh-action-pypi-publish@v1.14.2
+        with:
+          packages-dir: sdk/dist/

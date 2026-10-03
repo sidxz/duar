@@ -1,0 +1,47 @@
+name: Publish JS SDK
+
+on:
+  push:
+    tags:
+      - 'js-sdk-v*'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        working-directory: sdks
+        run: npm ci
+
+      - name: Build all packages
+        working-directory: sdks
+        run: npm run build
+
+      - name: Run tests
+        working-directory: sdks
+        run: npm test
+
+      # Auth is npm Trusted Publishing (OIDC via id-token: write) — each
+      # @duar-auth package lists sidxz/duar + this workflow file as publisher.
+      - name: Publish @duar-auth/js
+        working-directory: sdks/js
+        run: npm publish --provenance --access public
+
+      - name: Publish @duar-auth/react
+        working-directory: sdks/react
+        run: npm publish --provenance --access public
+
+      - name: Publish @duar-auth/nextjs
+        working-directory: sdks/nextjs
+        run: npm publish --provenance --access public

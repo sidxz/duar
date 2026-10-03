@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Rewritten at container start from DUAR_ADMIN_BASE_PATH (see Dockerfile). -->
+    <base href="/" />
+    <title>Duar — Admin</title>
+    <script>
+      (function () {
+        try {
+          var s = localStorage.getItem("theme");
+          var dark = s ? s === "dark" : !window.matchMedia("(prefers-color-scheme: light)").matches;
+          document.documentElement.classList.toggle("dark", dark);
+          document.documentElement.style.colorScheme = dark ? "dark" : "light";
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

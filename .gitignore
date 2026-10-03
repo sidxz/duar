@@ -1,0 +1,44 @@
+# Brainstorm / visual-companion artifacts
+.superpowers/
+
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Secrets
+keys/
+.env*
+!.env.dev.example
+!.env.prod.example
+!demo-proxy/backend/.env.example
+!demo-authz/backend/.env.example
+!demo-authz/frontend/.env.example
+
+# Node
+node_modules/
+
+# Archive
+_archive/
+
+# Coverage reports
+.coverage
+coverage.xml
+htmlcov/
+
+# MkDocs build output
+site/
+
+local-docs/
+
+CLAUDE.md
+.serena/.DS_Store
+
+.DS_Store
+.serena/

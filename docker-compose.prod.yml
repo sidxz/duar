@@ -1,0 +1,243 @@
+# Duar — Production Docker Compose
+#
+# Quick start:
+#   make setup               # generates keys, certs, env files (one-time)
+#   vim .env.prod            # set BASE_URL, OAuth creds, ADMIN_EMAILS
+#   docker stack deploy -c docker-compose.prod.yml duar
+#
+# What setup-prod generates:
+#   keys/private.pem, keys/public.pem  — RS256 JWT signing keys
+#   keys/tls/ca.crt, ca.key           — internal CA (self-signed)
+#   keys/tls/server.crt, server.key   — server cert (SANs: postgres, redis, localhost)
+#   .env.prod                          — random DB/Redis passwords + session secret
+#
+# Security:
+#   - Postgres: SSL-encrypted connections (self-signed internal CA)
+#   - Redis: TLS + password auth, plain port disabled
+#   - All certs/keys mounted as Docker secrets (immutable, in-memory)
+#   - External TLS: use a reverse proxy (HAProxy/nginx/Caddy) in front of duar
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    # Copy TLS certs with correct ownership/permissions, then start with SSL
+    entrypoint:
+      - sh
+      - -c
+      - |
+        cp /run/secrets/tls_cert /tmp/server.crt
+        cp /run/secrets/tls_key /tmp/server.key
+        chown postgres:postgres /tmp/server.crt /tmp/server.key
+        chmod 600 /tmp/server.key
+        exec docker-entrypoint.sh postgres \
+          -c ssl=on \
+          -c ssl_cert_file=/tmp/server.crt \
+          -c ssl_key_file=/tmp/server.key
+    secrets:
+      - tls_cert
+      - tls_key
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - duar
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+
+  redis:
+    image: redis:7-alpine
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --tls-port 6379
+      --port 0
+      --tls-cert-file /run/secrets/tls_cert
+      --tls-key-file /run/secrets/tls_key
+      --tls-ca-cert-file /run/secrets/tls_ca
+      --tls-auth-clients no
+      --maxmemory 128mb
+      --maxmemory-policy allkeys-lru
+    secrets:
+      - tls_cert
+      - tls_key
+      - tls_ca
+    volumes:
+      - redis_data:/data
+    networks:
+      - duar
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--tls", "--cacert", "/run/secrets/tls_ca", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+  duar:
+    image: ghcr.io/sidxz/duar:latest
+    environment: &duar_env
+      TIER: public
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?ssl=require
+      REDIS_URL: rediss://:${REDIS_PASSWORD}@redis:6379/0
+      REDIS_TLS_CA_CERT: /run/secrets/tls_ca
+      REDIS_TLS_VERIFY: required
+      BASE_URL: ${BASE_URL}
+      ADMIN_URL: ${ADMIN_URL}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}  # base origins only; client app origins are loaded from DB
+      SESSION_SECRET_KEY: ${SESSION_SECRET_KEY}
+      COOKIE_SECURE: "true"
+      DEBUG: "false"
+      BEHIND_PROXY: "true"
+      # Number of trusted proxy hops in front of Duar (CDN/LB + nginx = 2, etc.).
+      # MUST match reality or all clients collapse into one IP bucket. Verify per deploy.
+      TRUSTED_PROXY_COUNT: ${TRUSTED_PROXY_COUNT:-1}
+      # Rate-limit tiers (tunable without an image rebuild). Aggregate is the per-IP
+      # volumetric ceiling for undecorated routes; "" disables it. NOTE: decorated
+      # routes are NOT covered by the aggregate — deploy edge rate limiting for
+      # volumetric/bad-auth protection. See docs/security.md.
+      RATE_LIMIT_AGGREGATE: ${RATE_LIMIT_AGGREGATE:-300/minute}
+      RATE_LIMIT_DEFAULT: ${RATE_LIMIT_DEFAULT:-120/minute}
+      RATE_LIMIT_AUTHZ_RESOLVE: ${RATE_LIMIT_AUTHZ_RESOLVE:-60/minute}
+      # Security signals (detect-only). Tunable from .env.prod; defaults match config.py.
+      SIGNALS_ENABLED: ${SIGNALS_ENABLED:-true}
+      SIGNAL_IMPOSSIBLE_TRAVEL_KMH: ${SIGNAL_IMPOSSIBLE_TRAVEL_KMH:-900}
+      SIGNAL_STUFFING_WINDOW_MINUTES: ${SIGNAL_STUFFING_WINDOW_MINUTES:-15}
+      SIGNAL_STUFFING_FAILURES: ${SIGNAL_STUFFING_FAILURES:-10}
+      SIGNAL_STUFFING_DISTINCT_EMAILS: ${SIGNAL_STUFFING_DISTINCT_EMAILS:-5}
+      JWT_PRIVATE_KEY_PATH: /run/secrets/jwt_private_key
+      JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public_key
+      # OAuth providers (uncomment as needed)
+      # GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      # GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      # GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      # GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      # ENTRA_CLIENT_ID: ${ENTRA_CLIENT_ID}
+      # ENTRA_CLIENT_SECRET: ${ENTRA_CLIENT_SECRET}
+      # ENTRA_TENANT_ID: ${ENTRA_TENANT_ID}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-15}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
+    secrets:
+      - jwt_private_key
+      - jwt_public_key
+      - tls_ca
+    ports:
+      - "${DUAR_PORT:-9003}:9003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - duar
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9003/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+
+  # Internal listener — the service-key-only surface (realm, permissions, authz,
+  # roles). NOT published: reachable only on the `duar` overlay as
+  # http://duar-internal:9010. Apps that hold a Duar service key point their
+  # SDK base URL here. depends_on duar (public) so the schema is migrated first.
+  duar-internal:
+    image: ghcr.io/sidxz/duar:latest
+    command: [".venv/bin/uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "9010", "--no-server-header"]
+    environment:
+      <<: *duar_env
+      TIER: internal
+      SESSION_SECRET_KEY: ""   # internal drops Session middleware — keep the signing secret off this container
+      CORS_ORIGINS: ""         # internal drops CORS middleware
+    secrets:
+      - jwt_private_key
+      - jwt_public_key
+      - tls_ca
+    # NO `ports:` — unpublished by design; the public internet has no socket here.
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      duar:
+        condition: service_healthy
+    networks:
+      - duar
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9010/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+
+  duar-admin:
+    image: ghcr.io/sidxz/duar-admin:latest
+    environment:
+      DUAR_BACKEND: duar:9003
+    ports:
+      - "${ADMIN_PORT:-9004}:80"
+    depends_on:
+      duar:
+        condition: service_healthy
+    networks:
+      - duar
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+secrets:
+  jwt_private_key:
+    file: ./keys/private.pem
+  jwt_public_key:
+    file: ./keys/public.pem
+  tls_cert:
+    file: ./keys/tls/server.crt
+  tls_key:
+    file: ./keys/tls/server.key
+  tls_ca:
+    file: ./keys/tls/ca.crt
+
+volumes:
+  pg_data:
+  redis_data:
+
+networks:
+  duar:
+    driver: overlay

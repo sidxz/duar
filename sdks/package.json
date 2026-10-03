@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "workspaces": ["js", "react", "nextjs"],
+  "scripts": {
+    "build": "npm -ws run build",
+    "test": "npm -ws run test",
+    "clean": "npm -ws run clean"
+  }
+}

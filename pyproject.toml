@@ -1,0 +1,30 @@
+[project]
+name = "duar"
+version = "0.1.0"
+description = "Duar — authentication, workspace management & permissions microservice"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["duar-service", "duar-auth", "uvicorn[standard]>=0.34.0"]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.8",
+    "aiosqlite>=0.21",
+    "pytest>=9.0",
+    "pytest-asyncio>=1.4",
+    "respx>=0.22",
+]
+docs = [
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.27",
+    "mkdocs-section-index>=0.3",
+    "mkdocs-glightbox>=0.4",
+]
+
+[tool.uv.sources]
+duar-service = { workspace = true }
+duar-auth = { workspace = true }
+
+[tool.uv.workspace]
+members = ["service", "sdk"]

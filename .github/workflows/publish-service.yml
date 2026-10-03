@@ -1,0 +1,40 @@
+name: Publish Service Image
+
+on:
+  push:
+    tags:
+      - "service-v*"
+  workflow_dispatch:
+
+jobs:
+  publish:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#service-v}" >> "$GITHUB_OUTPUT"
+
+      - name: Copy workspace lockfile into service context
+        run: cp uv.lock service/uv.lock
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: service/
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/duar:${{ steps.version.outputs.VERSION }}
+            ghcr.io/${{ github.repository_owner }}/duar:latest

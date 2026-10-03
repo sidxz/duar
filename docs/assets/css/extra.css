@@ -1,0 +1,9 @@
+/* Custom primary color — Duar red */
+:root,
+[data-md-color-scheme="default"],
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color:        #f43737;
+  --md-primary-fg-color--light: #f76f6f;
+  --md-primary-fg-color--dark:  #c42020;
+  --md-accent-fg-color:         #f43737;
+}

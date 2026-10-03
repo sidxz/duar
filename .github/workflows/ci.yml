@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Ruff lint
+        run: uv run ruff check service/src/ sdk/src/
+
+      - name: Ruff format check
+        run: uv run ruff format --check service/src/ sdk/src/
+
+  sdk-test:
+    name: SDK Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install SDK with dev deps
+        run: cd sdk && uv sync --extra dev
+
+      - name: Run tests with coverage
+        run: cd sdk && uv run pytest -q --cov=duar_auth --cov-report=xml
+
+  dependency-scan:
+    name: Dependency Scan (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # uv workspace: the only Python lockfile is the root uv.lock, so scan from root.
+      # Demos are excluded (not shipped); admin is covered by admin-container-scan.
+      - name: Scan workspace dependencies
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          skip-dirs: demo-authz,demo-proxy,pentest,admin
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: 1
+
+  container-scan:
+    name: Container Scan (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build service image
+        run: |
+          cp uv.lock service/uv.lock
+          docker build -t daikon/duar:ci service/
+
+      - name: Scan container image
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          image-ref: daikon/duar:ci
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: 1
+
+  admin-container-scan:
+    name: Admin Container Scan (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build admin image
+        run: docker build -t daikon/duar-admin:ci admin/
+
+      - name: Scan admin container image
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          image-ref: daikon/duar-admin:ci
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: 1
