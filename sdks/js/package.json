@@ -1,6 +1,6 @@
 {
   "name": "@duar-auth/js",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "type": "module",
   "description": "Duar SDK for JavaScript/TypeScript — browser auth client & server utilities",
   "license": "MIT",
