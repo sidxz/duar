@@ -15,7 +15,8 @@ const payload = await verifyToken(token, {
   jwksUrl: 'http://localhost:9003/.well-known/jwks.json',
 })
 const user = payloadToUser(payload)
-// { userId, email, name, workspaceId, workspaceSlug, workspaceRole, groups }
+// { userId, email, name, workspaceId, workspaceSlug, workspaceRole, groups,
+//   orgId, orgSlug, orgIsPublic }
 ```
 
 | Option | Type | Default | Description |

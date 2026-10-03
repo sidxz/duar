@@ -38,5 +38,8 @@ export function payloadToUser(payload: JWTPayload): DuarUser {
     workspaceSlug: payload.wslug,
     workspaceRole: payload.wrole,
     groups: payload.groups ?? [],
+    orgId: payload.oid ?? null,
+    orgSlug: payload.oslug ?? null,
+    orgIsPublic: payload.opub === true,
   }
 }

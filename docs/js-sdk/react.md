@@ -66,13 +66,31 @@ const {
 
 ```tsx
 const user = useAuthzUser()
-// { userId, email, name, workspaceId, workspaceSlug, workspaceRole, groups }
+// { userId, email, name, workspaceId, workspaceSlug, workspaceRole, groups, actions,
+//   orgId, orgSlug, orgIsPublic }
 ```
+
+`actions` holds the RBAC actions the authz token grants in this workspace, for the app's
+scope (its service name, or its realm slug). `orgId` / `orgSlug` are the user's organization,
+resolved from their email domain; `orgIsPublic` is true for the catch-all public org (e.g. a
+personal Gmail address) and false both for a real org and for no org, so check `orgId` for
+membership. The org belongs to the user, not the workspace (one workspace can hold members of
+several orgs): key data on `workspaceId`, never the org.
 
 **useAuthzHasRole(minimum)** -- checks workspace role hierarchy (`viewer` < `editor` < `admin` < `owner`).
 
 ```tsx
 const isAdmin = useAuthzHasRole('admin')
+```
+
+**useAuthzHasAction(action)** -- true if the authz token grants `action`. Use it to hide UI the
+user can't use; your backend must still enforce the check. The list is a snapshot from when the
+token was minted, so a role change shows up after the next re-mint (the token lives
+`AUTHZ_TOKEN_EXPIRE_MINUTES`, default 5).
+
+```tsx
+const canExport = useAuthzHasAction('reports:export')
+return canExport ? <ExportButton /> : null
 ```
 
 **useAuthzFetch()** -- shortcut to the dual-header fetch wrapper.

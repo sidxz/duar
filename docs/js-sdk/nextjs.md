@@ -25,6 +25,11 @@ export default createDuarAuthzMiddleware({
 export const config = { matcher: ['/((?!_next|favicon.ico).*)'] }
 ```
 
+> **Next.js 16:** name the file `proxy.ts` (`middleware.ts` still works there but is
+> deprecated); the default export works unchanged. This is unrelated to
+> `@duar-auth/nextjs/proxy`, the route-handler reverse proxy. Whatever the file is called, it
+> must exist: without it nothing strips client-sent `x-duar-*` headers.
+
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `duarUrl` | `string` | required | Duar URL (derives JWKS endpoint) |
@@ -89,7 +94,32 @@ Both variants set these on success, readable in Server Components and Route Hand
 | `x-duar-workspace-id` | Workspace ID |
 | `x-duar-workspace-slug` | Workspace slug |
 | `x-duar-workspace-role` | Workspace role |
+| `x-duar-idp-sub` | IdP subject the authz token is bound to (authz middleware only) |
+| `x-duar-actions` | Comma-separated RBAC actions (authz middleware only) |
+| `x-duar-org-id` | The user's organization ID, from their email domain (omitted when the user has no org) |
+| `x-duar-org-slug` | The user's organization slug (omitted when the user has no org) |
+| `x-duar-org-public` | `true` if the user is in the public org; `false` otherwise, including no org |
 | `x-authz-token` | The Duar authz token — on the auto-resolve path the middleware sets it so route handlers see the minted token |
+
+> **These headers are only trustworthy behind the middleware.** It deletes every client-sent
+> `x-duar-*` header on every path, then sets verified values. On a route its `matcher`
+> excludes, or if the middleware is skipped, `getUser()`, `requireUser()` and `withAuth()`
+> read whatever the client sent. Keep the `matcher` covering every route that calls them,
+> and keep Next.js on the latest patch of its release line: middleware bypasses recur
+> (CVE-2025-29927, then CVE-2026-44573, -44574, -44575, -45109 and -64642). The peer range
+> `^14.2.25 || ^15.5.18 || ^16.2.11` excludes the versions with known App Router bypasses,
+> but it is only a floor: npm refuses a conflicting install, while pnpm, yarn and
+> `--legacy-peer-deps` only warn, so check `npm ls next`. 14.x is end-of-life and still has
+> CVE-2026-44573 (Pages Router with `i18n`); Pages Router code that reads `x-duar-*`
+> itself should move to 15.5.18+.
+
+> **Org and action headers.** `x-duar-org-*` describe the user, not the workspace: one
+> workspace can hold members of several orgs, so key data and authorization on
+> `x-duar-workspace-id`, never the org, and test `x-duar-org-id` (not
+> `x-duar-org-public: false`) for org membership. `x-duar-actions` is copied from the authz
+> token, so a revoked role stays listed until the token is re-minted
+> (`AUTHZ_TOKEN_EXPIRE_MINUTES`, default 5). When a check must see a revocation immediately,
+> call [`RoleClient.checkAction()`](server.md#roleclient).
 
 > **Prefer `getUser()` over reading these directly.** `x-duar-email` and
 > `x-duar-name` are percent-encoded on the wire (HTTP header values are

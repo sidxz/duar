@@ -5,6 +5,7 @@ import { decodeHeaderValue } from './header-codec'
 /**
  * Read the current Duar user from request headers (set by middleware).
  * Returns null if the middleware did not set user headers.
+ * Only trustworthy on routes the middleware runs on — elsewhere the headers are client-controlled.
  */
 export async function getUser(): Promise<DuarUser | null> {
   const h = await headers()
@@ -20,6 +21,10 @@ export async function getUser(): Promise<DuarUser | null> {
     workspaceSlug: h.get('x-duar-workspace-slug') ?? '',
     workspaceRole: (h.get('x-duar-workspace-role') ?? 'viewer') as WorkspaceRole,
     groups: [],
+    actions: h.get('x-duar-actions')?.split(',').filter(Boolean),
+    orgId: h.get('x-duar-org-id'),
+    orgSlug: h.get('x-duar-org-slug'),
+    orgIsPublic: h.get('x-duar-org-public') === 'true',
   }
 }
 

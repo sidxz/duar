@@ -11,7 +11,7 @@
     "@duar-auth/nextjs": "file:../../sdks/nextjs",
     "@duar-auth/react": "file:../../sdks/react",
     "@tanstack/react-query": "^5.90.21",
-    "next": "^15.3.0",
+    "next": "^15.5.27",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

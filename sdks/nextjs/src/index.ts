@@ -27,6 +27,7 @@ export {
   useAuthz,
   useAuthzUser,
   useAuthzHasRole,
+  useAuthzHasAction,
   useAuthzFetch,
   AuthzGuard,
   AuthzCallback,

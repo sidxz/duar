@@ -57,6 +57,23 @@ export interface DuarUser {
   workspaceSlug: string
   workspaceRole: WorkspaceRole
   groups: string[]
+  /**
+   * RBAC actions granted in this workspace for the app's scope. Authz mode only
+   * (undefined in standard mode). Use it to hide UI; the backend must still enforce.
+   */
+  actions?: string[]
+  /**
+   * The user's organization, resolved from their email domain (null if none). It belongs to
+   * the user, not the workspace: one workspace can hold members of several orgs, so key data
+   * and authorization on `workspaceId`, never on the org.
+   */
+  orgId?: string | null
+  orgSlug?: string | null
+  /**
+   * True when the user is in the catch-all public org (e.g. a personal email address).
+   * Also false when the user has no org, so check `orgId` (not `!orgIsPublic`) for membership.
+   */
+  orgIsPublic?: boolean
 }
 
 // ── JWT payload ─────────────────────────────────────────────────────
@@ -69,6 +86,9 @@ export interface JWTPayload {
   wslug: string
   wrole: WorkspaceRole
   groups: string[]
+  oid?: string | null
+  oslug?: string | null
+  opub?: boolean
   aud: string | string[]
   iss: string
   exp: number
@@ -86,6 +106,9 @@ export interface AuthzJWTPayload {
   wslug: string
   wrole: WorkspaceRole
   actions: string[]
+  oid?: string | null
+  oslug?: string | null
+  opub?: boolean
   aud: string | string[]
   iss: string
   exp: number

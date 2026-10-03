@@ -215,25 +215,15 @@ export function createDuarAuthzMiddleware(config: DuarAuthzMiddlewareConfig) {
     return pending
   }
 
-  const DUAR_HEADERS = [
-    'x-duar-user-id',
-    'x-duar-email',
-    'x-duar-name',
-    'x-duar-workspace-id',
-    'x-duar-workspace-slug',
-    'x-duar-workspace-role',
-    'x-duar-idp-sub',
-  ] as const
-
   return async function middleware(req: NextRequest): Promise<NextResponse> {
     const { pathname } = req.nextUrl
 
-    // Strip any client-sent x-duar-* headers to prevent spoofing.
-    // This runs on ALL paths (public and protected) so that downstream
-    // server components / route handlers can never see forged identity.
+    // Strip every client-sent x-duar-* header (by prefix, so the strip can't drift
+    // from what we set). This runs on ALL paths (public and protected) so that
+    // downstream server components / route handlers can never see forged identity.
     const requestHeaders = new Headers(req.headers)
-    for (const h of DUAR_HEADERS) {
-      requestHeaders.delete(h)
+    for (const h of [...requestHeaders.keys()]) {
+      if (h.startsWith('x-duar-')) requestHeaders.delete(h)
     }
 
     // Skip public paths
@@ -339,6 +329,12 @@ export function createDuarAuthzMiddleware(config: DuarAuthzMiddlewareConfig) {
       requestHeaders.set('x-duar-workspace-slug', String(authzPayload.wslug))
       requestHeaders.set('x-duar-workspace-role', String(authzPayload.wrole))
       requestHeaders.set('x-duar-idp-sub', String(authzClaims.idp_sub))
+      // Action names match ^[a-z][a-z0-9_.:-]*$ — no commas, header-safe.
+      requestHeaders.set('x-duar-actions', ((authzClaims.actions as string[] | undefined) ?? []).join(','))
+      // Org slugs match ^[a-z0-9][a-z0-9-]*[a-z0-9]$ — header-safe, no encoding needed.
+      if (authzClaims.oid) requestHeaders.set('x-duar-org-id', String(authzClaims.oid))
+      if (authzClaims.oslug) requestHeaders.set('x-duar-org-slug', String(authzClaims.oslug))
+      requestHeaders.set('x-duar-org-public', String(authzClaims.opub === true))
 
       return NextResponse.next({ request: { headers: requestHeaders } })
     } catch {

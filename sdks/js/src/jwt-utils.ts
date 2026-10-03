@@ -38,6 +38,9 @@ export function tokenToUser(token: string): DuarUser {
     workspaceSlug: p.wslug,
     workspaceRole: p.wrole,
     groups: p.groups ?? [],
+    orgId: p.oid ?? null,
+    orgSlug: p.oslug ?? null,
+    orgIsPublic: p.opub === true,
   }
 }
 
@@ -52,5 +55,10 @@ export function authzTokenToUser(token: string, identity: UserIdentity | null): 
     workspaceSlug: p.wslug,
     workspaceRole: p.wrole,
     groups: [],
+    // Array.isArray: a string here would turn includes() into a substring match.
+    actions: Array.isArray(p.actions) ? p.actions : [],
+    orgId: p.oid ?? null,
+    orgSlug: p.oslug ?? null,
+    orgIsPublic: p.opub === true,
   }
 }

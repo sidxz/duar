@@ -53,24 +53,16 @@ export function createDuarMiddleware(config: DuarMiddlewareConfig) {
     }
   } catch { /* invalid URL — let verifyToken handle it */ }
 
-  const DUAR_HEADERS = [
-    'x-duar-user-id',
-    'x-duar-email',
-    'x-duar-name',
-    'x-duar-workspace-id',
-    'x-duar-workspace-slug',
-    'x-duar-workspace-role',
-  ] as const
-
   return async function middleware(req: NextRequest): Promise<NextResponse> {
     const { pathname } = req.nextUrl
 
-    // Strip any client-sent x-duar-* headers to prevent spoofing.
-    // This runs on ALL paths (public and protected) so that downstream
-    // server components / route handlers can never see forged identity.
+    // Strip every client-sent x-duar-* header (by prefix, so one this variant never
+    // sets, like x-duar-actions, can't be forged either). This runs on ALL paths
+    // (public and protected) so that downstream server components / route handlers
+    // can never see forged identity.
     const requestHeaders = new Headers(req.headers)
-    for (const h of DUAR_HEADERS) {
-      requestHeaders.delete(h)
+    for (const h of [...requestHeaders.keys()]) {
+      if (h.startsWith('x-duar-')) requestHeaders.delete(h)
     }
 
     // Skip public paths
@@ -105,6 +97,10 @@ export function createDuarMiddleware(config: DuarMiddlewareConfig) {
       requestHeaders.set('x-duar-workspace-id', user.workspaceId)
       requestHeaders.set('x-duar-workspace-slug', user.workspaceSlug)
       requestHeaders.set('x-duar-workspace-role', user.workspaceRole)
+      // Org slugs match ^[a-z0-9][a-z0-9-]*[a-z0-9]$ — header-safe, no encoding needed.
+      if (user.orgId) requestHeaders.set('x-duar-org-id', user.orgId)
+      if (user.orgSlug) requestHeaders.set('x-duar-org-slug', user.orgSlug)
+      requestHeaders.set('x-duar-org-public', String(user.orgIsPublic === true))
       return NextResponse.next({ request: { headers: requestHeaders } })
     } catch {
       return handleUnauthenticated(req, loginPath)

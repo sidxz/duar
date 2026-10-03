@@ -17,6 +17,9 @@ const mockPayload = {
   wslug: 'test-ws',
   wrole: 'admin',
   groups: ['g1'],
+  oid: 'org-1',
+  oslug: 'acme',
+  opub: false,
   aud: 'duar:access',
   iss: 'duar',
   exp: Math.floor(Date.now() / 1000) + 3600,
@@ -77,6 +80,14 @@ describe('payloadToUser', () => {
       workspaceSlug: 'test-ws',
       workspaceRole: 'admin',
       groups: ['g1'],
+      orgId: 'org-1',
+      orgSlug: 'acme',
+      orgIsPublic: false,
     })
+  })
+
+  it('treats only a boolean true opub as public', () => {
+    expect(payloadToUser({ ...mockPayload, opub: 'true' } as any).orgIsPublic).toBe(false)
+    expect(payloadToUser({ ...mockPayload, opub: true } as any).orgIsPublic).toBe(true)
   })
 })
