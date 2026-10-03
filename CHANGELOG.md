@@ -12,6 +12,10 @@ For versions prior to `0.11.0`, see the git tag history (`git log --oneline -- s
 
 <!-- Add next-version entries here -->
 
+---
+
+## [1.4.0] - 2026-10-03 — JS SDK actions + org claims, verifying Next.js server helpers
+
 ### Breaking changes
 - `@duar-auth/nextjs` narrows its `next` peer range to `^14.2.25 || ^15.5.18 || ^16.2.11` (was `^14.0.0 || ^15.0.0 || ^16.0.0`); see Security. npm refuses to install it beside an excluded Next.js (`ERESOLVE`). Upgrade Next.js rather than passing `--legacy-peer-deps`, which silences this check too.
 - Python SDK and service require `pyjwt>=2.14.0` (was `>=2.10.0`); see Security.
