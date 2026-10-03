@@ -351,26 +351,12 @@ def _jwks_for(public_pem: str, kid: str) -> dict:
     return {"keys": [jwk]}
 
 
-class _FakeHTTPResponse:
-    def __init__(self, payload: bytes):
-        self._payload = payload
-
-    def __enter__(self):
-        import io
-
-        return io.BytesIO(self._payload)
-
-    def __exit__(self, *exc):
-        return False
-
-
 def _patch_jwks(monkeypatch, jwks: dict) -> None:
-    """Make PyJWKClient (urllib-based) serve this JWKS on every fetch."""
-    import json
-    import urllib.request
+    """Make PyJWKClient serve this JWKS on every fetch. Patches fetch_data (PyJWT's
+    documented override point), not the transport, which PyJWT 2.14 changed."""
+    from jwt import PyJWKClient
 
-    payload = json.dumps(jwks).encode()
-    monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: _FakeHTTPResponse(payload))
+    monkeypatch.setattr(PyJWKClient, "fetch_data", lambda self: jwks)
 
 
 def _signed_dual(idp_priv, duar_priv, kid):

@@ -14,6 +14,7 @@ For versions prior to `0.11.0`, see the git tag history (`git log --oneline -- s
 
 ### Breaking changes
 - `@duar-auth/nextjs` narrows its `next` peer range to `^14.2.25 || ^15.5.18 || ^16.2.11` (was `^14.0.0 || ^15.0.0 || ^16.0.0`); see Security. npm refuses to install it beside an excluded Next.js (`ERESOLVE`). Upgrade Next.js rather than passing `--legacy-peer-deps`, which silences this check too.
+- Python SDK and service require `pyjwt>=2.14.0` (was `>=2.10.0`); see Security.
 
 ### Added
 - JS SDKs (authz mode): `DuarUser.actions` carries the RBAC actions from the authz token (previously parsed and dropped), plus a new `useAuthzHasAction(action)` hook in `@duar-auth/react` / `@duar-auth/nextjs` for hiding UI. The Next.js authz middleware forwards them as `x-duar-actions` and `getUser()` returns them.
@@ -22,6 +23,7 @@ For versions prior to `0.11.0`, see the git tag history (`git log --oneline -- s
 ### Security
 - `@duar-auth/nextjs`: `getUser()`, `requireUser()` and `withAuth()` trust the `x-duar-*` headers the middleware sets, so anything that skips the middleware lets a client forge identity, workspace role, actions and org. The new `next` peer floor excludes the versions with known App Router middleware bypasses: CVE-2025-29927 (`x-middleware-subrequest`), CVE-2026-44575 and its follow-up CVE-2026-45109 (segment-prefetch routes), CVE-2026-44574 (dynamic route parameters) and CVE-2026-64642 (Turbopack with a single locale). 14.x is end-of-life with CVE-2026-44573 (Pages Router with `i18n`) unfixed; the server helpers are App Router-only, so 14.2.25+ stays in range, but Pages Router code that reads `x-duar-*` itself should move to 15.5.18+. The range is a floor, not a guarantee: keep Next.js on the latest patch of its line.
 - `@duar-auth/nextjs`: both middlewares now delete every client-sent `x-duar-*` header by prefix instead of each keeping its own list. The standard middleware's list lacked `x-duar-idp-sub`, so a client could plant one for app code that reads it directly (no SDK helper does).
+- Python SDK and service: `pyjwt` 2.14 fixes CVE-2026-102267, where `PyJWKClient` (the SDK middlewares' JWKS fetcher) followed redirects away from the configured JWKS endpoint, plus five key-confusion and token-forgery CVEs (CVE-2026-102266, -102268, -102271, -102272, -102273) that need HMAC keys or a verifier mixing HMAC with asymmetric algorithms; Duar's verifiers pin one asymmetric algorithm. The lockfile also moves `anyio` to 4.14.2 (CVE-2026-63374, CVE-2026-63349) and `urllib3` to 2.8.0 (CVE-2026-97687, CVE-2026-97689).
 
 ---
 
