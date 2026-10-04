@@ -1,15 +1,15 @@
 """Regression guard for version drift.
 
 The version surfaced by the running service (OpenAPI metadata + the admin
-System Health tab) must track the installed ``duar`` package version,
-never a hardcoded literal. Historically these were pinned to "0.1.0" while the
-packages were released at 0.11.0, so the System tab showed a stale version.
+System Health tab) comes from ``APP_VERSION``, which CI sets from the release
+tag. Historically it was a hardcoded "0.1.0", then package metadata that the
+image never installs, so every image showed "0.0.0+unknown".
 """
 
 from __future__ import annotations
 
+import importlib
 import uuid
-from importlib.metadata import version as dist_version
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -32,26 +32,23 @@ def _disable_limiter():
     limiter.enabled = original
 
 
-PACKAGE_VERSION = dist_version("duar-service")
+def test_version_comes_from_app_version_env(monkeypatch):
+    import src.version as version_mod
+
+    monkeypatch.setenv("APP_VERSION", "9.9.9")
+    assert importlib.reload(version_mod).__version__ == "9.9.9"
+    monkeypatch.delenv("APP_VERSION")
+    assert importlib.reload(version_mod).__version__ == "0.0.0+dev"
 
 
-def test_package_version_has_moved_past_the_old_placeholder():
-    assert PACKAGE_VERSION != "0.1.0"
-
-
-def test_version_module_tracks_package_metadata():
+def test_fastapi_app_reports_version():
+    from src.main import app
     from src.version import __version__
 
-    assert __version__ == PACKAGE_VERSION
+    assert app.version == __version__
 
 
-def test_fastapi_app_reports_package_version():
-    from src.main import app
-
-    assert app.version == PACKAGE_VERSION
-
-
-def test_system_health_endpoint_reports_package_version(monkeypatch):
+def test_system_health_endpoint_reports_version(monkeypatch):
     class _FakeRedis:
         async def ping(self):
             return True
@@ -81,4 +78,4 @@ def test_system_health_endpoint_reports_package_version(monkeypatch):
 
     resp = TestClient(app).get("/admin/system/health")
     assert resp.status_code == 200
-    assert resp.json()["version"] == PACKAGE_VERSION
+    assert resp.json()["version"] == admin_routes.__version__

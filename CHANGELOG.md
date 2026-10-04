@@ -14,6 +14,13 @@ For versions prior to `0.11.0`, see the git tag history (`git log --oneline -- s
 
 ---
 
+## [1.4.1] - 2026-10-04 — Service reports its real version
+
+### Fixed
+- service: the published image reported version `0.0.0+unknown` (admin System Health tab, OpenAPI metadata, the `version` field on every log line). It read the version from package metadata, which the image never installs. The version now comes from the release tag: CI passes it to the image build as `APP_VERSION`. Local runs and untagged builds report `0.0.0+dev`. SDKs and the admin image are republished unchanged for version alignment.
+
+---
+
 ## [1.4.0] - 2026-10-03 — JS SDK actions + org claims, verifying Next.js server helpers
 
 ### Breaking changes

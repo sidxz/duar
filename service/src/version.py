@@ -1,14 +1,14 @@
 """Single source of truth for the running service version.
 
-Read from the installed ``duar`` distribution metadata so it tracks
-``service/pyproject.toml`` automatically. The release script bumps that file,
-and this value follows without any code change — preventing the drift where
-hardcoded literals lagged the released version.
+The git release tag is the source: CI passes it to the image build as
+``APP_VERSION`` (publish-service.yml → Dockerfile ARG/ENV), the same
+convention as the other lab services. Anything else (local runs, untagged
+builds) reports ``0.0.0+dev``. Package metadata is deliberately not used: the
+image installs dependencies only (``uv sync --no-install-project``), so it
+found no ``duar-service`` distribution and every image reported
+``0.0.0+unknown``.
 """
 
-from importlib.metadata import PackageNotFoundError, version
+import os
 
-try:
-    __version__ = version("duar-service")
-except PackageNotFoundError:  # pragma: no cover - running from a raw checkout
-    __version__ = "0.0.0+unknown"
+__version__: str = os.environ.get("APP_VERSION") or "0.0.0+dev"

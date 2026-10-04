@@ -14,6 +14,10 @@ COPY src/ src/
 COPY migrations/ migrations/
 COPY alembic.ini .
 
+# Release version from the git tag (CI passes it); local builds report 0.0.0+dev.
+ARG APP_VERSION=0.0.0+dev
+ENV APP_VERSION=$APP_VERSION
+
 RUN adduser -D -u 1000 duar
 USER duar
 
