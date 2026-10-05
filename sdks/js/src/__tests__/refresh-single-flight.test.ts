@@ -3,7 +3,6 @@ import { DuarAuth } from '../client'
 import { MemoryStore } from '../storage'
 import type { DuarUser } from '../types'
 
-const tick = () => new Promise((r) => setTimeout(r, 0))
 
 function makeJwt(payload: Record<string, unknown>): string {
   const enc = (o: unknown) =>
@@ -208,9 +207,8 @@ describe('cross-tab refresh single-flight', () => {
     })
 
     tabA.logout()
-    await tick() // BroadcastChannel delivers on a later task
-
-    expect(bUser).toBe(null)
+    // BroadcastChannel delivers on a later task, not always the very next one.
+    await vi.waitFor(() => expect(bUser).toBe(null))
     expect(storeB.getAccessToken()).toBeNull()
 
     tabA.destroy()
