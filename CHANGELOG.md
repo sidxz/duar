@@ -14,6 +14,13 @@ For versions prior to `0.11.0`, see the git tag history (`git log --oneline -- s
 
 ---
 
+## [1.4.2] - 2026-10-05 — Fix `/permissions/accessible` 500 for non-admin users
+
+### Fixed
+- service: `POST /permissions/accessible` answered 500 (`AttributeError: 'CompoundSelect' object has no attribute 'c'`) for every caller who is not a workspace admin/owner, so SDK `accessible()` list filtering failed for regular members. The query read `.c` straight off a `union(...)`, which SQLAlchemy 2.1 removed; the published image installs 2.1 because the service Dockerfile does not install from `uv.lock` (pinned at 2.0). Admins and owners were unaffected because their path returns before the union. SDKs and the admin image are republished unchanged for version alignment.
+
+---
+
 ## [1.4.1] - 2026-10-04 — Service reports its real version
 
 ### Fixed

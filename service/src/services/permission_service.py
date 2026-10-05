@@ -490,7 +490,7 @@ async def lookup_accessible_resources(
             )
         queries.append(group_shared)
 
-    combined = union(*queries)
+    combined = union(*queries).subquery()
     stmt = select(combined.c.resource_id)
     if limit is not None:
         stmt = stmt.limit(limit)
