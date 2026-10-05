@@ -1,0 +1,11 @@
+# Repo-root build context for service/Dockerfile: send only what the image uses.
+*
+!pyproject.toml
+!uv.lock
+!sdk/pyproject.toml
+!service/pyproject.toml
+!service/src/
+!service/migrations/
+!service/alembic.ini
+**/__pycache__
+**/*.pyc

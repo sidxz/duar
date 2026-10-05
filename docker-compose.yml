@@ -56,7 +56,8 @@ services:
 
   duar:
     build:
-      context: service
+      context: .
+      dockerfile: service/Dockerfile
     ports:
       - "9003:9003"
     env_file:

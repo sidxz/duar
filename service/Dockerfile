@@ -6,13 +6,17 @@ WORKDIR /app
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# Install dependencies using standalone (non-workspace) resolution
-COPY pyproject.toml ./
-RUN uv sync --no-dev --no-install-project
+# Build context is the repo root (docker build -f service/Dockerfile .) so the
+# image installs exactly what the workspace uv.lock pins, the same versions the
+# test suite runs against. --locked fails the build if the lock is stale.
+COPY pyproject.toml uv.lock ./
+COPY service/pyproject.toml service/
+COPY sdk/pyproject.toml sdk/
+RUN uv sync --locked --no-dev --package duar-service --no-install-workspace
 
-COPY src/ src/
-COPY migrations/ migrations/
-COPY alembic.ini .
+COPY service/src/ src/
+COPY service/migrations/ migrations/
+COPY service/alembic.ini .
 
 # Release version from the git tag (CI passes it); local builds report 0.0.0+dev.
 ARG APP_VERSION=0.0.0+dev

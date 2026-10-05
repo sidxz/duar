@@ -27,13 +27,11 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF_NAME#service-v}" >> "$GITHUB_OUTPUT"
 
-      - name: Copy workspace lockfile into service context
-        run: cp uv.lock service/uv.lock
-
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: service/
+          context: .
+          file: service/Dockerfile
           push: true
           build-args: |
             APP_VERSION=${{ steps.version.outputs.VERSION }}

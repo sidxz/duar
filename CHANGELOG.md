@@ -12,6 +12,9 @@ For versions prior to `0.11.0`, see the git tag history (`git log --oneline -- s
 
 <!-- Add next-version entries here -->
 
+### Changed
+- service image: installs exactly the versions pinned in the workspace `uv.lock` (`uv sync --locked`), the same set the test suite runs against. It previously resolved the newest versions allowed by `service/pyproject.toml` at build time, which is how SQLAlchemy 2.1 reached production untested (see 1.4.2). The image is now built from the repo root: `docker build -f service/Dockerfile .` (CI, the publish workflow and `docker-compose.yml` are updated). A stale lockfile fails the build.
+
 ---
 
 ## [1.4.2] - 2026-10-05 — Fix `/permissions/accessible` 500 for non-admin users

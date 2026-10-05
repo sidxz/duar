@@ -79,9 +79,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build service image
-        run: |
-          cp uv.lock service/uv.lock
-          docker build -t daikon/duar:ci service/
+        run: docker build -f service/Dockerfile -t daikon/duar:ci .
 
       - name: Scan container image
         uses: aquasecurity/trivy-action@v0.35.0
