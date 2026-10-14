@@ -45,3 +45,12 @@ CLAUDE.md
 
 # Claude Code local state
 .claude/
+
+# Strix pentest run output (findings + working PoCs — never commit)
+strix_runs/
+
+# Local pentest credentials (minted for authenticated scans — never commit)
+pentest/.creds.local*
+
+# Internal planning/spec notes — kept out of the repo
+docs/superpowers/
