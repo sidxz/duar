@@ -101,7 +101,7 @@ def test_models_registered_for_metadata():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_org_domain_matching.py -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_org_domain_matching.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'src.models.organization'`.
 
 - [ ] **Step 3: Create the model module** (`service/src/models/organization.py`)
@@ -228,13 +228,13 @@ And add these three entries to the end of the `__all__` list (before the closing
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_org_domain_matching.py -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_org_domain_matching.py -v`
 Expected: PASS (2 passed).
 
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /Users/sidx/workspace/identity-service
+cd ~/workspace/identity-service
 git add service/src/models/organization.py service/src/models/__init__.py service/tests/test_org_domain_matching.py
 git commit -m "feat(models): add organization, domain, workspace-allowed-org models
 
@@ -261,7 +261,7 @@ def test_user_has_organization_id_column():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_org_domain_matching.py::test_user_has_organization_id_column -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_org_domain_matching.py::test_user_has_organization_id_column -v`
 Expected: FAIL with `KeyError: 'organization_id'`.
 
 - [ ] **Step 3: Add the column** (`service/src/models/user.py`)
@@ -282,13 +282,13 @@ Insert this column right after the `is_admin` column (line 22), before `created_
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_org_domain_matching.py -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_org_domain_matching.py -v`
 Expected: PASS (3 passed).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/sidx/workspace/identity-service
+cd ~/workspace/identity-service
 git add service/src/models/user.py service/tests/test_org_domain_matching.py
 git commit -m "feat(models): add users.organization_id FK
 
@@ -369,7 +369,7 @@ def test_match_no_rows():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_org_domain_matching.py -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_org_domain_matching.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'src.services.organization_service'`.
 
 - [ ] **Step 3: Create the service with pure functions** (`service/src/services/organization_service.py`)
@@ -435,13 +435,13 @@ def match_org_id(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_org_domain_matching.py -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_org_domain_matching.py -v`
 Expected: PASS (all parametrized + match cases green).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/sidx/workspace/identity-service
+cd ~/workspace/identity-service
 git add service/src/services/organization_service.py service/tests/test_org_domain_matching.py
 git commit -m "feat(org): pure email-domain normalizer + org matcher
 
@@ -577,7 +577,7 @@ async def test_workspace_denies_orgless_user_when_restricted():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_org_resolution.py -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_org_resolution.py -v`
 Expected: FAIL with `AttributeError: module 'src.services.organization_service' has no attribute 'resolve_organization'`.
 
 - [ ] **Step 3: Append the async resolvers** (`service/src/services/organization_service.py`)
@@ -636,13 +636,13 @@ async def workspace_allows_org(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_org_resolution.py -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_org_resolution.py -v`
 Expected: PASS (7 passed).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/sidx/workspace/identity-service
+cd ~/workspace/identity-service
 git add service/src/services/organization_service.py service/tests/test_org_resolution.py
 git commit -m "feat(org): resolve_organization + workspace_allows_org
 
@@ -690,7 +690,7 @@ In `test_real_cross_provider_collision_still_rejected`, add `organization_id=uui
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_preprovisioned_link.py -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_preprovisioned_link.py -v`
 Expected: FAIL with `TypeError: find_or_create_user() got an unexpected keyword argument 'organization_id'`.
 
 - [ ] **Step 3: Add the `organization_id` parameter and set it on every path** (`service/src/services/auth_service.py`)
@@ -797,13 +797,13 @@ and pass `organization_id=org.id if org else None` into that `find_or_create_use
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_preprovisioned_link.py -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_preprovisioned_link.py -v`
 Expected: PASS (2 passed).
 
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /Users/sidx/workspace/identity-service
+cd ~/workspace/identity-service
 git add service/src/services/auth_service.py service/src/api/auth_routes.py service/tests/test_preprovisioned_link.py
 git commit -m "feat(auth): gate sign-in by org, persist users.organization_id
 
@@ -876,7 +876,7 @@ def test_access_token_public_org_flag():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_org_token_claims.py -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_org_token_claims.py -v`
 Expected: FAIL with `TypeError: create_access_token() got an unexpected keyword argument 'org_id'`.
 
 - [ ] **Step 3: Add org params + claims to `create_access_token`** (`service/src/auth/jwt.py`)
@@ -908,7 +908,7 @@ Add the claims to the payload dict, right after the `"groups": ...` line (line 5
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_org_token_claims.py -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_org_token_claims.py -v`
 Expected: PASS (2 passed).
 
 - [ ] **Step 5: Thread the org through both token-issuing call sites** (`service/src/services/auth_service.py`)
@@ -957,13 +957,13 @@ and add the same three keyword args (after `groups=group_ids,`) to that `create_
 
 - [ ] **Step 6: Run the broader token/auth tests to verify nothing regressed**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_org_token_claims.py tests/test_access_jti_binding.py -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_org_token_claims.py tests/test_access_jti_binding.py -v`
 Expected: PASS (no `TypeError` from the new required params; org tests green).
 
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /Users/sidx/workspace/identity-service
+cd ~/workspace/identity-service
 git add service/src/auth/jwt.py service/src/services/auth_service.py service/tests/test_org_token_claims.py
 git commit -m "feat(jwt): add oid/oslug/opub claims to access tokens
 
@@ -1007,7 +1007,7 @@ def test_authz_token_carries_org_claims():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_org_token_claims.py::test_authz_token_carries_org_claims -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_org_token_claims.py::test_authz_token_carries_org_claims -v`
 Expected: FAIL with `TypeError: create_authz_token() got an unexpected keyword argument 'org_id'`.
 
 - [ ] **Step 3: Add org params + claims to `create_authz_token`** (`service/src/auth/jwt.py`)
@@ -1065,13 +1065,13 @@ Add these three keyword args to the `create_authz_token(...)` call (after `servi
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_org_token_claims.py tests/test_authz_jwt.py -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_org_token_claims.py tests/test_authz_jwt.py -v`
 Expected: PASS (org claim test + existing authz tests green).
 
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /Users/sidx/workspace/identity-service
+cd ~/workspace/identity-service
 git add service/src/auth/jwt.py service/src/api/authz_routes.py service/tests/test_org_token_claims.py
 git commit -m "feat(jwt): add oid/oslug/opub claims to authz tokens
 
@@ -1179,7 +1179,7 @@ async def test_invite_allowed_when_workspace_open():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_org_workspace_enforcement.py -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_org_workspace_enforcement.py -v`
 Expected: FAIL (no org check yet — `test_invite_rejected_when_org_not_allowed` does not raise).
 
 - [ ] **Step 3: Enforce in `invite_member`** (`service/src/services/workspace_service.py`)
@@ -1230,13 +1230,13 @@ In `rotate_refresh_token`, right after the membership re-check that raises `"Use
 
 - [ ] **Step 6: Run tests to verify they pass**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_org_workspace_enforcement.py -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_org_workspace_enforcement.py -v`
 Expected: PASS (2 passed).
 
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /Users/sidx/workspace/identity-service
+cd ~/workspace/identity-service
 git add service/src/services/workspace_service.py service/src/services/auth_service.py service/tests/test_org_workspace_enforcement.py
 git commit -m "feat(org): enforce workspace allowed-orgs at invite + token issuance
 
@@ -1254,7 +1254,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 Run:
 ```bash
-cd /Users/sidx/workspace/identity-service/service && uv run alembic revision -m "add organizations and email-domain tenancy"
+cd ~/workspace/identity-service/service && uv run alembic revision -m "add organizations and email-domain tenancy"
 ```
 Expected: prints `Generating .../migrations/versions/<rev>_add_organizations_and_email_domain_tenancy.py ... done`. Note the new file path.
 
@@ -1400,14 +1400,14 @@ Confirm the file's imports include `from alembic import op` and `import sqlalche
 
 - [ ] **Step 3: Apply the migration**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run alembic upgrade head`
+Run: `cd ~/workspace/identity-service/service && uv run alembic upgrade head`
 Expected: `Running upgrade 21bddf454fbc -> <rev>, add organizations and email-domain tenancy` with no errors.
 
 - [ ] **Step 4: Verify the seed + backfill landed**
 
 Run:
 ```bash
-cd /Users/sidx/workspace/identity-service/service && uv run python -c "
+cd ~/workspace/identity-service/service && uv run python -c "
 import asyncio
 from sqlalchemy import text
 from src.database import engine
@@ -1426,14 +1426,14 @@ Expected: `public org: [('public', True, True)]` and `users still without org: 0
 
 Run:
 ```bash
-cd /Users/sidx/workspace/identity-service/service && uv run alembic downgrade -1 && uv run alembic upgrade head
+cd ~/workspace/identity-service/service && uv run alembic downgrade -1 && uv run alembic upgrade head
 ```
 Expected: downgrade drops the tables/column without error, then upgrade re-applies cleanly.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /Users/sidx/workspace/identity-service
+cd ~/workspace/identity-service
 git add service/migrations/versions/
 git commit -m "feat(migration): organizations tables, users.organization_id, seed public org
 
@@ -1452,12 +1452,12 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: Run the full service test suite**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest -v`
 Expected: all tests PASS (the new org tests + all pre-existing tests; no regressions from the new required token params or the `find_or_create_user` signature change).
 
 - [ ] **Step 2: Run lint/format**
 
-Run: `cd /Users/sidx/workspace/identity-service && make lint`
+Run: `cd ~/workspace/identity-service && make lint`
 Expected: clean. If it flags formatting, run `make fmt` and re-run `make lint`, then amend the relevant commit or add a `style:` commit.
 
 - [ ] **Step 3: Final verification note**

@@ -150,7 +150,7 @@ realm-fixtures: ## Regenerate cross-SDK integration test fixtures
 
 - [ ] **Step 3: Generate the fixtures**
 
-Run: `cd /Users/sidx/workspace/identity-service && uv run python service/tests/integration/gen_fixtures.py`
+Run: `cd ~/workspace/identity-service && uv run python service/tests/integration/gen_fixtures.py`
 Expected: prints `wrote …/fixtures/fixtures.json`; the file exists and is valid JSON with `tokens` holding 5 entries.
 
 - [ ] **Step 4: Write the fixtures-correctness test**
@@ -218,7 +218,7 @@ Expected: PASS (6 passed). If `keys/` is needed it is NOT — this test only rea
 
 ```bash
 cd service && uv run ruff format tests/integration/gen_fixtures.py tests/integration/test_fixtures.py && uv run ruff check --fix tests/integration/gen_fixtures.py tests/integration/test_fixtures.py
-cd /Users/sidx/workspace/identity-service
+cd ~/workspace/identity-service
 git add service/tests/integration/gen_fixtures.py service/tests/integration/fixtures/fixtures.json service/tests/integration/test_fixtures.py Makefile
 git commit -m "test(realm): cross-SDK fixture generator + committed token vectors"
 ```
@@ -448,7 +448,7 @@ Expected: PASS (8 passed).
 
 ```bash
 cd service && uv run ruff format tests/integration/test_realm_flow_b.py && uv run ruff check --fix tests/integration/test_realm_flow_b.py
-cd /Users/sidx/workspace/identity-service
+cd ~/workspace/identity-service
 git add service/tests/integration/test_realm_flow_b.py
 git commit -m "test(realm): Flow B integration — real m2m mint accepted by real SDK verify"
 ```
@@ -610,7 +610,7 @@ Expected: PASS (2 passed). (Requires dev `keys/` — the authz token is signed b
 
 ```bash
 cd service && uv run ruff format tests/integration/test_realm_flow_a.py && uv run ruff check --fix tests/integration/test_realm_flow_a.py
-cd /Users/sidx/workspace/identity-service
+cd ~/workspace/identity-service
 git add service/tests/integration/test_realm_flow_a.py
 git commit -m "test(realm): Flow A integration — real authz token accepted by real AuthzMiddleware"
 ```
@@ -720,7 +720,7 @@ Expected: build succeeds. If the JSON import errors on `resolveJsonModule`, conf
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /Users/sidx/workspace/identity-service
+cd ~/workspace/identity-service
 git add sdks/js/src/__tests__/realm-integration.test.ts
 git commit -m "test(js-sdk): cross-SDK realm integration — real jose verifies Python-minted tokens"
 ```

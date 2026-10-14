@@ -147,13 +147,13 @@ export const setWorkspaceAllowedOrgs = (
 
 - [ ] **Step 3: Typecheck + lint**
 
-Run: `cd /Users/sidx/workspace/identity-service/admin && npx tsc -b && npm run lint`
+Run: `cd ~/workspace/identity-service/admin && npx tsc -b && npm run lint`
 Expected: no errors (the new exports are unused so far — eslint in this project does not error on unused exports; if it flags unused imports, ensure every imported type is referenced by a wrapper).
 
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /Users/sidx/workspace/identity-service
+cd ~/workspace/identity-service
 git add admin/src/types/api.ts admin/src/api/client.ts
 git commit -m "feat(admin-ui): org API client wrappers + types
 
@@ -368,13 +368,13 @@ Add this entry to the `NAV` array, right after the Workspaces entry:
 
 - [ ] **Step 4: Typecheck + lint**
 
-Run: `cd /Users/sidx/workspace/identity-service/admin && npx tsc -b && npm run lint`
+Run: `cd ~/workspace/identity-service/admin && npx tsc -b && npm run lint`
 Expected: no errors.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/sidx/workspace/identity-service
+cd ~/workspace/identity-service
 git add admin/src/pages/Organizations.tsx admin/src/pages/OrganizationDetail.tsx admin/src/App.tsx admin/src/components/Layout.tsx
 git commit -m "feat(admin-ui): organizations list page, route, nav
 
@@ -655,13 +655,13 @@ export function OrganizationDetail() {
 
 - [ ] **Step 2: Typecheck + lint**
 
-Run: `cd /Users/sidx/workspace/identity-service/admin && npx tsc -b && npm run lint`
+Run: `cd ~/workspace/identity-service/admin && npx tsc -b && npm run lint`
 Expected: no errors.
 
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/sidx/workspace/identity-service
+cd ~/workspace/identity-service
 git add admin/src/pages/OrganizationDetail.tsx
 git commit -m "feat(admin-ui): organization detail — domains, toggle, users, delete
 
@@ -834,13 +834,13 @@ function AccessTabInner({
 
 - [ ] **Step 5: Typecheck + lint**
 
-Run: `cd /Users/sidx/workspace/identity-service/admin && npx tsc -b && npm run lint`
+Run: `cd ~/workspace/identity-service/admin && npx tsc -b && npm run lint`
 Expected: no errors.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /Users/sidx/workspace/identity-service
+cd ~/workspace/identity-service
 git add admin/src/pages/WorkspaceDetail.tsx
 git commit -m "feat(admin-ui): workspace Access tab — restrict-to-orgs switch
 
@@ -855,12 +855,12 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: Full typecheck + lint + production build**
 
-Run: `cd /Users/sidx/workspace/identity-service/admin && npx tsc -b && npm run lint && npm run build`
+Run: `cd ~/workspace/identity-service/admin && npx tsc -b && npm run lint && npm run build`
 Expected: all succeed (the production `vite build` is the real gate that the app compiles end-to-end).
 
 - [ ] **Step 2: Manual run-through against the live backend**
 
-The backend (with the Plan-2a org endpoints) and dev DB are running (`make start` on :9003 if not). Start the admin UI: `cd /Users/sidx/workspace/identity-service && make admin` (:9004). Sign in as an admin, then verify each flow and confirm the UI + a DB/network check agree:
+The backend (with the Plan-2a org endpoints) and dev DB are running (`make start` on :9003 if not). Start the admin UI: `cd ~/workspace/identity-service && make admin` (:9004). Sign in as an admin, then verify each flow and confirm the UI + a DB/network check agree:
 
 1. **Organizations nav** appears; the page lists the **public org pinned first** with a 🌐 badge and its enabled status.
 2. **Create org** ("TAMU"/"tamu") → redirects to its detail page; it appears in the list.
