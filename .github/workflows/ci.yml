@@ -79,6 +79,10 @@ jobs:
 
   container-scan:
     name: Container Scan (Trivy)
+    # Image CVEs track the advisory feed, not the diff — gate the shipped
+    # artifact at release (publish-service.yml) and sweep for drift weekly,
+    # rather than rebuilding on every push/PR and red-flagging unrelated merges.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -96,6 +100,8 @@ jobs:
 
   admin-container-scan:
     name: Admin Container Scan (Trivy)
+    # See container-scan: gated to release (publish-admin.yml) + weekly drift.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
