@@ -13,6 +13,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # Linter — each bump adds rules that fail CI (0.17 surfaced 318), so we
+      # upgrade it deliberately in its own PR, not via grouped dependency bumps.
+      - dependency-name: "ruff"
     groups:
       minor-and-patch:
         update-types:
