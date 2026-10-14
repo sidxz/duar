@@ -226,7 +226,7 @@ async def system_settings(
     public_key_preview = ""
     try:
         public_key_preview = settings.jwt_public_key_path.read_text()[:80]
-    except Exception:
+    except Exception:  # noqa: S110 — diagnostics preview; unreadable key shows as empty
         pass
 
     denylist_count = 0
@@ -234,7 +234,7 @@ async def system_settings(
         r = await token_service.get_redis()
         cursor, keys = await r.scan(0, match="bl:*", count=1000)
         denylist_count = len(keys)
-    except Exception:
+    except Exception:  # noqa: S110 — diagnostics only; Redis down shows as 0
         pass
 
     jwt_info = {
@@ -251,7 +251,7 @@ async def system_settings(
         "allowed_hosts": settings.allowed_hosts_list,
         "cors_origins": settings.cors_origin_list,
         "session_secret_configured": settings.session_secret_key
-        != "dev-only-change-me-in-production",
+        != "dev-only-change-me-in-production",  # noqa: S105 — dev placeholder, not a secret
         "admin_emails": settings.admin_email_list,
     }
 

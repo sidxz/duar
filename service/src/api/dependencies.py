@@ -415,7 +415,7 @@ async def get_user_for_service_call(
 
     await _enforce_token_hygiene(payload)
 
-    if token_type == "authz":
+    if token_type == "authz":  # noqa: S105 — token kind, not a secret
         token_svc = payload.get("svc")
         if not token_svc or token_svc != svc_ctx.effective_scope:
             # A token minted for service A replayed against service B.
@@ -549,7 +549,7 @@ async def get_current_user_flexible(
 
     await _enforce_token_hygiene(payload)
 
-    if token_type == "authz" and has_valid_service_key:
+    if token_type == "authz" and has_valid_service_key:  # noqa: S105 — token kind, not a secret
         token_svc = payload.get("svc")
         if not token_svc or token_svc != service_key_effective_scope:
             _reject(

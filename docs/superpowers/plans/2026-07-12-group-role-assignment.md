@@ -40,7 +40,7 @@
 - [ ] **Step 1: Create the branch**
 
 ```bash
-cd /Users/sidx/workspace/identity-service && git checkout -b group-roles
+cd ~/workspace/identity-service && git checkout -b group-roles
 ```
 
 - [ ] **Step 2: Write the failing model-contract test**
@@ -1569,7 +1569,7 @@ Checks whether the user can perform a specific action in a workspace. Returns th
 
 - [ ] **Step 3: Verify strict docs build**
 
-Run: `cd /Users/sidx/workspace/identity-service && uv run --extra docs mkdocs build --strict`
+Run: `cd ~/workspace/identity-service && uv run --extra docs mkdocs build --strict`
 Expected: build succeeds with no warnings (strict mode fails on any).
 
 - [ ] **Step 4: Commit**
@@ -1590,11 +1590,11 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - [ ] **Step 1: Full gates**
 
 ```bash
-cd /Users/sidx/workspace/identity-service/service && uv run pytest -q
-cd /Users/sidx/workspace/identity-service/sdk && uv run pytest -q
-cd /Users/sidx/workspace/identity-service && make lint
-cd /Users/sidx/workspace/identity-service/admin && npm run build && npm run lint
-cd /Users/sidx/workspace/identity-service && uv run --extra docs mkdocs build --strict
+cd ~/workspace/identity-service/service && uv run pytest -q
+cd ~/workspace/identity-service/sdk && uv run pytest -q
+cd ~/workspace/identity-service && make lint
+cd ~/workspace/identity-service/admin && npm run build && npm run lint
+cd ~/workspace/identity-service && uv run --extra docs mkdocs build --strict
 ```
 
 Expected: everything green. (SDK suite is untouched by this feature — running it proves that.)

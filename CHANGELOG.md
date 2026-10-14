@@ -12,6 +12,14 @@ For versions prior to `0.11.0`, see the git tag history (`git log --oneline -- s
 
 <!-- Add next-version entries here -->
 
+### Added
+- `SECURITY.md`: supported versions (the latest release only) and private vulnerability reporting through GitHub, acknowledged within 5 working days.
+- CI: the Trivy dependency and image scans also run weekly and on manual dispatch, so CVEs published between pushes surface without a commit. Dependabot now covers uv, npm (admin, JS SDKs) and Docker base images alongside GitHub Actions, weekly, with minor and patch updates grouped.
+- Lint: ruff's bandit rules (`S`) are enabled for the service and the Python SDK. `S101` is ignored, test fixtures may hold placeholder tokens, and each remaining hit carries an inline reason.
+
+### Changed
+- admin image: nginx now sends `X-Frame-Options: DENY`, `Permissions-Policy` (camera, microphone, geolocation off) and `Content-Security-Policy: frame-ancestors 'none'`, matching the service's own response headers.
+
 ---
 
 ## [1.4.3] - 2026-10-05 — Service image built from the lockfile

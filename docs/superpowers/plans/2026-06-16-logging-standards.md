@@ -1677,7 +1677,7 @@ In `mkdocs.yml`, add under an "Observability" (or existing deployment) nav secti
 
 - [ ] **Step 3: Add config flags to the env example**
 
-Run: `grep -rl "RATE_LIMIT_RPM\|SESSION_SECRET_KEY" --include="*.example" --include="*.env*" /Users/sidx/workspace/identity-service` to locate the env example file, then append:
+Run: `grep -rl "RATE_LIMIT_RPM\|SESSION_SECRET_KEY" --include="*.example" --include="*.env*" ~/workspace/identity-service` to locate the env example file, then append:
 
 ```bash
 # Logging
@@ -1692,7 +1692,7 @@ In the deployment docs (e.g. `docs/deployment/…`), add a short note: prod uses
 
 - [ ] **Step 5: Verify docs build (strict)**
 
-Run: `cd /Users/sidx/workspace/identity-service && uv run mkdocs build --strict`
+Run: `cd ~/workspace/identity-service && uv run mkdocs build --strict`
 Expected: builds with no warnings (the docs.yml CI gate). If `mkdocs` is not in the active env, use the project's documented `make docs-serve` toolchain.
 
 - [ ] **Step 6: Commit**

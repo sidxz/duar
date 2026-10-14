@@ -89,7 +89,7 @@ async def lifespan(app: FastAPI):
 
     # Security checks — fail-closed in production, warn in dev
     _insecure_session = (
-        settings.session_secret_key == "dev-only-change-me-in-production"
+        settings.session_secret_key == "dev-only-change-me-in-production"  # noqa: S105 — detects the dev placeholder
     )
     _insecure_cookie = not settings.cookie_secure
 

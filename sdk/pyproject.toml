@@ -37,4 +37,9 @@ target-version = "py312"
 line-length = 120
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP"]
+select = ["E", "F", "I", "UP", "S"]
+ignore = ["S101"] # assert is fine: tests use it, and the SDK never runs with -O
+
+[tool.ruff.lint.per-file-ignores]
+# Test fixtures hold placeholder tokens by design.
+"tests/**" = ["S105", "S106"]

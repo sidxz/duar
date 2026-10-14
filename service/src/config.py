@@ -46,13 +46,13 @@ class Settings(BaseSettings):
     dex_server_metadata_url: str = ""
 
     # Service
-    service_host: str = "0.0.0.0"
+    service_host: str = "0.0.0.0"  # noqa: S104 — container bind address
     service_port: int = 9003
     base_url: str = "http://localhost:9003"
     frontend_url: str = "http://localhost:3000"
 
     # Session (generate with: python -c "import secrets; print(secrets.token_urlsafe(32))")
-    session_secret_key: str = "dev-only-change-me-in-production"
+    session_secret_key: str = "dev-only-change-me-in-production"  # noqa: S105 — placeholder; startup refuses it when DEBUG=False
 
     # CORS (comma-separated in .env)
     cors_origins: str = "http://localhost:3000,http://localhost:9101"

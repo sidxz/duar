@@ -162,7 +162,7 @@ async def test_delete_regular_org_ok():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_org_admin_service.py -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_org_admin_service.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'src.services.org_admin_service'`.
 
 - [ ] **Step 3: Create the service with exceptions + org CRUD** (`service/src/services/org_admin_service.py`)
@@ -301,13 +301,13 @@ async def get_organization_detail(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_org_admin_service.py -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_org_admin_service.py -v`
 Expected: PASS (6 passed).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/sidx/workspace/identity-service
+cd ~/workspace/identity-service
 git add service/src/services/org_admin_service.py service/tests/test_org_admin_service.py
 git commit -m "feat(org-admin): org CRUD service + typed guard exceptions
 
@@ -372,7 +372,7 @@ async def test_remove_domain_wrong_org_not_found():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_org_admin_service.py -k domain -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_org_admin_service.py -k domain -v`
 Expected: FAIL with `AttributeError: module 'src.services.org_admin_service' has no attribute 'add_domain'`.
 
 - [ ] **Step 3: Append the domain functions** (`service/src/services/org_admin_service.py`)
@@ -427,13 +427,13 @@ async def remove_domain(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_org_admin_service.py -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_org_admin_service.py -v`
 Expected: PASS (11 passed).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/sidx/workspace/identity-service
+cd ~/workspace/identity-service
 git add service/src/services/org_admin_service.py service/tests/test_org_admin_service.py
 git commit -m "feat(org-admin): add/remove domain with normalize + uniqueness guards
 
@@ -501,7 +501,7 @@ Note: `WorkspaceAllowedOrganization` is already imported at the top of the test 
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_org_admin_service.py -k allowed -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_org_admin_service.py -k allowed -v`
 Expected: FAIL with `AttributeError: ... has no attribute 'set_workspace_allowed_orgs'`.
 
 - [ ] **Step 3: Append allowed-orgs + users functions** (`service/src/services/org_admin_service.py`)
@@ -587,13 +587,13 @@ async def list_org_users(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_org_admin_service.py -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_org_admin_service.py -v`
 Expected: PASS (15 passed).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/sidx/workspace/identity-service
+cd ~/workspace/identity-service
 git add service/src/services/org_admin_service.py service/tests/test_org_admin_service.py
 git commit -m "feat(org-admin): workspace allowed-orgs set/get + list org users
 
@@ -649,7 +649,7 @@ def test_allowed_orgs_request_takes_uuid_list():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_org_admin_schemas.py -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_org_admin_schemas.py -v`
 Expected: FAIL with `ImportError: cannot import name 'AdminOrgCreateRequest'`.
 
 - [ ] **Step 3: Append the schemas** (`service/src/schemas/admin.py`)
@@ -710,13 +710,13 @@ class AdminWorkspaceAllowedOrgsResponse(BaseModel):
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_org_admin_schemas.py -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_org_admin_schemas.py -v`
 Expected: PASS (8 passed, counting the parametrized cases).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/sidx/workspace/identity-service
+cd ~/workspace/identity-service
 git add service/src/schemas/admin.py service/tests/test_org_admin_schemas.py
 git commit -m "feat(org-admin): request/response schemas
 
@@ -875,7 +875,7 @@ def test_set_allowed_orgs_unknown_id_returns_400(monkeypatch):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_org_admin_routes.py -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_org_admin_routes.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'src.api.org_admin_routes'`.
 
 - [ ] **Step 3: Create the routes module** (`service/src/api/org_admin_routes.py`)
@@ -1193,13 +1193,13 @@ app.include_router(org_admin_router)
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest tests/test_org_admin_routes.py -v`
+Run: `cd ~/workspace/identity-service/service && uv run pytest tests/test_org_admin_routes.py -v`
 Expected: PASS (5 passed).
 
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /Users/sidx/workspace/identity-service
+cd ~/workspace/identity-service
 git add service/src/api/org_admin_routes.py service/src/main.py service/tests/test_org_admin_routes.py
 git commit -m "feat(org-admin): admin routes for orgs/domains/allowed-orgs
 
@@ -1222,7 +1222,7 @@ can't meaningfully exercise. Verify them against the running dev Postgres
 Run (one-off; creates then deletes its own rows):
 
 ```bash
-cd /Users/sidx/workspace/identity-service/service && uv run python -c "
+cd ~/workspace/identity-service/service && uv run python -c "
 import asyncio, uuid
 from src.database import async_session_factory
 from src.services import org_admin_service as svc
@@ -1250,16 +1250,16 @@ Expected: prints `SMOKE OK: ...` with no assertion error. (`async_session_factor
 
 - [ ] **Step 2: Full suite + lint**
 
-Run: `cd /Users/sidx/workspace/identity-service/service && uv run pytest -q`
+Run: `cd ~/workspace/identity-service/service && uv run pytest -q`
 Expected: all PASS (existing + the new org-admin tests).
 
-Run: `cd /Users/sidx/workspace/identity-service && make lint`
+Run: `cd ~/workspace/identity-service && make lint`
 Expected: clean. If formatting is flagged, run `make fmt` and re-check.
 
 - [ ] **Step 3: Commit (only if `make fmt` changed anything)**
 
 ```bash
-cd /Users/sidx/workspace/identity-service
+cd ~/workspace/identity-service
 git add -A service/
 git commit -m "style(org-admin): formatting
 

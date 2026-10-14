@@ -51,7 +51,7 @@ def _emit_audit(payload: dict) -> None:
     system-of-record; a log-stream emit failure must never break the audit."""
     try:
         log_audit(**payload)
-    except Exception:
+    except Exception:  # noqa: S110 — log-stream emit is best-effort; the DB row is the record
         pass
 
 

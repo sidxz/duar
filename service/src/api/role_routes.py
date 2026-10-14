@@ -89,7 +89,7 @@ async def check_action(
         )
         try:
             await db.rollback()
-        except Exception:
+        except Exception:  # noqa: S110 — best-effort rollback; the check result still returns
             pass
     return CheckActionResponse(allowed=allowed, roles=roles)
 
