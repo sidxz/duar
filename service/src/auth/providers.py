@@ -22,7 +22,7 @@ if settings.github_client_id:
         name="github",
         client_id=settings.github_client_id,
         client_secret=settings.github_client_secret,
-        access_token_url="https://github.com/login/oauth/access_token",
+        access_token_url="https://github.com/login/oauth/access_token",  # noqa: S106 — a URL, not a secret
         authorize_url="https://github.com/login/oauth/authorize",
         api_base_url="https://api.github.com/",
         client_kwargs={"scope": "user:email"},

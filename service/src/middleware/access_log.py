@@ -102,5 +102,5 @@ class AccessLogMiddleware:
                     if v is not None:
                         fields[k] = v
                 log_access("http.access", level=level, **fields)
-            except Exception:
-                pass  # never let logging break the response
+            except Exception:  # noqa: S110 — never let logging break the response
+                pass

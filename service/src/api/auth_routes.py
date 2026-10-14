@@ -722,8 +722,8 @@ async def logout(
         payload = decode_token(token_str, audience="duar:access")
         if jti := payload.get("jti"):
             await token_service.blacklist_access_token(jti, payload["exp"])
-    except Exception:
-        pass  # Token already expired — jti blacklisting not needed
+    except Exception:  # noqa: S110 — expired token: nothing left to denylist
+        pass
     log_security(
         "auth.token.revoked",
         outcome="success",

@@ -41,3 +41,12 @@ packages = ["src"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+
+[tool.ruff.lint]
+# Default rules (E4, E7, E9, F) plus bandit-derived security checks.
+extend-select = ["S"]
+ignore = ["S101"] # assert is fine: tests use it, and the service never runs with -O
+
+[tool.ruff.lint.per-file-ignores]
+# Test fixtures hold placeholder tokens and secrets by design.
+"tests/**" = ["S105", "S106"]
