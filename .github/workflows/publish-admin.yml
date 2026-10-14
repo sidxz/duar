@@ -39,7 +39,7 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/duar-admin:latest
 
       - name: Scan image — block the release on CRITICAL/HIGH
-        uses: aquasecurity/trivy-action@v0.35.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ghcr.io/${{ github.repository_owner }}/duar-admin:${{ steps.version.outputs.VERSION }}
           format: table
