@@ -97,5 +97,4 @@ form carries a CSRF token; pages are `Cache-Control: no-store`; `return_to` is
 allowlisted; invite codes are 256-bit, stored hashed, claimed by an atomic
 single-use update; invitations die with the inviter's standing; org
 allowlists are enforced on redemption; every create/accept/revoke is written
-to the activity log and the security event stream. Full analysis:
-`docs/superpowers/specs/2026-08-25-self-serve-workspaces-design.md`.
+to the activity log and the security event stream.
