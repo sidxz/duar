@@ -59,12 +59,16 @@ export function AddItemsDialog({
   const [pending, setPending] = useState(false);
 
   // Fresh state every time the dialog opens (guards stale-picker bugs, cf. 563e53f).
-  useEffect(() => {
+  // Adjust-during-render on the open transition, per React's "you might not need
+  // an effect" guidance — resetting in an effect trips react-hooks/set-state-in-effect.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
     if (open) {
       setQuery("");
       setSelected(new Map());
     }
-  }, [open]);
+  }
 
   // Server mode: debounce query up to the parent.
   useEffect(() => {

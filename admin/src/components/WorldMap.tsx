@@ -14,6 +14,8 @@ interface Hover {
   count: number;
   x: number;
   y: number;
+  // Decided at mouse-move (we have the rect there) so render never reads ref.current.
+  flipLeft: boolean;
 }
 
 /** Choropleth of sign-in counts by country. Sequential blue ramp via the
@@ -48,11 +50,13 @@ export function WorldMap({ countries }: { countries: CountryCount[] }) {
               onMouseMove={(e) => {
                 const r = ref.current?.getBoundingClientRect();
                 if (!r) return;
+                const x = e.clientX - r.left;
                 setHover({
                   name: loc.name,
                   count: c?.count ?? 0,
-                  x: e.clientX - r.left,
+                  x,
                   y: e.clientY - r.top,
+                  flipLeft: x > r.width / 2,
                 });
               }}
             />
@@ -65,7 +69,7 @@ export function WorldMap({ countries }: { countries: CountryCount[] }) {
           style={{
             left: hover.x,
             top: hover.y,
-            transform: `translate(${hover.x > (ref.current?.clientWidth ?? 0) / 2 ? "calc(-100% - 10px)" : "10px"}, -50%)`,
+            transform: `translate(${hover.flipLeft ? "calc(-100% - 10px)" : "10px"}, -50%)`,
           }}
         >
           <span className="font-semibold">{hover.count.toLocaleString()}</span>{" "}
