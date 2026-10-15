@@ -37,10 +37,10 @@
     "jose": "^5.0.0"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^5.0.4",
     "happy-dom": "^20.14.6",
     "tsup": "^9.0.0",
     "typescript": "^5.5.0",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.4"
   }
 }
