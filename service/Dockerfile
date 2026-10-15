@@ -1,4 +1,4 @@
-FROM python:3.12-alpine
+FROM python:3.14-alpine
 
 RUN apk upgrade --no-cache
 
@@ -13,6 +13,14 @@ COPY pyproject.toml uv.lock ./
 COPY service/pyproject.toml service/
 COPY sdk/pyproject.toml sdk/
 RUN uv sync --locked --no-dev --package duar-service --no-install-workspace
+
+# The app runs from .venv (+ the static uv binary); the base image's global
+# pip/setuptools are never used at runtime and only add CVEs (pip vendors
+# msgpack and urllib3). Drop them so the shipped image scans clean.
+RUN SP="$(python3 -c 'import site; print(site.getsitepackages()[0])')" && \
+    rm -rf "$SP"/pip "$SP"/pip-* "$SP"/setuptools "$SP"/setuptools-* \
+           "$SP"/pkg_resources "$SP"/_distutils_hack && \
+    rm -f /usr/local/bin/pip /usr/local/bin/pip3
 
 COPY service/src/ src/
 COPY service/migrations/ migrations/
