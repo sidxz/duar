@@ -35,7 +35,9 @@ USER duar
 
 EXPOSE 9003
 
+# 127.0.0.1, not localhost: the alpine base resolves localhost to ::1 (IPv6) only,
+# but uvicorn binds 0.0.0.0 (IPv4), so a localhost probe gets connection refused.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://localhost:9003/health || exit 1
+  CMD wget -qO- http://127.0.0.1:9003/health || exit 1
 
 CMD [".venv/bin/uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "9003", "--no-server-header"]
