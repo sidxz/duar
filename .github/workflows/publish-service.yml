@@ -14,7 +14,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -30,7 +30,7 @@ jobs:
       # Build into the local daemon first so Trivy can gate the exact artifact
       # before it reaches GHCR. The push step below reuses the buildx cache.
       - name: Build service image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: service/Dockerfile
@@ -50,7 +50,7 @@ jobs:
           exit-code: 1
 
       - name: Push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: service/Dockerfile
