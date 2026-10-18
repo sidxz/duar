@@ -17,6 +17,11 @@ class ServiceApp(Base):
     )
     name: Mapped[str] = mapped_column(Text, nullable=False)
     service_name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    # Discriminates an ordinary service app from an MCP server (Duar MCP). Additive;
+    # existing rows and existing auth tiers are unaffected ("service" is the default).
+    kind: Mapped[str] = mapped_column(
+        String(32), default="service", server_default="service", nullable=False
+    )
     key_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     key_prefix: Mapped[str] = mapped_column(String(12), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
