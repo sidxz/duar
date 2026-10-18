@@ -62,7 +62,7 @@ def test_settings_defaults():
 
     s = Settings(_env_file=None)
     assert s.self_serve_enabled is False
-    assert s.self_serve_max_workspaces_per_user == 1
+    assert s.self_serve_max_workspaces_per_user == 3
     assert s.self_serve_max_creates_per_hour == 30
 
 

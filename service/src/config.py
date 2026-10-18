@@ -138,7 +138,7 @@ class Settings(BaseSettings):
     # Off: /onboard* is 404 and POST /workspaces is 403. Consortium deployments
     # leave this unset.
     self_serve_enabled: bool = False
-    self_serve_max_workspaces_per_user: int = 1  # created_by count; 0 = join-only
+    self_serve_max_workspaces_per_user: int = 3  # created_by count; 0 = join-only
     self_serve_max_creates_per_hour: int = 30  # instance-wide, successful creates
 
     # Admin
