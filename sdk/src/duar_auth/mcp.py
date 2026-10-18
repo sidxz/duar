@@ -112,13 +112,9 @@ class DuarAuthMiddleware(Middleware):
 
         # Gate 2a — RBAC action. Fail closed on any PDP error.
         try:
-            allowed = await self.role_client.check_action(
-                token=raw_token, action=tool_name, workspace_id=workspace_id
-            )
+            allowed = await self.role_client.check_action(token=raw_token, action=tool_name, workspace_id=workspace_id)
         except Exception as exc:
-            raise ToolError(
-                f"Not permitted: authorization unavailable for '{tool_name}'"
-            ) from exc
+            raise ToolError(f"Not permitted: authorization unavailable for '{tool_name}'") from exc
         if not allowed:
             raise ToolError(f"Not permitted: '{tool_name}'")
 
@@ -130,26 +126,17 @@ class DuarAuthMiddleware(Middleware):
             try:
                 resource_id = extractor(args)
             except Exception as exc:
-                raise ToolError(
-                    f"Not permitted: could not resolve resource for '{tool_name}'"
-                ) from exc
+                raise ToolError(f"Not permitted: could not resolve resource for '{tool_name}'") from exc
             if self.permission_client is None:
                 raise ToolError(
-                    f"Not permitted: resource check unavailable for '{tool_name}' "
-                    "(no PermissionClient configured)"
+                    f"Not permitted: resource check unavailable for '{tool_name}' (no PermissionClient configured)"
                 )
             try:
-                ok = await self.permission_client.can(
-                    raw_token, resource_type, resource_id, perm_action
-                )
+                ok = await self.permission_client.can(raw_token, resource_type, resource_id, perm_action)
             except Exception as exc:
-                raise ToolError(
-                    f"Not permitted: authorization unavailable for '{tool_name}'"
-                ) from exc
+                raise ToolError(f"Not permitted: authorization unavailable for '{tool_name}'") from exc
             if not ok:
-                raise ToolError(
-                    f"Not permitted: '{tool_name}' on {resource_type}:{resource_id}"
-                )
+                raise ToolError(f"Not permitted: '{tool_name}' on {resource_type}:{resource_id}")
 
         return await call_next(context)
 
