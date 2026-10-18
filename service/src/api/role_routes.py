@@ -1,7 +1,7 @@
 import uuid
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import (
@@ -11,7 +11,9 @@ from src.api.dependencies import (
     require_service_key,
     verify_service_scope,
 )
+from src.config import settings
 from src.database import get_db
+from src.middleware.rate_limit import limiter, user_or_ip_key
 from src.schemas.role import (
     CheckActionRequest,
     CheckActionResponse,
@@ -51,7 +53,9 @@ async def register_actions(
 
 
 @router.post("/check-action", response_model=CheckActionResponse)
+@limiter.limit(settings.rate_limit_tool_check, key_func=user_or_ip_key)
 async def check_action(
+    request: Request,
     body: CheckActionRequest,
     svc: ServiceKeyContext = Depends(require_service_key),
     user: CurrentUser = Depends(get_user_for_service_call),

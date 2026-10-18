@@ -94,6 +94,9 @@ def test_route_keying_is_wired():
         assert rl.user_or_ip_key not in by_route[name], name
 
     # User-JWT / admin-cookie routes bind actor, so they MUST key per user.
+    # The MCP/agent tool-check hot path (check-action, permissions/check) uses dual
+    # auth, which binds actor via get_user_for_service_call, so it keys per user too —
+    # otherwise agents behind one MCP server's egress IP would share one bucket.
     for name in (
         "src.api.workspace_routes.list_members",
         "src.api.group_routes.list_group_members",
@@ -101,6 +104,8 @@ def test_route_keying_is_wired():
         "src.api.admin_routes.bulk_user_status",
         "src.api.admin_routes.rotate_service_app_key",
         "src.api.org_admin_routes.create_organization",
+        "src.api.role_routes.check_action",
+        "src.api.permission_routes.check_permissions",
     ):
         assert rl.user_or_ip_key in by_route[name], name
 
