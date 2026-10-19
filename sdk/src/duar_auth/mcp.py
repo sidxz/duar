@@ -156,7 +156,10 @@ def mount_mcp(app: Starlette, mcp: FastMCP, duar: Duar, path: str = "/mcp") -> N
     if not any(m.cls is AuthzMiddleware for m in app.user_middleware):
         raise RuntimeError("call duar.protect(app) before mount_mcp(...)")
 
-    mcp.add_middleware(_DuarGate(duar))
+    # One gate per server even if mount_mcp runs twice on it (e.g. the app's main module
+    # executed twice under uvicorn reload) — a second gate would double every Duar check.
+    if not any(isinstance(m, _DuarGate) for m in mcp.middleware):
+        mcp.add_middleware(_DuarGate(duar))
     mcp_app = mcp.http_app(path="/", stateless_http=True)
     app.mount(path, mcp_app)
 

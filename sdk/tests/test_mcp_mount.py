@@ -178,6 +178,20 @@ def test_mcp_without_trailing_slash_redirects_and_works(keys, idp_token):
     assert _result(resp)["structuredContent"]["result"] == AUTO_WS
 
 
+def test_mounting_same_server_twice_checks_once(keys, idp_token):
+    # e.g. `python -m app.main` under uvicorn reload runs the main module twice in the worker
+    role = _RoleStub(allowed=True)
+    duar = _duar(keys, role)
+    mcp = _mcp(duar)
+    for _ in range(2):
+        app = FastAPI()
+        duar.protect(app)
+        mount_mcp(app, mcp, duar)
+    with TestClient(app) as client:
+        assert _result(_rpc(client, "secret_tool", _auth(idp_token)))["isError"] is False
+    assert len(role.check_calls) == 1
+
+
 def test_mount_requires_protect(keys):
     duar = _duar(keys, _RoleStub())
     with pytest.raises(RuntimeError, match="duar.protect"):
