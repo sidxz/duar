@@ -21,7 +21,7 @@ export function McpLayout() {
         <div>
           <h1 className="text-xl font-semibold leading-tight">Duar MCP</h1>
           <p className="text-xs text-muted-foreground">
-            AI agents call your apps' MCP tools as the signed-in user — gated tools need an agent grant.
+            Control which MCP tools agents can use.
           </p>
         </div>
       </header>

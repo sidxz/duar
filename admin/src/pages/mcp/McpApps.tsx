@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { Plug } from "lucide-react";
 import { getServiceActions, getServiceApps } from "../../api/client";
 import { DataTable } from "../../components/DataTable";
 import { StatusBadge } from "../../components/Badge";
+import { TableIdentity } from "../../components/TableIdentity";
 import type { ServiceApp } from "../../types/api";
 import { agentTools, mcpApps } from "./agentTools";
 
@@ -17,7 +19,7 @@ export function McpApps() {
     {
       key: "name",
       header: "App",
-      render: (a: ServiceApp) => <span className="font-medium text-sm">{a.name}</span>,
+      render: (a: ServiceApp) => <TableIdentity name={a.name} Icon={Plug} tone="violet" />,
     },
     {
       key: "service_name",
@@ -49,8 +51,7 @@ export function McpApps() {
       <div>
         <h2 className="text-lg font-semibold">MCP Apps</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Apps that serve MCP tools from their own API (<code className="font-mono">mount_mcp</code>)
-          and have agent-gated tools registered with Duar.
+          Apps that serve MCP tools from their own API and have agent-gated tools registered with Duar.
         </p>
       </div>
 
@@ -61,7 +62,7 @@ export function McpApps() {
           columns={columns}
           data={list}
           onRowClick={(a) => navigate(`/mcp/apps/${a.id}`)}
-          emptyMessage="No app has registered agent-gated tools yet"
+          emptyMessage="No apps with agent-gated tools"
           error={apps.error ?? actions.error}
         />
       )}

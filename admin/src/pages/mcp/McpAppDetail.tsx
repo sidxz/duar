@@ -41,17 +41,16 @@ function ToolsTab({ serviceName }: { serviceName: string }) {
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        Agent-gated tools — marked <code className="font-mono">AGENT_GATED</code> in the app — need a
-        grant on their action in addition to the user's own app permissions. The app registers them
-        when it starts. Other tools act with the user's app permissions only and aren't listed here.
+        Agents need a grant to use these tools, on top of the user's own permissions. Other tools use
+        the user's permissions only and aren't listed here.
       </p>
       {tools.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
-          No agent-gated tools registered for this app.
+          This app has no agent-gated tools.
         </div>
       ) : (
-        <div className="rounded-lg border border-border bg-card">
-          <table className="w-full text-sm">
+        <div className="table-surface">
+          <table className="admin-table">
             <thead>
               <tr className="text-left text-xs text-muted-foreground border-b border-border">
                 <th className="px-4 py-2 font-medium">Tool</th>
@@ -60,9 +59,9 @@ function ToolsTab({ serviceName }: { serviceName: string }) {
                 <th className="px-4 py-2 font-medium w-28">Registered</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
+            <tbody>
               {tools.map((t) => (
-                <tr key={t.id} className="hover:bg-muted/50">
+                <tr key={t.id}>
                   <td className="px-4 py-2 font-mono text-xs text-foreground">
                     {toolName(t.action, serviceName)}
                   </td>
@@ -90,21 +89,18 @@ function GrantsTab({ serviceName }: { serviceName: string }) {
   return (
     <div className="space-y-3">
       <div className="rounded-lg border border-border bg-card p-4">
-        <h3 className="text-sm font-medium">Granting agent-gated tools</h3>
+        <h3 className="text-sm font-medium">Give agents access</h3>
         <p className="mt-1 text-xs text-muted-foreground">
-          An agent acts as the signed-in user, so it can do what that user can do in this app. For an
-          agent-gated tool, also add its action to a workspace Role and assign the role — from a
-          workspace's{" "}
-          <Link to="/workspaces" className="text-mcp-accent hover:underline">
-            Roles
-          </Link>{" "}
-          tab. Owners and admins need the grant too. The check runs live on every call.
+          Agents act as the signed-in user. To let them use a gated tool, add its action to a
+          workspace role and assign that role. Open a{" "}
+          <Link to="/workspaces" className="text-mcp-accent hover:underline">workspace</Link> to manage
+          its roles. Owners and admins need the grant too.
         </p>
       </div>
       <div className="rounded-lg border border-border bg-card p-4">
-        <h3 className="text-sm font-medium">Grantable actions</h3>
+        <h3 className="text-sm font-medium">Available actions</h3>
         {tools.length === 0 ? (
-          <p className="mt-1 text-xs text-muted-foreground">No agent-gated tools registered.</p>
+          <p className="mt-1 text-xs text-muted-foreground">No agent-gated tools.</p>
         ) : (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {tools.map((t) => (
