@@ -10,9 +10,10 @@ import httpx
 import jwt
 from fastapi import FastAPI, HTTPException, Request
 from jwt.algorithms import RSAAlgorithm
+from starlette.middleware import Middleware
 
 from duar_auth._utils import warn_if_insecure
-from duar_auth.auth import SystemAuth
+from duar_auth.auth import RequestAuth, SystemAuth
 from duar_auth.authz import AuthzClient
 from duar_auth.authz_middleware import AuthzMiddleware
 from duar_auth.dependencies import get_current_user, get_request_auth_factory
@@ -207,24 +208,36 @@ class Duar:
         instance, so ``protect()`` can safely be called at module level before
         the lifespan fetches Duar's public key.
         """
+        for mw in self.middleware(exclude_paths):
+            app.add_middleware(mw.cls, *mw.args, **mw.kwargs)
+
+    def middleware(self, exclude_paths: list[str] | None = None) -> list[Middleware]:
+        """The authentication middleware ``protect()`` installs, as Starlette ``Middleware``.
+
+        For apps that take a middleware list instead of ``add_middleware`` — e.g. a
+        standalone FastMCP server: ``mcp.http_app(middleware=duar.middleware())``.
+        """
         if self.mode == "authz":
-            app.add_middleware(
-                AuthzMiddleware,
-                duar_instance=self,
-                service_name=self.service_name,
-                idp_audience=self.idp_audience,
-                idp_issuer=self.idp_issuer,
-                exclude_paths=exclude_paths,
-                idp_provider=self.idp_provider,
-                auto_resolve=self.auto_resolve,
-            )
-        else:
-            app.add_middleware(
+            return [
+                Middleware(
+                    AuthzMiddleware,
+                    duar_instance=self,
+                    service_name=self.service_name,
+                    idp_audience=self.idp_audience,
+                    idp_issuer=self.idp_issuer,
+                    exclude_paths=exclude_paths,
+                    idp_provider=self.idp_provider,
+                    auto_resolve=self.auto_resolve,
+                )
+            ]
+        return [
+            Middleware(
                 JWTAuthMiddleware,
                 base_url=self.base_url,
                 exclude_paths=exclude_paths,
                 allowed_workspaces=self.allowed_workspaces,
             )
+        ]
 
     async def fetch_duar_public_key(self) -> str:
         """Fetch Duar's public key from its JWKS endpoint."""
@@ -324,6 +337,18 @@ class Duar:
     def require_action(self, action: str) -> Callable:
         """Dependency factory that enforces an RBAC action."""
         return _require_action(self.roles, action)
+
+    def request_auth(self, request: Request) -> RequestAuth:
+        """The ``RequestAuth`` for a request the Duar middleware already authenticated.
+
+        The non-FastAPI-dependency form of ``get_auth`` — e.g. inside an MCP tool:
+        ``duar.request_auth(get_http_request())``.
+        """
+        user = getattr(request.state, "user", None)
+        token = getattr(request.state, "token", None)
+        if user is None or not token:
+            raise DuarError("Not authenticated", 401)
+        return RequestAuth(user=user, _token=token, _permissions=self.permissions, _roles=self.roles)
 
     # -- No-user (m2m) tokens -------------------------------------------------
 
