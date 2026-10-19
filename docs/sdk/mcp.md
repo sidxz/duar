@@ -61,7 +61,7 @@ mount_mcp(app, mcp, duar)   # call after duar.protect(app)
 - runs FastMCP's lifespan inside your app's lifespan, and
 - registers your agent-gated tools with Duar at startup, after `duar.lifespan` has fetched keys and discovered the realm.
 
-It raises `RuntimeError` if the app isn't protected by `duar.protect(app)`, and logs a warning when `auto_resolve` is off (callers then can't authenticate with an IdP token plus `X-Workspace-Id`).
+It raises `RuntimeError` unless the app runs Duar in AuthZ mode with `auto_resolve=True` (callers authenticate with the user's IdP token plus `X-Workspace-Id`) and is protected by `duar.protect(app)`.
 
 Inside a tool, `duar.request_auth(get_http_request())` returns the request's `RequestAuth`, so the tool can call the same use cases, `check_action`, `can` and `accessible` your routes use.
 
@@ -76,11 +76,11 @@ By default an agent can do what the user can do in your app. For tools where you
 - The name embeds your app's `service_name`, so two apps in one [realm](realms.md) can both have an `export_notes` tool without one grant covering both.
 - A tool name outside Duar's action grammar (`^[a-z][a-z0-9_.:-]*$`, e.g. `ListNotes`) fails startup with an error naming the tool — rename the tool.
 
-Calls to gated tools appear in the console's **Duar MCP → Audit** tab and in **Usage**.
+Calls to gated tools appear in the console under **Duar MCP → MCP Apps → *your app* → Tool-call audit**, and in **Usage**.
 
 ## Call MCP tools as the user
 
-An app whose backend runs an agent calls another app's MCP endpoint with the signed-in user's identity. Inside a request that already passed your Duar middleware, `forward_headers(request)` builds the headers from verified state — never from raw inbound headers:
+An app whose backend runs an agent calls another app's MCP endpoint with the signed-in user's identity. Inside a request that already passed your Duar middleware, `forward_headers(request)` returns `Authorization: Bearer <IdP token>` and `X-Workspace-Id: <verified workspace>`, built from verified state — never from raw inbound headers:
 
 ```python
 from duar_auth import forward_headers
@@ -99,38 +99,15 @@ async def assistant_turn(request: Request, body: TurnRequest):
         result = await client.call_tool("list_documents", {"limit": 10})
 ```
 
-| Mode | `forward_headers` returns |
-|------|---------------------------|
-| AuthZ | `Authorization: Bearer <IdP token>` and `X-Workspace-Id: <verified workspace>` |
-| JWT | `Authorization: Bearer <access token>` |
-
 - **Open one MCP client per agent turn.** Headers are fixed when the client connects, and a backend cannot refresh a user's IdP token — use the token from the current request.
 - **Refuse to start an agent run when the IdP token is close to expiry** (Google ID tokens last about an hour).
 - **Never send `X-Authz-Token`** to another app: it is bound to your app and takes precedence, so the target answers 403.
 - **Pin MCP server URLs in config.** Never call a URL derived from tool arguments or model output.
 - The target app must run with `auto_resolve=True`.
 
-## Separate MCP servers
-
-When a server spans several apps or is run by a different team, run it as its own service app (registered in the console as an MCP server, `kind="mcp_server"`) with its own key:
-
-```python
-from duar_auth.mcp import DuarAuthMiddleware, sync_tools
-
-duar = Duar(base_url=DUAR_URL, service_name="lab-mcp", service_key=KEY, mode="authz",
-            idp_jwks_url=GOOGLE_JWKS, idp_audience=GOOGLE_CLIENT_ID,
-            idp_issuer="https://accounts.google.com", auto_resolve=True, idp_provider="google")
-mcp = FastMCP("lab-mcp", lifespan=duar.lifespan)
-mcp.add_middleware(DuarAuthMiddleware(duar))
-app = mcp.http_app(path="/mcp", stateless_http=True, middleware=duar.middleware())
-# register gated tools once at startup: await sync_tools(mcp, duar)
-```
-
-Tools call the apps they wrap with `forward_headers(get_http_request())`; each target app enforces its own permissions and must enable `auto_resolve`. Always serve with `stateless_http=True`: the Duar gate refuses calls that belong to a stateful MCP session, because those sessions would not be bound to their owner.
-
 ## Security notes
 
-- **Stateless only.** Stateful MCP sessions are refused by the gate.
+- **Stateless only.** `mount_mcp` serves stateless HTTP, and the gate refuses any call that belongs to a stateful MCP session (such a session would not be bound to its owner).
 - **The IdP token is a suite-wide credential.** Every first-party app in the deployment accepts it for any workspace the user belongs to, for its lifetime; Duar logout cannot revoke it. Forward it only between your own apps — never to third parties.
 - **Revocation.** Deactivating a user or removing a membership takes effect at the next authz-token mint; gated-tool checks are live on every call; decisions based on the token's workspace role can lag up to the authz-token lifetime.
 - **Resolve budget.** Each app mints at most one authz token per user and workspace per few minutes per process, but `/authz/resolve` is limited per calling service (`RATE_LIMIT_AUTHZ_RESOLVE`, default 60/minute) and shared with browser sign-ins. Size it for your user count and worker processes.
