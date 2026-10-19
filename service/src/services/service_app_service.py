@@ -123,8 +123,13 @@ async def rotate_key(db: AsyncSession, app_id: uuid.UUID) -> tuple[ServiceApp, s
     return app, plaintext
 
 
-async def list_service_apps(db: AsyncSession) -> list[ServiceApp]:
-    result = await db.execute(select(ServiceApp).order_by(ServiceApp.created_at.desc()))
+async def list_service_apps(
+    db: AsyncSession, kind: str | None = None
+) -> list[ServiceApp]:
+    stmt = select(ServiceApp).order_by(ServiceApp.created_at.desc())
+    if kind is not None:
+        stmt = stmt.where(ServiceApp.kind == kind)
+    result = await db.execute(stmt)
     return list(result.scalars().all())
 
 

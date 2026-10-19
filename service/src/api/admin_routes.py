@@ -1379,8 +1379,10 @@ async def delete_client_app(
 
 
 @router.get("/service-apps", response_model=list[ServiceAppResponse])
-async def list_service_apps(db: AsyncSession = Depends(get_db)):
-    return await service_app_service.list_service_apps(db)
+async def list_service_apps(
+    kind: str | None = Query(None), db: AsyncSession = Depends(get_db)
+):
+    return await service_app_service.list_service_apps(db, kind=kind)
 
 
 @router.post("/service-apps", response_model=ServiceAppCreateResponse, status_code=201)
@@ -1400,6 +1402,7 @@ async def create_service_app(
             created_by=actor_id,
             allowed_origins=body.allowed_origins,
             allowed_idp_audiences=body.allowed_idp_audiences,
+            kind=body.kind,
         )
     except ValueError as e:
         # Actionable validation failure (e.g. name collides with a realm slug) —
@@ -1425,6 +1428,7 @@ async def create_service_app(
         id=app.id,
         name=app.name,
         service_name=app.service_name,
+        kind=app.kind,
         key_prefix=app.key_prefix,
         is_active=app.is_active,
         allowed_origins=app.allowed_origins,
@@ -1512,6 +1516,7 @@ async def rotate_service_app_key(
         id=app.id,
         name=app.name,
         service_name=app.service_name,
+        kind=app.kind,
         key_prefix=app.key_prefix,
         is_active=app.is_active,
         allowed_origins=app.allowed_origins,
