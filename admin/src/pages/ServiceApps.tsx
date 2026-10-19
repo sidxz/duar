@@ -1,10 +1,12 @@
+import { PageHeader } from "../components/PageHeader";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Copy } from "lucide-react";
+import { Copy, Server } from "lucide-react";
 import { toast } from "sonner";
 import { createServiceApp, getServiceApps } from "../api/client";
 import { DataTable } from "../components/DataTable";
+import { TableIdentity } from "../components/TableIdentity";
 import { Modal } from "../components/Modal";
 import { StatusBadge } from "../components/Badge";
 import { Button } from "@/components/ui/button";
@@ -87,7 +89,7 @@ export function ServiceApps() {
     {
       key: "name",
       header: "Name",
-      render: (a: ServiceApp) => <span className="font-medium text-sm">{a.name}</span>,
+      render: (a: ServiceApp) => <TableIdentity name={a.name} Icon={Server} tone="blue" />,
     },
     {
       key: "service_name",
@@ -123,13 +125,12 @@ export function ServiceApps() {
   ];
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Services</h1>
+    <div>
+      <PageHeader title="Services" count={isLoading ? undefined : apps.length} description="Registered services and their API keys." actions={<>
         <Button size="sm" onClick={() => setShowCreate(true)}>
           + Register Service
         </Button>
-      </div>
+      </>} />
 
       {isLoading ? (
         <div className="h-64 bg-muted/50 rounded-lg animate-pulse" />
@@ -163,7 +164,7 @@ export function ServiceApps() {
               placeholder="my-backend"
               className="font-mono"
             />
-            <p className="text-xs text-muted-foreground">Lowercase, hyphens only (e.g. my-backend)</p>
+            <p className="text-xs text-muted-foreground">Use lowercase letters, numbers, and hyphens, such as my-backend. Start with a letter and end with a letter or number.</p>
           </div>
           <div className="space-y-1">
             <Label htmlFor="svc-origins">Allowed Origins</Label>
@@ -175,7 +176,7 @@ export function ServiceApps() {
               rows={3}
               className="font-mono"
             />
-            <p className="text-xs text-muted-foreground">One origin per line. Required for browser-direct authz mode.</p>
+            <p className="text-xs text-muted-foreground">Enter one origin per line. Required when browsers call Duar’s authorization API directly.</p>
           </div>
           {create.isError && (
             <div className="text-xs text-red-700 dark:text-red-400">{(create.error as Error).message}</div>

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getSystemSettings } from "../api/client";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "../components/PageHeader";
 
 export function Settings() {
   const { data, isLoading, error } = useQuery({
@@ -19,8 +20,9 @@ export function Settings() {
   if (!data) return null;
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Settings</h1>
+    <div className="max-w-5xl">
+      <PageHeader title="Settings" description="View the current configuration. These settings can’t be changed here." />
+      <div className="border-t border-border">
 
       {/* Service */}
       <Section title="Service">
@@ -101,18 +103,19 @@ export function Settings() {
           ))
         )}
       </Section>
+      </div>
     </div>
   );
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div>
-      <h2 className="text-sm font-medium text-muted-foreground mb-2">{title}</h2>
-      <div className="rounded-lg border border-border bg-card divide-y divide-border">
+    <section className="record-section">
+      <h2 className="section-title">{title}</h2>
+      <div className="min-w-0 divide-y divide-border/60">
         {children}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -128,10 +131,10 @@ function KV({
   mono?: boolean;
 }) {
   return (
-    <div className="flex items-center px-4 py-2.5">
-      <span className="text-xs text-muted-foreground w-40 shrink-0">{label}</span>
+    <div className="grid gap-2 py-3 sm:grid-cols-[150px_minmax(0,1fr)]">
+      <span className="text-xs text-muted-foreground">{label}</span>
       <span
-        className={cn("text-xs truncate", mono && "font-mono", valueClass ?? "text-foreground")}
+        className={cn("break-words text-xs", mono && "font-mono", valueClass ?? "text-foreground")}
       >
         {value}
       </span>

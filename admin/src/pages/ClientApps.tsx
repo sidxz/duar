@@ -1,9 +1,12 @@
+import { PageHeader } from "../components/PageHeader";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { AppWindow } from "lucide-react";
 import { createClientApp, getClientApps } from "../api/client";
 import { DataTable } from "../components/DataTable";
+import { TableIdentity } from "../components/TableIdentity";
 import { Modal } from "../components/Modal";
 import { StatusBadge } from "../components/Badge";
 import { Button } from "@/components/ui/button";
@@ -46,13 +49,13 @@ export function ClientApps() {
     {
       key: "name",
       header: "Name",
-      render: (a: ClientApp) => <span className="font-medium text-sm">{a.name}</span>,
+      render: (a: ClientApp) => <TableIdentity name={a.name} Icon={AppWindow} tone="violet" />,
     },
     {
       key: "uris",
       header: "URIs",
       render: (a: ClientApp) => (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ring-1 ring-inset bg-muted text-muted-foreground ring-border">
+        <span className="table-count">
           {a.redirect_uris.length}
         </span>
       ),
@@ -77,13 +80,12 @@ export function ClientApps() {
   ];
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Login Apps</h1>
+    <div>
+      <PageHeader title="Login Apps" count={isLoading ? undefined : apps.length} description="Apps that use Duar for sign-in." actions={<>
         <Button size="sm" onClick={() => setShowCreate(true)}>
           + Register App
         </Button>
-      </div>
+      </>} />
 
       {isLoading ? (
         <div className="h-64 bg-muted/50 rounded-lg animate-pulse" />

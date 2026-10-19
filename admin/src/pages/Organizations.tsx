@@ -1,11 +1,14 @@
+import { PageHeader } from "../components/PageHeader";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Globe, Network } from "lucide-react";
 
 import { createOrganization, getOrganizations } from "../api/client";
 import type { Organization } from "../types/api";
 import { DataTable } from "../components/DataTable";
+import { TableIdentity } from "../components/TableIdentity";
 import { Modal } from "../components/Modal";
 import { StatusBadge } from "../components/Badge";
 import { Button } from "@/components/ui/button";
@@ -39,17 +42,7 @@ export function Organizations() {
     {
       key: "name",
       header: "Name",
-      render: (o: Organization) => (
-        <span className="font-medium text-sm">
-          {o.is_public && <span className="mr-1">🌐</span>}
-          {o.name}
-          {o.is_public && (
-            <span className="ml-2 text-xs text-muted-foreground">
-              (public catch-all)
-            </span>
-          )}
-        </span>
-      ),
+      render: (o: Organization) => <TableIdentity name={o.name} detail={o.is_public ? "Public organization" : undefined} Icon={o.is_public ? Globe : Network} tone="teal" />,
     },
     {
       key: "slug",
@@ -78,26 +71,19 @@ export function Organizations() {
       key: "users",
       header: "Users",
       render: (o: Organization) => (
-        <span className="text-sm text-muted-foreground">{o.user_count}</span>
+        <span className="table-count">{o.user_count}</span>
       ),
       className: "w-20",
     },
   ];
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">Organizations</h1>
-          <p className="text-sm text-muted-foreground">
-            Email-domain tenancy. The public org is the catch-all for unclaimed
-            domains; its status is the public sign-in switch.
-          </p>
-        </div>
+    <div>
+      <PageHeader title="Organizations" count={isLoading ? undefined : orgs.length} description="Organizations and their email domains." actions={<>
         <Button size="sm" onClick={() => setShowCreate(true)}>
-          New org
+          New organization
         </Button>
-      </div>
+      </>} />
 
       {isLoading ? (
         <div className="h-64 bg-muted/50 rounded-lg animate-pulse" />
@@ -128,7 +114,7 @@ export function Organizations() {
           </div>
           <div className="space-y-1">
             <Label htmlFor="org-slug">
-              Slug (in the token's org claim; immutable)
+              Slug
             </Label>
             <Input
               id="org-slug"
@@ -140,7 +126,7 @@ export function Organizations() {
               className="font-mono"
             />
             <p className="text-xs text-muted-foreground">
-              Lowercase letters, digits, and hyphens; min 2 characters.
+              Use at least 2 lowercase letters, numbers, or hyphens. This value appears in the token’s org claim and cannot be changed.
             </p>
           </div>
           {create.isError && (

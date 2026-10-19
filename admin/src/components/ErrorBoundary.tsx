@@ -22,9 +22,9 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { hasError
         <div className="flex h-screen items-center justify-center bg-background p-6">
           <div className="max-w-sm rounded-lg border border-border bg-card p-6 text-center">
             <TriangleAlert className="mx-auto h-8 w-8 text-destructive" />
-            <p className="mt-3 text-sm font-medium text-foreground">Something went wrong</p>
+            <p className="mt-3 text-sm font-medium text-foreground">This page couldn’t load</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              An unexpected error occurred. Please reload the page.
+              Reload the page to try again.
             </p>
             <button
               onClick={() => window.location.reload()}

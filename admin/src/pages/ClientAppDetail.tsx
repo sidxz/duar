@@ -107,11 +107,11 @@ export function ClientAppDetail() {
       </div>
 
       {/* Header card */}
-      <div className="rounded-lg border border-border bg-card p-5">
-        <div className="flex items-start justify-between">
+      <div className="record-header">
+        <div className="flex flex-wrap items-start justify-between gap-5">
           <div>
-            <div className="flex items-center gap-3">
-              <h2 className="text-lg font-semibold text-foreground">{app.name}</h2>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="page-title">{app.name}</h1>
               <StatusBadge active={app.is_active} />
             </div>
             <div className="flex items-center gap-1.5 mt-2">
@@ -132,7 +132,7 @@ export function ClientAppDetail() {
               Created {new Date(app.created_at).toLocaleDateString()}
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={openEdit}>
               Edit
             </Button>
@@ -148,19 +148,19 @@ export function ClientAppDetail() {
       </div>
 
       {/* Redirect URIs */}
-      <div>
+      <section className="record-section">
         <h3 className="text-sm font-medium text-foreground mb-2">Redirect URIs</h3>
-        <div className="rounded-lg border border-border divide-y divide-border">
+        <div className="min-w-0 divide-y divide-border">
           {app.redirect_uris.map((uri) => (
             <div key={uri} className="px-4 py-2.5">
-              <code className="text-sm text-muted-foreground font-mono">{uri}</code>
+              <code className="break-all text-sm text-muted-foreground font-mono">{uri}</code>
             </div>
           ))}
           {app.redirect_uris.length === 0 && (
             <div className="px-4 py-6 text-center text-sm text-muted-foreground">No redirect URIs</div>
           )}
         </div>
-      </div>
+      </section>
 
       {/* Edit modal */}
       <Modal open={showEdit} onClose={() => setShowEdit(false)} title="Edit Login App">

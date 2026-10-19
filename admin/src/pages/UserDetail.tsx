@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useState } from "react";
+import { ChevronDown } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Link, useParams } from "react-router-dom";
 import { addUserToWorkspace, getActivityInsights, getAllWorkspaces, getUserDetail, revokeUserTokens, updateUser } from "../api/client";
 import { RoleBadge, StatusBadge } from "../components/Badge";
@@ -102,9 +104,9 @@ export function UserDetail() {
         <span className="text-foreground">{user.name}</span>
       </div>
 
-      {/* Profile card */}
-      <div className="rounded-lg border border-border bg-card p-5">
-        <div className="flex items-start gap-4">
+      {/* Identity and account actions */}
+      <div className="record-header">
+        <div className="flex flex-wrap items-start gap-4">
           <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center text-xl font-semibold text-muted-foreground shrink-0">
             {user.name.charAt(0).toUpperCase()}
           </div>
@@ -136,7 +138,7 @@ export function UserDetail() {
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-semibold text-foreground">{user.name}</h2>
+                <h1 className="page-title">{user.name}</h1>
                 <Button
                   variant="ghost"
                   size="icon-xs"
@@ -151,7 +153,7 @@ export function UserDetail() {
               </div>
             )}
             <div className="text-sm text-muted-foreground mt-0.5">{user.email}</div>
-            <div className="flex items-center gap-3 mt-2">
+            <div className="mt-3 flex flex-wrap items-center gap-3">
               <StatusBadge active={user.is_active} />
               {user.is_admin && (
                 <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/10 text-purple-700 dark:text-purple-400 ring-1 ring-purple-500/20">
@@ -163,91 +165,20 @@ export function UserDetail() {
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowConfirmAdmin(true)}
-              className={
-                user.is_admin
-                  ? ""
-                  : "text-purple-700 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300"
-              }
-            >
-              {user.is_admin ? "Demote Admin" : "Promote Admin"}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowConfirmRevoke(true)}
-              className="text-amber-700 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300"
-            >
-              Revoke Tokens
-            </Button>
-            {user.is_active ? (
-              <Button variant="destructive" size="sm" onClick={() => setShowConfirmToggle(true)}>
-                Deactivate
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowConfirmToggle(true)}
-                className="text-emerald-700 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300"
-              >
-                Activate
-              </Button>
-            )}
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><Button variant="outline" size="sm">Manage account <ChevronDown className="size-3.5" /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => setShowConfirmAdmin(true)}>{user.is_admin ? "Demote Admin" : "Promote Admin"}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setShowConfirmRevoke(true)}>Revoke Tokens</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant={user.is_active ? "destructive" : "default"} onSelect={() => setShowConfirmToggle(true)}>{user.is_active ? "Deactivate" : "Activate"}</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
-      {/* Sign-in locations (30d) */}
-      {insights && insights.total > 0 && (
-        <div className="rounded-lg border border-border bg-card p-4">
-          <div className="flex items-baseline justify-between mb-2">
-            <h3 className="text-sm font-medium text-muted-foreground">Sign-in locations</h3>
-            <span className="text-xs text-muted-foreground">Last 30 days</span>
-          </div>
-          {insights.countries.length === 0 ? (
-            <div className="text-sm text-muted-foreground py-4 text-center">
-              All {insights.total} sign-in{insights.total === 1 ? "" : "s"} came from private or
-              unresolvable addresses
-            </div>
-          ) : (
-            <div className="grid grid-cols-[2fr_1fr] gap-6 items-start">
-              <WorldMap countries={insights.countries} />
-              <div>
-                <BarList rows={insights.countries.map((c) => [c.name, c.count])} labelWidth={140} />
-                {insights.unresolved > 0 && (
-                  <div className="text-xs text-muted-foreground mt-3 px-1">
-                    {insights.unresolved} from private/unresolvable addresses
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Social accounts */}
-      {user.social_accounts.length > 0 && (
-        <div>
-          <h3 className="text-sm font-medium text-muted-foreground mb-2">Linked Accounts</h3>
-          <div className="flex gap-2">
-            {user.social_accounts.map((sa) => (
-              <div
-                key={sa.id}
-                className="px-3 py-2 rounded-md border border-border bg-card text-sm"
-              >
-                <span className="font-medium capitalize text-foreground">{sa.provider}</span>
-                <span className="text-muted-foreground ml-2 text-xs font-mono">{sa.provider_user_id}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
+      <div className="overview-layout">
+        <div className="overview-main">
       {/* Workspace memberships */}
       <div>
         <div className="flex items-center justify-between mb-2">
@@ -284,6 +215,61 @@ export function UserDetail() {
         )}
       </div>
 
+      {/* Sign-in locations (30d) */}
+      {insights && insights.total > 0 && (
+        <div className="mt-8 border-t border-border pt-6">
+          <div className="flex items-baseline justify-between mb-2">
+            <h3 className="text-sm font-medium text-muted-foreground">Sign-in locations</h3>
+            <span className="text-xs text-muted-foreground">Last 30 days</span>
+          </div>
+          {insights.countries.length === 0 ? (
+            <div className="text-sm text-muted-foreground py-4 text-center">
+              Location couldn’t be determined for {insights.total} sign-in{insights.total === 1 ? "" : "s"}.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr] gap-6 items-start">
+              <WorldMap countries={insights.countries} />
+              <div>
+                <BarList rows={insights.countries.map((c) => [c.name, c.count])} labelWidth={140} />
+                {insights.unresolved > 0 && (
+                  <div className="text-xs text-muted-foreground mt-3 px-1">
+                    {insights.unresolved} with no known location
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+        </div>
+        <aside className="overview-rail space-y-6" aria-label="Account details">
+          <div><h2 className="section-title">Account details</h2><dl className="mt-4 space-y-4 text-xs">
+            <div><dt className="text-muted-foreground">User ID</dt><dd className="mt-1 break-all font-mono">{user.id}</dd></div>
+            <div><dt className="text-muted-foreground">Administrator access</dt><dd className="mt-1">{user.is_admin ? "Enabled" : "Not enabled"}</dd></div>
+            <div><dt className="text-muted-foreground">Last updated</dt><dd className="mt-1">{new Date(user.updated_at).toLocaleDateString()}</dd></div>
+          </dl></div>
+      {/* Social accounts */}
+      {user.social_accounts.length > 0 && (
+        <div>
+          <h3 className="text-sm font-medium text-muted-foreground mb-2">Linked Accounts</h3>
+          <div className="space-y-3">
+            {user.social_accounts.map((sa) => (
+              <div
+                key={sa.id}
+                className="text-sm"
+              >
+                <span className="font-medium capitalize text-foreground">{sa.provider}</span>
+                <span className="mt-1 block break-all text-muted-foreground text-xs font-mono">{sa.provider_user_id}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+        </aside>
+      </div>
+
       {/* Confirm deactivate/activate */}
       <ConfirmModal
         open={showConfirmToggle}
@@ -292,8 +278,8 @@ export function UserDetail() {
         title={user.is_active ? "Deactivate User" : "Activate User"}
         message={
           user.is_active
-            ? `Are you sure you want to deactivate ${user.name}? They will no longer be able to log in.`
-            : `Are you sure you want to reactivate ${user.name}?`
+            ? `Deactivate ${user.name}? They won’t be able to sign in.`
+            : `Reactivate ${user.name} so they can sign in again?`
         }
         confirmLabel={user.is_active ? "Deactivate" : "Activate"}
         danger={user.is_active}
@@ -322,7 +308,7 @@ export function UserDetail() {
         onClose={() => setShowConfirmRevoke(false)}
         onConfirm={() => revokeTokens.mutate()}
         title="Revoke All Tokens"
-        message={`This will invalidate all active sessions for ${user.name}. They will need to log in again.`}
+        message={`This will invalidate all active sessions for ${user.name}. They will need to sign in again.`}
         confirmLabel="Revoke All"
         danger
         isPending={revokeTokens.isPending}

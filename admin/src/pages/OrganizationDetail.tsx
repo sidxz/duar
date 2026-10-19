@@ -155,7 +155,7 @@ export function OrganizationDetail() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-foreground">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             {org.is_public && <span className="mr-1">🌐</span>}
             {org.name}
           </h1>
@@ -196,9 +196,9 @@ export function OrganizationDetail() {
 
       {org.is_public && (
         <p className="text-sm text-muted-foreground border border-border rounded-md p-3">
-          This is the public catch-all organization for users whose email domain
-          is not claimed by any other org. Its <b>Enabled</b> state is the global
-          public-sign-in switch. It has no domains and cannot be deleted.
+          Users whose email domain doesn’t match another organization belong here.
+          Disable this organization to stop public sign-ins. It has no email domains
+          and cannot be deleted.
         </p>
       )}
 
@@ -208,8 +208,7 @@ export function OrganizationDetail() {
           <h2 className="text-sm font-semibold text-foreground">Email domains</h2>
           {org.domains.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No domains yet. Users from this org can't be resolved until you add
-              one.
+              Add an email domain so Duar can assign matching users to this organization.
             </p>
           ) : (
             <ul className="space-y-1">
@@ -333,10 +332,9 @@ export function OrganizationDetail() {
         <section className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
           <h2 className="text-sm font-semibold text-destructive">Danger zone</h2>
           <p className="text-sm text-muted-foreground">
-            Deleting an org un-assigns its users (they fall back to the public org
-            on next sign-in). Deletion is blocked while the org is in <b>any</b>{" "}
-            workspace's allowed-organizations list; remove it from those
-            workspaces' access settings first.
+            Deleting this organization moves its users to the public organization at
+            their next sign-in. First, remove it from the allowed organizations in
+            each workspace’s access settings.
           </p>
           <Button
             variant="destructive"
@@ -356,7 +354,7 @@ export function OrganizationDetail() {
         onClose={() => setShowDelete(false)}
         onConfirm={() => remove.mutate()}
         title="Delete Organization"
-        message={`This permanently deletes "${org.name}". Users on its domains fall back to the public org at next sign-in. Type the slug to confirm.`}
+        message={`This permanently deletes "${org.name}". Users with its email domains will move to the public organization at their next sign-in. Type the slug to confirm.`}
         confirmLabel="Delete Organization"
         danger
         isPending={remove.isPending}
