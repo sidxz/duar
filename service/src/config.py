@@ -94,9 +94,9 @@ class Settings(BaseSettings):
     rate_limit_read: str = "60/minute"  # authenticated reads (per user)
     rate_limit_admin_write: str = "10/minute"  # admin mutations (per user)
     rate_limit_sensitive: str = "5/minute"  # destructive/expensive admin ops (per user)
-    # MCP/agent tool-authorization hot path (/roles/check-action, /permissions/check).
-    # Per user (not per IP) so agents behind one MCP server's egress IP don't share a
-    # bucket; sized generously for agent tool loops.
+    # Permission-check hot path (/roles/check-action, /permissions/check), incl. MCP tool calls.
+    # Per user (not per IP) so all users of one app — whose checks share the app server's
+    # egress IP — don't share a bucket; sized generously for agent tool loops.
     rate_limit_tool_check: str = "600/minute"
 
     @field_validator("base_url", "admin_url", "frontend_url")
