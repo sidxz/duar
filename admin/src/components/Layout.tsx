@@ -69,8 +69,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
         onClick={() => setMenuOpen(false)}
         className="flex h-16 shrink-0 items-center gap-3 border-b border-white/10 px-5 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/40"
       >
-        <img src={`${BASE_PATH}mark.png`} alt="" className="size-8 rounded-lg shadow-[0_0_0_1px_rgb(255_255_255/0.08)]" />
-        <span className="text-[15px] font-semibold tracking-tight">Duar.io</span>
+        <img src={`${BASE_PATH}mark.png`} alt="" className="size-9 rounded-lg shadow-[0_0_0_1px_rgb(255_255_255/0.08)]" />
+        <span className="text-lg font-semibold tracking-tight">Duar.io</span>
       </Link>
       <nav aria-label="Main navigation" className="sidebar-nav min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3">
         {NAV_GROUPS.map((group) => (
