@@ -30,7 +30,7 @@ from test_authz_middleware import (
 )
 
 from duar_auth import Duar, DuarError
-from duar_auth.mcp import AGENT_GATED, DuarAuthMiddleware, mount_mcp
+from duar_auth.mcp import AGENT_GATED, mount_mcp
 
 
 class _RoleStub:
@@ -184,6 +184,15 @@ def test_mount_requires_protect(keys):
         mount_mcp(FastAPI(), _mcp(duar), duar)
 
 
+def test_mount_requires_auto_resolve(keys):
+    (_, idp_pub), _ = keys
+    duar = Duar("http://duar", TEST_SERVICE_NAME, "sk", idp_public_key=idp_pub, idp_audience=TEST_IDP_AUDIENCE)
+    app = FastAPI()
+    duar.protect(app)
+    with pytest.raises(RuntimeError, match="auto_resolve=True"):
+        mount_mcp(app, _mcp(duar), duar)
+
+
 def test_host_lifespan_runs_before_sync(keys, idp_token):
     events: list[str] = []
 
@@ -204,13 +213,3 @@ def test_server_is_stateless(keys, idp_token):
         resp = _rpc(client, "whoami_tool", _auth(idp_token))
     assert resp.status_code == 200
     assert "mcp-session-id" not in resp.headers
-
-
-def test_standalone_http_app_with_duar_middleware(keys, idp_token):
-    duar = _duar(keys, _RoleStub())
-    mcp = _mcp(duar)
-    mcp.add_middleware(DuarAuthMiddleware(duar))
-    app = mcp.http_app(path="/mcp", stateless_http=True, middleware=duar.middleware())
-    with TestClient(app) as client:
-        result = _result(_rpc(client, "whoami_tool", _auth(idp_token), path="/mcp"))
-    assert result["structuredContent"]["result"] == AUTO_WS

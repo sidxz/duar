@@ -1,12 +1,11 @@
-"""Duar.middleware() (what protect() installs, as a list) and Duar.request_auth()."""
+"""Duar.request_auth(): the RequestAuth for a request the Duar middleware authenticated."""
 
 import uuid
 
 import pytest
-from fastapi import FastAPI
 from starlette.requests import Request
 
-from duar_auth import AuthzMiddleware, Duar, DuarError, JWTAuthMiddleware
+from duar_auth import Duar, DuarError
 from duar_auth.types import AuthenticatedUser
 
 
@@ -24,32 +23,6 @@ def _authz_duar(public_pem: str) -> Duar:
 
 def _request(**state) -> Request:
     return Request({"type": "http", "method": "GET", "path": "/", "headers": [], "state": dict(state)})
-
-
-def test_middleware_authz_mode(rsa_keypair):
-    duar = _authz_duar(rsa_keypair[1])
-    mws = duar.middleware(["/health"])
-    assert len(mws) == 1
-    assert mws[0].cls is AuthzMiddleware
-    assert mws[0].kwargs["auto_resolve"] is True
-    assert mws[0].kwargs["duar_instance"] is duar
-    assert mws[0].kwargs["exclude_paths"] == ["/health"]
-
-
-def test_middleware_proxy_mode():
-    duar = Duar(base_url="https://duar.test", service_name="reports", service_key="svc-key", mode="proxy")
-    mws = duar.middleware()
-    assert len(mws) == 1
-    assert mws[0].cls is JWTAuthMiddleware
-    assert mws[0].kwargs["base_url"] == duar.base_url
-
-
-def test_protect_installs_same_middleware(rsa_keypair):
-    duar = _authz_duar(rsa_keypair[1])
-    app = FastAPI()
-    duar.protect(app, ["/health"])
-    assert app.user_middleware[0].cls is AuthzMiddleware
-    assert app.user_middleware[0].kwargs == duar.middleware(["/health"])[0].kwargs
 
 
 def test_request_auth_from_state(rsa_keypair):

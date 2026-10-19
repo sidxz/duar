@@ -27,10 +27,9 @@ Duar (visible in the ``/mcp`` console)::
 
     mount_mcp(app, mcp, duar)            # /mcp/, stateless, gate, startup registration
 
-Guardrail: authentication is Duar's own middleware (or FastMCP's verify-only
-``JWTVerifier`` in JWT mode). Do NOT use FastMCP's OAuth / ``RemoteAuthProvider`` — it
-advertises resource-server discovery and would push Duar toward being an OAuth
-authorization server.
+Guardrail: authentication is the app's own Duar middleware. Do NOT add FastMCP's
+OAuth / ``RemoteAuthProvider`` — it advertises resource-server discovery and would push
+Duar toward being an OAuth authorization server.
 """
 
 from __future__ import annotations
@@ -43,11 +42,10 @@ from typing import TYPE_CHECKING
 
 import httpx
 from fastmcp.exceptions import ToolError
-from fastmcp.server.dependencies import get_access_token, get_http_request
+from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.middleware import Middleware, MiddlewareContext
 
 from duar_auth.authz_middleware import AuthzMiddleware
-from duar_auth.middleware import JWTAuthMiddleware
 from duar_auth.types import DuarError
 
 if TYPE_CHECKING:
@@ -63,7 +61,7 @@ AGENT_GATED = "duar:agent-gated"
 _ACTION_RE = re.compile(r"^[a-z][a-z0-9_.:-]*$")
 
 
-def agent_action(service_name: str, tool_name: str) -> str:
+def _agent_action(service_name: str, tool_name: str) -> str:
     """The Duar action an agent-gated tool is checked against: ``mcp:<service>.<tool>``.
 
     Carries the app's own ``service_name`` (never the realm slug), so same-named tools
@@ -92,18 +90,10 @@ def _caller(tool_name: str) -> tuple[str, uuid.UUID]:
         if request.headers.get("mcp-session-id"):
             raise ToolError("Not permitted: stateful MCP sessions are not supported; serve with stateless_http=True")
         return token, user.workspace_id
-
-    access = get_access_token()  # JWT mode behind FastMCP's JWTVerifier
-    claims = getattr(access, "claims", None) or {}
-    if access is not None and claims.get("sub") and claims.get("wid"):
-        try:
-            return access.token, uuid.UUID(str(claims["wid"]))
-        except (ValueError, TypeError) as exc:
-            raise ToolError(f"Not permitted: invalid workspace for '{tool_name}'") from exc
     raise ToolError(f"Not permitted: no authenticated Duar user for '{tool_name}'")
 
 
-class DuarAuthMiddleware(Middleware):
+class _DuarGate(Middleware):
     """FastMCP middleware: every tool call needs an authenticated Duar user; agent-gated
     tools also need a live Duar grant on ``mcp:<service_name>.<tool>``. Fail-closed."""
 
@@ -121,7 +111,7 @@ class DuarAuthMiddleware(Middleware):
             raise ToolError(f"Not permitted: unknown tool '{tool_name}'") from exc
 
         if AGENT_GATED in (tool.tags or set()):
-            action = agent_action(self.duar.service_name, tool_name)
+            action = _agent_action(self.duar.service_name, tool_name)
             try:
                 allowed = await self.duar.roles.check_action(token, action, workspace_id)
             except Exception as exc:
@@ -132,7 +122,7 @@ class DuarAuthMiddleware(Middleware):
         return await call_next(context)
 
 
-async def sync_tools(mcp: FastMCP, duar: Duar) -> list[str]:
+async def _sync_tools(mcp: FastMCP, duar: Duar) -> list[str]:
     """Register the server's agent-gated tools with Duar as ``mcp:<service>.<tool>``.
 
     Idempotent upsert via ``register_actions`` (no prune). Reads the registration-time
@@ -144,7 +134,7 @@ async def sync_tools(mcp: FastMCP, duar: Duar) -> list[str]:
     for t in tools:
         if AGENT_GATED not in (t.tags or set()):
             continue
-        entry: dict = {"action": agent_action(duar.service_name, t.name)}
+        entry: dict = {"action": _agent_action(duar.service_name, t.name)}
         if t.description:
             entry["description"] = t.description
         actions.append(entry)
@@ -160,16 +150,13 @@ def mount_mcp(app: Starlette, mcp: FastMCP, duar: Duar, path: str = "/mcp") -> N
     added and the agent-gated tools registered with Duar at startup — after the
     app's own lifespan (Duar key fetch, realm discovery) and on the server's loop.
     """
-    protected = any(m.cls in (AuthzMiddleware, JWTAuthMiddleware) for m in app.user_middleware)
-    if not protected:
+    if duar.mode != "authz" or not duar.auto_resolve:
+        # MCP callers send the user's IdP token + X-Workspace-Id; the app mints its own authz token.
+        raise RuntimeError("mount_mcp needs Duar(mode='authz', auto_resolve=True, idp_provider=...)")
+    if not any(m.cls is AuthzMiddleware for m in app.user_middleware):
         raise RuntimeError("call duar.protect(app) before mount_mcp(...)")
-    if duar.mode == "authz" and not duar.auto_resolve:
-        logger.warning(
-            "mount_mcp: Duar(auto_resolve=False) — MCP callers can't authenticate with an IdP token "
-            "plus X-Workspace-Id; enable auto_resolve for apps that serve MCP"
-        )
 
-    mcp.add_middleware(DuarAuthMiddleware(duar))
+    mcp.add_middleware(_DuarGate(duar))
     mcp_app = mcp.http_app(path="/", stateless_http=True)
     app.mount(path, mcp_app)
 
@@ -180,7 +167,7 @@ def mount_mcp(app: Starlette, mcp: FastMCP, duar: Duar, path: str = "/mcp") -> N
         async with inner(a) as state:
             async with mcp_app.lifespan(mcp_app):
                 try:
-                    await sync_tools(mcp, duar)
+                    await _sync_tools(mcp, duar)
                 except (DuarError, httpx.HTTPError):
                     logger.warning(
                         "mount_mcp: agent-gated MCP tools not registered with Duar; they deny until registered",

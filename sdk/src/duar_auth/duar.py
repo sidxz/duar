@@ -10,7 +10,6 @@ import httpx
 import jwt
 from fastapi import FastAPI, HTTPException, Request
 from jwt.algorithms import RSAAlgorithm
-from starlette.middleware import Middleware
 
 from duar_auth._utils import warn_if_insecure
 from duar_auth.auth import RequestAuth, SystemAuth
@@ -208,36 +207,24 @@ class Duar:
         instance, so ``protect()`` can safely be called at module level before
         the lifespan fetches Duar's public key.
         """
-        for mw in self.middleware(exclude_paths):
-            app.add_middleware(mw.cls, *mw.args, **mw.kwargs)
-
-    def middleware(self, exclude_paths: list[str] | None = None) -> list[Middleware]:
-        """The authentication middleware ``protect()`` installs, as Starlette ``Middleware``.
-
-        For apps that take a middleware list instead of ``add_middleware`` — e.g. a
-        standalone FastMCP server: ``mcp.http_app(middleware=duar.middleware())``.
-        """
         if self.mode == "authz":
-            return [
-                Middleware(
-                    AuthzMiddleware,
-                    duar_instance=self,
-                    service_name=self.service_name,
-                    idp_audience=self.idp_audience,
-                    idp_issuer=self.idp_issuer,
-                    exclude_paths=exclude_paths,
-                    idp_provider=self.idp_provider,
-                    auto_resolve=self.auto_resolve,
-                )
-            ]
-        return [
-            Middleware(
+            app.add_middleware(
+                AuthzMiddleware,
+                duar_instance=self,
+                service_name=self.service_name,
+                idp_audience=self.idp_audience,
+                idp_issuer=self.idp_issuer,
+                exclude_paths=exclude_paths,
+                idp_provider=self.idp_provider,
+                auto_resolve=self.auto_resolve,
+            )
+        else:
+            app.add_middleware(
                 JWTAuthMiddleware,
                 base_url=self.base_url,
                 exclude_paths=exclude_paths,
                 allowed_workspaces=self.allowed_workspaces,
             )
-        ]
 
     async def fetch_duar_public_key(self) -> str:
         """Fetch Duar's public key from its JWKS endpoint."""

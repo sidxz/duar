@@ -1,4 +1,4 @@
-"""DuarAuthMiddleware / sync_tools / agent_action — the Duar MCP gate.
+"""The Duar MCP gate (_DuarGate), gated-tool registration and agent-action naming.
 
 Unit-tested with fakes for the FastMCP context, the HTTP request and the Duar role
 client; no live server (the mounted, end-to-end path is in test_mcp_mount.py).
@@ -14,7 +14,7 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 
 from duar_auth import mcp as mcp_mod
-from duar_auth.mcp import AGENT_GATED, DuarAuthMiddleware, agent_action, sync_tools
+from duar_auth.mcp import AGENT_GATED, _agent_action, _DuarGate, _sync_tools
 from duar_auth.types import AuthenticatedUser
 
 WID = uuid.UUID("11111111-1111-4111-8111-111111111111")
@@ -78,8 +78,8 @@ def _request(state: dict | None = None, headers: dict | None = None):
 
 @pytest.fixture
 def env(monkeypatch):
-    """Patch request + access-token lookups; returns a setter for the current request/token."""
-    current = {"request": _request({"user": _user(), "token": "authz.tok"}), "token": None}
+    """Patch the HTTP-request lookup; returns a setter for the current request."""
+    current = {"request": _request({"user": _user(), "token": "authz.tok"})}
 
     def _get_http_request():
         if current["request"] is None:
@@ -87,7 +87,6 @@ def env(monkeypatch):
         return current["request"]
 
     monkeypatch.setattr(mcp_mod, "get_http_request", _get_http_request)
-    monkeypatch.setattr(mcp_mod, "get_access_token", lambda: current["token"])
     return current
 
 
@@ -95,7 +94,7 @@ TOOLS = {"list_notes": set(), "export_notes": {AGENT_GATED}}
 
 
 async def _call(role: _RoleStub, name: str, tools=TOOLS, service_name="team-notes"):
-    gate = DuarAuthMiddleware(SimpleNamespace(service_name=service_name, roles=role))
+    gate = _DuarGate(SimpleNamespace(service_name=service_name, roles=role))
     nxt = _CallNext()
     result = await gate.on_call_tool(_Ctx(name, _Server(tools)), nxt)
     return result, nxt
@@ -131,7 +130,7 @@ async def test_gated_pdp_error_fails_closed(env):
 
 async def test_gate_is_live_per_call(env):
     role = _RoleStub(allowed=True)
-    gate = DuarAuthMiddleware(SimpleNamespace(service_name="team-notes", roles=role))
+    gate = _DuarGate(SimpleNamespace(service_name="team-notes", roles=role))
     nxt = _CallNext()
     await gate.on_call_tool(_Ctx("export_notes", _Server(TOOLS)), nxt)
     role.allowed = False
@@ -142,7 +141,6 @@ async def test_gate_is_live_per_call(env):
 
 async def test_unauthenticated_denied(env):
     env["request"] = _request()
-    env["token"] = None
     with pytest.raises(ToolError, match="no authenticated Duar user"):
         await _call(_RoleStub(), "list_notes")
 
@@ -153,21 +151,13 @@ async def test_stateful_session_refused(env):
         await _call(_RoleStub(), "list_notes")
 
 
-async def test_jwt_mode_fallback_uses_access_token_claims(env):
-    env["request"] = None
-    env["token"] = SimpleNamespace(token="raw.jwt", claims={"sub": "u1", "wid": str(WID)})  # noqa: S106
-    role = _RoleStub(allowed=True)
-    await _call(role, "export_notes")
-    assert role.calls == [("raw.jwt", "mcp:team-notes.export_notes", WID)]
-
-
 async def test_unknown_tool_denied(env):
     with pytest.raises(ToolError, match="unknown tool"):
         await _call(_RoleStub(), "no_such_tool")
 
 
 async def test_missing_fastmcp_context_denied(env):
-    gate = DuarAuthMiddleware(SimpleNamespace(service_name="team-notes", roles=_RoleStub()))
+    gate = _DuarGate(SimpleNamespace(service_name="team-notes", roles=_RoleStub()))
     with pytest.raises(ToolError, match="unknown tool"):
         await gate.on_call_tool(_Ctx("list_notes", None), _CallNext())
 
@@ -176,8 +166,8 @@ async def test_missing_fastmcp_context_denied(env):
 
 
 def test_agent_action_unique_per_app():
-    assert agent_action("app-a", "t") == "mcp:app-a.t"
-    assert agent_action("app-a", "t") != agent_action("app-b", "t")
+    assert _agent_action("app-a", "t") == "mcp:app-a.t"
+    assert _agent_action("app-a", "t") != _agent_action("app-b", "t")
 
 
 # ── sync_tools ─────────────────────────────────────────────────────────
@@ -201,21 +191,21 @@ def _server_with(gated_name: str = "export_notes") -> FastMCP:
 
 async def test_sync_registers_only_gated_tools():
     role = _RoleStub()
-    names = await sync_tools(_server_with(), SimpleNamespace(service_name="team-notes", roles=role))
+    names = await _sync_tools(_server_with(), SimpleNamespace(service_name="team-notes", roles=role))
     assert names == ["mcp:team-notes.export_notes"]
     assert role.registered == [[{"action": "mcp:team-notes.export_notes", "description": "Export all notes."}]]
 
 
 async def test_sync_uses_service_name_not_realm_scope():
     role = _RoleStub(service_name="realm-x")
-    names = await sync_tools(_server_with(), SimpleNamespace(service_name="app-a", roles=role))
+    names = await _sync_tools(_server_with(), SimpleNamespace(service_name="app-a", roles=role))
     assert names == ["mcp:app-a.export_notes"]
 
 
 async def test_sync_rejects_out_of_grammar_tool_name():
     role = _RoleStub()
     with pytest.raises(ValueError, match="ListNotes"):
-        await sync_tools(_server_with("ListNotes"), SimpleNamespace(service_name="team-notes", roles=role))
+        await _sync_tools(_server_with("ListNotes"), SimpleNamespace(service_name="team-notes", roles=role))
     assert role.registered == []
 
 
@@ -227,5 +217,5 @@ async def test_sync_noop_without_gated_tools():
         return []
 
     role = _RoleStub()
-    assert await sync_tools(mcp, SimpleNamespace(service_name="team-notes", roles=role)) == []
+    assert await _sync_tools(mcp, SimpleNamespace(service_name="team-notes", roles=role)) == []
     assert role.registered == []

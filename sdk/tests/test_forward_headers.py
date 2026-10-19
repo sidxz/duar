@@ -33,9 +33,11 @@ def test_authz_mode_forwards_idp_token_and_verified_workspace():
     assert forward_headers(req) == {"Authorization": "Bearer idp", "X-Workspace-Id": str(w)}
 
 
-def test_jwt_mode_forwards_access_token():
+def test_without_idp_token_raises():
     req = _request({"user": _user(uuid.uuid4()), "token": "acc"})
-    assert forward_headers(req) == {"Authorization": "Bearer acc"}
+    with pytest.raises(DuarError) as exc:
+        forward_headers(req)
+    assert exc.value.status_code == 401
 
 
 def test_unauthenticated_raises():
