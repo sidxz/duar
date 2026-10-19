@@ -126,12 +126,13 @@ async def get_activity_insights(
 async def get_actions_insights(
     days: int = Query(30),
     workspace_id: uuid.UUID | None = Query(None),
+    action_prefix: str | None = Query(None, max_length=255),
     db: AsyncSession = Depends(get_db),
 ):
     if days not in (7, 30, 90):
         raise HTTPException(status_code=422, detail="days must be 7, 30, or 90")
     return await actions_insights_service.actions_insights(
-        db, days=days, workspace_id=workspace_id
+        db, days=days, workspace_id=workspace_id, action_prefix=action_prefix
     )
 
 

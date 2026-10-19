@@ -35,13 +35,22 @@ def _day_iso(d) -> str:
 
 
 async def actions_insights(
-    db: AsyncSession, days: int = 30, workspace_id: uuid.UUID | None = None
+    db: AsyncSession,
+    days: int = 30,
+    workspace_id: uuid.UUID | None = None,
+    action_prefix: str | None = None,
 ) -> dict:
+    """``action_prefix`` (e.g. ``"mcp:team-notes."``) narrows the usage sections and
+    the allowed/denied trend to matching actions; role mining ignores it."""
     now = datetime.now(UTC)
     since = (now - timedelta(days=days)).date()
 
-    def scoped(stmt, col=ActionUsage.workspace_id):
-        return stmt.where(col == workspace_id) if workspace_id else stmt
+    def scoped(stmt, col=ActionUsage.workspace_id, action_col=ActionUsage.action):
+        if workspace_id:
+            stmt = stmt.where(col == workspace_id)
+        if action_prefix:
+            stmt = stmt.where(action_col.startswith(action_prefix, autoescape=True))
+        return stmt
 
     total = func.sum(ActionUsage.count).label("count")
 
@@ -101,6 +110,7 @@ async def actions_insights(
                 )
                 .group_by(denied_day),
                 col=ActivityLog.workspace_id,
+                action_col=ActivityLog.detail["action"].as_string(),
             )
         )
     ).all()

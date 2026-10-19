@@ -399,3 +399,71 @@ def test_actions_insights_route_parameter_validation():
         assert resp.status_code == 422, (
             f"days=100 should fail with 422, got {resp.status_code}"
         )
+
+
+@pytest.mark.asyncio
+async def test_action_prefix_scopes_usage_and_trend(db):
+    ws = _workspace()
+    u = _user()
+    db.add_all([ws, u])
+    db.add_all(
+        [
+            _usage(ws, u, "team-notes", "mcp:team-notes.export_notes", count=3),
+            _usage(ws, u, "team-notes", "notes:export", count=5),
+            _denied(ws, u, "team-notes", "mcp:team-notes.export_notes"),
+            _denied(ws, u, "team-notes", "notes:export"),
+        ]
+    )
+    await db.flush()
+
+    out = await actions_insights(db, days=30, action_prefix="mcp:team-notes.")
+    assert out["by_service"] == [{"service_name": "team-notes", "count": 3}]
+    assert out["top_actions"] == [
+        {
+            "service_name": "team-notes",
+            "action": "mcp:team-notes.export_notes",
+            "count": 3,
+        }
+    ]
+    assert out["top_users"][0]["count"] == 3
+    assert sum(t["allowed"] for t in out["trend"]) == 3
+    assert sum(t["denied"] for t in out["trend"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_action_prefix_realm_scope(db):
+    ws = _workspace()
+    u = _user()
+    db.add_all([ws, u])
+    db.add_all(
+        [
+            _usage(ws, u, "realm-x", "mcp:team-notes.export_notes", count=2),
+            _usage(ws, u, "realm-x", "mcp:other-app.export_notes", count=7),
+        ]
+    )
+    await db.flush()
+
+    out = await actions_insights(db, days=30, action_prefix="mcp:team-notes.")
+    assert out["by_service"] == [{"service_name": "realm-x", "count": 2}]
+
+
+def test_action_prefix_route_param():
+    app = FastAPI()
+    app.include_router(admin_router)
+
+    async def mock_require_admin():
+        return {"sub": "admin-user"}
+
+    async def mock_get_db():
+        yield object()
+
+    app.dependency_overrides[require_admin] = mock_require_admin
+    app.dependency_overrides[get_db] = mock_get_db
+
+    with patch.object(actions_insights_service, "actions_insights") as mock_insights:
+        mock_insights.return_value = {"days": 30, "top_actions": []}
+        resp = TestClient(app).get(
+            "/admin/actions/insights?action_prefix=mcp:team-notes."
+        )
+        assert resp.status_code == 200, resp.text
+        assert mock_insights.call_args.kwargs["action_prefix"] == "mcp:team-notes."
