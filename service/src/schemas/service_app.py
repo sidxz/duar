@@ -1,6 +1,5 @@
 import uuid
 from datetime import datetime
-from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -21,10 +20,6 @@ class ServiceAppCreateRequest(BaseModel):
     # The app's registered IdP audience(s) — its OIDC client_id(s). Binds an IdP token
     # to this app at /authz/resolve; empty => fall back to the deployment-wide audience.
     allowed_idp_audiences: list[str] = Field(default_factory=list)
-    # "service" (default) or "mcp_server" (Duar MCP). Marks the app as an MCP server
-    # so the sub-branded console lists it; the auth tiers treat both identically.
-    # Constrained so an unknown value can't persist and then match neither list filter.
-    kind: Literal["service", "mcp_server"] = "service"
 
     @field_validator("allowed_origins", mode="before")
     @classmethod
@@ -62,7 +57,6 @@ class ServiceAppResponse(BaseModel):
     id: uuid.UUID
     name: str
     service_name: str
-    kind: str = "service"
     realm_id: uuid.UUID | None = None
     key_prefix: str
     is_active: bool

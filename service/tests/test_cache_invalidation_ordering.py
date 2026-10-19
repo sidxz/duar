@@ -99,7 +99,6 @@ def _service_app(realm_id=None) -> ServiceApp:
         id=uuid.uuid4(),
         name="Docs",
         service_name="docs",
-        kind="service",
         key_hash="x" * 64,
         key_prefix="sk_xxxx****",
         is_active=True,

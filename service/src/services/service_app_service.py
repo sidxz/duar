@@ -50,7 +50,6 @@ async def create_service_app(
     created_by: uuid.UUID | None = None,
     allowed_origins: list[str] | None = None,
     allowed_idp_audiences: list[str] | None = None,
-    kind: str = "service",
 ) -> tuple[ServiceApp, str]:
     """Create a new service app. Returns (app, plaintext_key)."""
     # Symmetric with realm_service.create_realm — service_names and realm
@@ -78,7 +77,6 @@ async def create_service_app(
         created_by=created_by,
         allowed_origins=allowed_origins or [],
         allowed_idp_audiences=allowed_idp_audiences or [],
-        kind=kind,
     )
     db.add(app)
     await db.flush()
@@ -123,13 +121,8 @@ async def rotate_key(db: AsyncSession, app_id: uuid.UUID) -> tuple[ServiceApp, s
     return app, plaintext
 
 
-async def list_service_apps(
-    db: AsyncSession, kind: str | None = None
-) -> list[ServiceApp]:
-    stmt = select(ServiceApp).order_by(ServiceApp.created_at.desc())
-    if kind is not None:
-        stmt = stmt.where(ServiceApp.kind == kind)
-    result = await db.execute(stmt)
+async def list_service_apps(db: AsyncSession) -> list[ServiceApp]:
+    result = await db.execute(select(ServiceApp).order_by(ServiceApp.created_at.desc()))
     return list(result.scalars().all())
 
 
