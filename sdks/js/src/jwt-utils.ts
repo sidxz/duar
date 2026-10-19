@@ -54,8 +54,8 @@ export function authzTokenToUser(token: string, identity: UserIdentity | null): 
     workspaceId: p.wid,
     workspaceSlug: p.wslug,
     workspaceRole: p.wrole,
-    groups: [],
     // Array.isArray: a string here would turn includes() into a substring match.
+    groups: Array.isArray(p.groups) ? p.groups : [],
     actions: Array.isArray(p.actions) ? p.actions : [],
     orgId: p.oid ?? null,
     orgSlug: p.oslug ?? null,
