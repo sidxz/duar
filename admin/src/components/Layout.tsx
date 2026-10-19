@@ -71,7 +71,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <p className="text-xs text-white">Authorization</p>
         </div>
       </Link>
-      <nav aria-label="Main navigation" className="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-5">
+      <nav aria-label="Main navigation" className="sidebar-nav min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3">
         {NAV_GROUPS.map((group) => (
           <div key={group.label}>
             <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-muted">{group.label}</p>
@@ -83,7 +83,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   end={to === "/"}
                   onClick={() => setMenuOpen(false)}
                   className={({ isActive }) =>
-                    `group flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${isActive
+                    `group flex items-center gap-3 rounded-md px-3 py-1.5 text-sm transition-colors ${isActive
                       ? "bg-sidebar-active text-white shadow-[inset_3px_0_0_var(--primary)]"
                       : "text-sidebar-muted hover:bg-sidebar-hover hover:text-white"}`
                   }
