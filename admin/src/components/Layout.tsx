@@ -64,12 +64,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const sidebar = (
     <>
-      <Link to="/" onClick={() => setMenuOpen(false)} className="flex h-20 shrink-0 items-center gap-3 bg-[#f43737] px-5 text-white">
-        <img src={`${BASE_PATH}logo.png`} alt="" className="h-9 w-auto" />
-        <div>
-          <span className="text-lg font-semibold tracking-tight">Duar.io</span>
-          <p className="text-xs text-white">Authorization</p>
-        </div>
+      <Link
+        to="/"
+        onClick={() => setMenuOpen(false)}
+        className="flex h-16 shrink-0 items-center gap-3 border-b border-white/10 px-5 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/40"
+      >
+        <img src={`${BASE_PATH}mark.png`} alt="" className="size-8 rounded-lg shadow-[0_0_0_1px_rgb(255_255_255/0.08)]" />
+        <span className="text-[15px] font-semibold tracking-tight">Duar.io</span>
       </Link>
       <nav aria-label="Main navigation" className="sidebar-nav min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3">
         {NAV_GROUPS.map((group) => (
