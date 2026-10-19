@@ -77,7 +77,7 @@ export function Permissions() {
 
   return (
     <div>
-      <PageHeader title="Permissions" count={data?.total} actions={<Button variant="outline" className="xl:hidden" aria-expanded={filtersOpen} aria-controls="permission-filters" onClick={() => setFiltersOpen(!filtersOpen)}><SlidersHorizontal className="size-4" />Filters{filterCount > 0 && <span className="font-mono text-xs">{filterCount}</span>}</Button>} />
+      <PageHeader title="Permissions" actions={<Button variant="outline" className="xl:hidden" aria-expanded={filtersOpen} aria-controls="permission-filters" onClick={() => setFiltersOpen(!filtersOpen)}><SlidersHorizontal className="size-4" />Filters{filterCount > 0 && <span className="font-mono text-xs">{filterCount}</span>}</Button>} />
       <div className="permission-registry">
         <aside id="permission-filters" aria-label="Resource filters" data-open={filtersOpen} className="permission-filters">
           <div className="mb-4 flex items-center justify-between gap-2">

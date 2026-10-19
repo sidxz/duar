@@ -85,7 +85,7 @@ export function ServiceActions() {
 
   return (
     <div>
-      <PageHeader title="Service Actions" count={isLoading || isError ? undefined : actions.length} />
+      <PageHeader title="Service Actions" />
 
       {isLoading ? (
         <div aria-label="Loading service actions" className="h-64 animate-pulse rounded-lg bg-muted/50" />

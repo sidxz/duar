@@ -126,7 +126,7 @@ export function ServiceApps() {
 
   return (
     <div>
-      <PageHeader title="Services" count={isLoading ? undefined : apps.length} description="Registered services and their API keys." actions={<>
+      <PageHeader title="Services" description="Registered services and their API keys." actions={<>
         <Button size="sm" onClick={() => setShowCreate(true)}>
           + Register Service
         </Button>

@@ -108,7 +108,7 @@ export function Users() {
 
   return (
     <div>
-      <PageHeader title="Users" count={data?.total} actions={<>
+      <PageHeader title="Users" actions={<>
           <Button variant="outline" disabled={exporting} onClick={async () => {
             setExporting(true);
             try { await exportUsers(); } catch (error) { toast.error(error instanceof Error ? error.message : "Export failed"); }

@@ -78,7 +78,7 @@ export function Workspaces() {
 
   return (
     <div>
-      <PageHeader title="Workspaces" count={data?.total} actions={<>
+      <PageHeader title="Workspaces" actions={<>
           <Button variant="outline" disabled={exporting} onClick={async () => {
             setExporting(true);
             try { await exportWorkspaces(); } catch (error) { toast.error(error instanceof Error ? error.message : "Export failed"); }

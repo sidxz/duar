@@ -74,7 +74,7 @@ export function Realms() {
 
   return (
     <div>
-      <PageHeader title="Realms" count={isLoading ? undefined : realms.length} description="Services that share permissions." actions={<>
+      <PageHeader title="Realms" description="Services that share permissions." actions={<>
         <Button size="sm" onClick={() => setShowCreate(true)}>
           New realm
         </Button>

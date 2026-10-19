@@ -79,7 +79,7 @@ export function Organizations() {
 
   return (
     <div>
-      <PageHeader title="Organizations" count={isLoading ? undefined : orgs.length} description="Organizations and their email domains." actions={<>
+      <PageHeader title="Organizations" description="Organizations and their email domains." actions={<>
         <Button size="sm" onClick={() => setShowCreate(true)}>
           New organization
         </Button>

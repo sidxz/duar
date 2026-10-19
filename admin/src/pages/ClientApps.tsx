@@ -81,7 +81,7 @@ export function ClientApps() {
 
   return (
     <div>
-      <PageHeader title="Login Apps" count={isLoading ? undefined : apps.length} description="Apps that use Duar for sign-in." actions={<>
+      <PageHeader title="Login Apps" description="Apps that use Duar for sign-in." actions={<>
         <Button size="sm" onClick={() => setShowCreate(true)}>
           + Register App
         </Button>
