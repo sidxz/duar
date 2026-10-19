@@ -1,48 +1,51 @@
-"""DuarAuthMiddleware / duar_resource / sync_tools — the Duar MCP PEP.
+"""DuarAuthMiddleware / sync_tools / agent_action — the Duar MCP gate.
 
-Unit-tested with fakes for the FastMCP context + stub Duar clients; no live server.
-Covers Review-Focus items 1-6 (missing/expired token, deny, unknown tool, resource
-deny, fail-closed).
+Unit-tested with fakes for the FastMCP context, the HTTP request and the Duar role
+client; no live server (the mounted, end-to-end path is in test_mcp_mount.py).
 """
 
 from __future__ import annotations
 
 import uuid
+from types import SimpleNamespace
 
 import pytest
+from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 
 from duar_auth import mcp as mcp_mod
-from duar_auth.mcp import DuarAuthMiddleware, duar_resource, sync_tools
+from duar_auth.mcp import AGENT_GATED, DuarAuthMiddleware, agent_action, sync_tools
+from duar_auth.types import AuthenticatedUser
 
-WID = "11111111-1111-4111-8111-111111111111"
+WID = uuid.UUID("11111111-1111-4111-8111-111111111111")
 
 
 # ── fakes ──────────────────────────────────────────────────────────────
 
 
-class _Msg:
-    def __init__(self, name: str, arguments: dict | None = None):
-        self.name = name
-        self.arguments = arguments or {}
+class _Server:
+    def __init__(self, tools: dict[str, set[str]]):
+        self._tools = tools
+
+    async def get_tool(self, name):
+        if name not in self._tools:
+            raise KeyError(name)
+        return SimpleNamespace(name=name, tags=self._tools[name])
 
 
 class _Ctx:
-    def __init__(self, name: str, arguments: dict | None = None):
-        self.message = _Msg(name, arguments)
-
-
-class _Token:
-    def __init__(self, token=None, claims=None):
-        self.token = token or "raw.jwt"  # noqa: S105 — fake JWT string for tests
-        self.claims = claims if claims is not None else {"sub": "u1", "wid": WID}
+    def __init__(self, name: str, server: _Server | None):
+        self.message = SimpleNamespace(name=name, arguments={})
+        self.fastmcp_context = SimpleNamespace(fastmcp=server) if server is not None else None
 
 
 class _RoleStub:
-    def __init__(self, allowed=True, raises=False):
+    def __init__(self, allowed=True, raises=False, service_name="team-notes"):
         self.allowed = allowed
         self.raises = raises
-        self.calls = []
+        self.service_name = service_name
+        self.calls: list[tuple] = []
+        self.registered: list[list[dict]] = []
 
     async def check_action(self, token, action, workspace_id):
         self.calls.append((token, action, workspace_id))
@@ -50,178 +53,179 @@ class _RoleStub:
             raise RuntimeError("duar down")
         return self.allowed
 
-
-class _PermStub:
-    def __init__(self, allowed=True, raises=False):
-        self.allowed = allowed
-        self.raises = raises
-        self.calls = []
-
-    async def can(self, token, resource_type, resource_id, action):
-        self.calls.append((token, resource_type, resource_id, action))
-        if self.raises:
-            raise RuntimeError("duar down")
-        return self.allowed
+    async def register_actions(self, actions):
+        self.registered.append(actions)
 
 
 class _CallNext:
-    def __init__(self, result="TOOL_RESULT"):
-        self.result = result
-        self.called = False
+    def __init__(self):
+        self.called = 0
 
     async def __call__(self, context):
-        self.called = True
-        return self.result
+        self.called += 1
+        return "TOOL_RESULT"
 
 
-@pytest.fixture(autouse=True)
-def _clear_bindings():
-    mcp_mod._RESOURCE_BINDINGS.clear()
-    yield
-    mcp_mod._RESOURCE_BINDINGS.clear()
-
-
-def _patch_token(monkeypatch, token):
-    monkeypatch.setattr(mcp_mod, "get_access_token", lambda: token)
-
-
-# ── RBAC action path ───────────────────────────────────────────────────
-
-
-async def test_allow_runs_the_tool(monkeypatch):
-    _patch_token(monkeypatch, _Token())
-    mw = DuarAuthMiddleware(_RoleStub(allowed=True))
-    nxt = _CallNext()
-    result = await mw.on_call_tool(_Ctx("reports.export"), nxt)
-    assert result == "TOOL_RESULT"
-    assert nxt.called is True
-
-
-async def test_deny_blocks_and_does_not_run(monkeypatch):
-    _patch_token(monkeypatch, _Token())
-    mw = DuarAuthMiddleware(_RoleStub(allowed=False))
-    nxt = _CallNext()
-    with pytest.raises(ToolError):
-        await mw.on_call_tool(_Ctx("reports.export"), nxt)
-    assert nxt.called is False
-
-
-async def test_missing_token_denies(monkeypatch):
-    _patch_token(monkeypatch, None)
-    role = _RoleStub(allowed=True)
-    mw = DuarAuthMiddleware(role)
-    nxt = _CallNext()
-    with pytest.raises(ToolError):
-        await mw.on_call_tool(_Ctx("reports.export"), nxt)
-    assert nxt.called is False
-    assert role.calls == []  # never reached Duar
-
-
-async def test_missing_wid_claim_denies(monkeypatch):
-    _patch_token(monkeypatch, _Token(claims={"sub": "u1"}))  # no wid
-    mw = DuarAuthMiddleware(_RoleStub(allowed=True))
-    nxt = _CallNext()
-    with pytest.raises(ToolError):
-        await mw.on_call_tool(_Ctx("reports.export"), nxt)
-    assert nxt.called is False
-
-
-async def test_pdp_error_fails_closed(monkeypatch):
-    _patch_token(monkeypatch, _Token())
-    mw = DuarAuthMiddleware(_RoleStub(raises=True))
-    nxt = _CallNext()
-    with pytest.raises(ToolError):
-        await mw.on_call_tool(_Ctx("reports.export"), nxt)
-    assert nxt.called is False
-
-
-async def test_action_check_gets_bare_name_and_workspace(monkeypatch):
-    _patch_token(monkeypatch, _Token())
-    role = _RoleStub(allowed=True)
-    mw = DuarAuthMiddleware(role)
-    await mw.on_call_tool(_Ctx("reports.export"), _CallNext())
-    token, action, workspace_id = role.calls[0]
-    assert action == "reports.export"  # bare action, no service prefix
-    assert workspace_id == uuid.UUID(WID)
-
-
-# ── resource-scoped (entity ACL) path ──────────────────────────────────
-
-
-async def test_resource_tool_denied_even_when_action_allowed(monkeypatch):
-    _patch_token(monkeypatch, _Token())
-    rid = "22222222-2222-4222-8222-222222222222"
-    duar_resource("document", lambda a: a["doc_id"], tool_name="edit_document")(
-        lambda: None
+def _user() -> AuthenticatedUser:
+    return AuthenticatedUser(
+        user_id=uuid.uuid4(), email="a@b.c", name="A", workspace_id=WID, workspace_slug="ws", workspace_role="editor"
     )
+
+
+def _request(state: dict | None = None, headers: dict | None = None):
+    return SimpleNamespace(state=SimpleNamespace(**(state or {})), headers=headers or {})
+
+
+@pytest.fixture
+def env(monkeypatch):
+    """Patch request + access-token lookups; returns a setter for the current request/token."""
+    current = {"request": _request({"user": _user(), "token": "authz.tok"}), "token": None}
+
+    def _get_http_request():
+        if current["request"] is None:
+            raise RuntimeError("no active HTTP request")
+        return current["request"]
+
+    monkeypatch.setattr(mcp_mod, "get_http_request", _get_http_request)
+    monkeypatch.setattr(mcp_mod, "get_access_token", lambda: current["token"])
+    return current
+
+
+TOOLS = {"list_notes": set(), "export_notes": {AGENT_GATED}}
+
+
+async def _call(role: _RoleStub, name: str, tools=TOOLS, service_name="team-notes"):
+    gate = DuarAuthMiddleware(SimpleNamespace(service_name=service_name, roles=role))
+    nxt = _CallNext()
+    result = await gate.on_call_tool(_Ctx(name, _Server(tools)), nxt)
+    return result, nxt
+
+
+# ── gate ───────────────────────────────────────────────────────────────
+
+
+async def test_ungated_tool_runs_without_duar_call(env):
+    role = _RoleStub()
+    result, nxt = await _call(role, "list_notes")
+    assert result == "TOOL_RESULT" and nxt.called == 1
+    assert role.calls == []
+
+
+async def test_gated_tool_allowed(env):
     role = _RoleStub(allowed=True)
-    perm = _PermStub(allowed=False)  # ACL denies
-    mw = DuarAuthMiddleware(role, perm)
+    result, nxt = await _call(role, "export_notes")
+    assert role.calls == [("authz.tok", "mcp:team-notes.export_notes", WID)]
+    assert nxt.called == 1
+
+
+async def test_gated_tool_denied(env):
+    role = _RoleStub(allowed=False)
+    with pytest.raises(ToolError, match="Not permitted: 'export_notes'"):
+        await _call(role, "export_notes")
+
+
+async def test_gated_pdp_error_fails_closed(env):
+    with pytest.raises(ToolError, match="authorization unavailable"):
+        await _call(_RoleStub(raises=True), "export_notes")
+
+
+async def test_gate_is_live_per_call(env):
+    role = _RoleStub(allowed=True)
+    gate = DuarAuthMiddleware(SimpleNamespace(service_name="team-notes", roles=role))
     nxt = _CallNext()
-    with pytest.raises(ToolError):
-        await mw.on_call_tool(_Ctx("edit_document", {"doc_id": rid}), nxt)
-    assert nxt.called is False
-    assert perm.calls[0][2] == rid  # extractor pulled the resource id
+    await gate.on_call_tool(_Ctx("export_notes", _Server(TOOLS)), nxt)
+    role.allowed = False
+    with pytest.raises(ToolError, match="Not permitted"):
+        await gate.on_call_tool(_Ctx("export_notes", _Server(TOOLS)), nxt)
+    assert nxt.called == 1 and len(role.calls) == 2
 
 
-async def test_resource_tool_allowed_runs(monkeypatch):
-    _patch_token(monkeypatch, _Token())
-    rid = "22222222-2222-4222-8222-222222222222"
-    duar_resource("document", lambda a: a["doc_id"], tool_name="edit_document")(
-        lambda: None
-    )
-    mw = DuarAuthMiddleware(_RoleStub(allowed=True), _PermStub(allowed=True))
-    nxt = _CallNext()
-    result = await mw.on_call_tool(_Ctx("edit_document", {"doc_id": rid}), nxt)
-    assert result == "TOOL_RESULT"
-    assert nxt.called is True
+async def test_unauthenticated_denied(env):
+    env["request"] = _request()
+    env["token"] = None
+    with pytest.raises(ToolError, match="no authenticated Duar user"):
+        await _call(_RoleStub(), "list_notes")
 
 
-async def test_resource_tool_without_permission_client_denies(monkeypatch):
-    _patch_token(monkeypatch, _Token())
-    duar_resource("document", lambda a: a["doc_id"], tool_name="edit_document")(
-        lambda: None
-    )
-    mw = DuarAuthMiddleware(_RoleStub(allowed=True))  # no PermissionClient
-    nxt = _CallNext()
-    with pytest.raises(ToolError):
-        await mw.on_call_tool(_Ctx("edit_document", {"doc_id": "x"}), nxt)
-    assert nxt.called is False
+async def test_stateful_session_refused(env):
+    env["request"] = _request({"user": _user(), "token": "authz.tok"}, {"mcp-session-id": "abc"})
+    with pytest.raises(ToolError, match="stateless_http=True"):
+        await _call(_RoleStub(), "list_notes")
+
+
+async def test_jwt_mode_fallback_uses_access_token_claims(env):
+    env["request"] = None
+    env["token"] = SimpleNamespace(token="raw.jwt", claims={"sub": "u1", "wid": str(WID)})  # noqa: S106
+    role = _RoleStub(allowed=True)
+    await _call(role, "export_notes")
+    assert role.calls == [("raw.jwt", "mcp:team-notes.export_notes", WID)]
+
+
+async def test_unknown_tool_denied(env):
+    with pytest.raises(ToolError, match="unknown tool"):
+        await _call(_RoleStub(), "no_such_tool")
+
+
+async def test_missing_fastmcp_context_denied(env):
+    gate = DuarAuthMiddleware(SimpleNamespace(service_name="team-notes", roles=_RoleStub()))
+    with pytest.raises(ToolError, match="unknown tool"):
+        await gate.on_call_tool(_Ctx("list_notes", None), _CallNext())
+
+
+# ── naming ─────────────────────────────────────────────────────────────
+
+
+def test_agent_action_unique_per_app():
+    assert agent_action("app-a", "t") == "mcp:app-a.t"
+    assert agent_action("app-a", "t") != agent_action("app-b", "t")
 
 
 # ── sync_tools ─────────────────────────────────────────────────────────
 
 
-class _Tool:
-    def __init__(self, name, description=None):
-        self.name = name
-        self.description = description
+def _server_with(gated_name: str = "export_notes") -> FastMCP:
+    mcp = FastMCP("x")
+
+    @mcp.tool
+    def list_notes() -> list:
+        """List notes."""
+        return []
+
+    @mcp.tool(name=gated_name, tags={AGENT_GATED})
+    def gated() -> dict:
+        """Export all notes."""
+        return {}
+
+    return mcp
 
 
-class _FakeMCP:
-    def __init__(self, tools):
-        self._tools = tools
-        self.run_middleware_seen = None
-
-    async def list_tools(self, *, run_middleware=True):
-        self.run_middleware_seen = run_middleware
-        return self._tools
+async def test_sync_registers_only_gated_tools():
+    role = _RoleStub()
+    names = await sync_tools(_server_with(), SimpleNamespace(service_name="team-notes", roles=role))
+    assert names == ["mcp:team-notes.export_notes"]
+    assert role.registered == [[{"action": "mcp:team-notes.export_notes", "description": "Export all notes."}]]
 
 
-class _RegStub:
-    def __init__(self):
-        self.registered = None
-
-    async def register_actions(self, actions):
-        self.registered = actions
-        return {"ok": True}
+async def test_sync_uses_service_name_not_realm_scope():
+    role = _RoleStub(service_name="realm-x")
+    names = await sync_tools(_server_with(), SimpleNamespace(service_name="app-a", roles=role))
+    assert names == ["mcp:app-a.export_notes"]
 
 
-async def test_sync_tools_registers_bare_actions():
-    mcp = _FakeMCP([_Tool("reports.export", "Export"), _Tool("reports.view")])
-    reg = _RegStub()
-    names = await sync_tools(mcp, reg)
-    assert names == ["reports.export", "reports.view"]
-    assert mcp.run_middleware_seen is False  # registration-time set, not filtered
-    assert {"action": "reports.export", "description": "Export"} in reg.registered
-    assert {"action": "reports.view"} in reg.registered
+async def test_sync_rejects_out_of_grammar_tool_name():
+    role = _RoleStub()
+    with pytest.raises(ValueError, match="ListNotes"):
+        await sync_tools(_server_with("ListNotes"), SimpleNamespace(service_name="team-notes", roles=role))
+    assert role.registered == []
+
+
+async def test_sync_noop_without_gated_tools():
+    mcp = FastMCP("x")
+
+    @mcp.tool
+    def list_notes() -> list:
+        return []
+
+    role = _RoleStub()
+    assert await sync_tools(mcp, SimpleNamespace(service_name="team-notes", roles=role)) == []
+    assert role.registered == []
