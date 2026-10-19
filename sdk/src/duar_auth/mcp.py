@@ -35,18 +35,28 @@ authorization server.
 
 from __future__ import annotations
 
+import logging
 import re
 import uuid
+from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
+import httpx
 from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import get_access_token, get_http_request
 from fastmcp.server.middleware import Middleware, MiddlewareContext
 
+from duar_auth.authz_middleware import AuthzMiddleware
+from duar_auth.middleware import JWTAuthMiddleware
+from duar_auth.types import DuarError
+
 if TYPE_CHECKING:
     from fastmcp import FastMCP
+    from starlette.applications import Starlette
 
     from duar_auth.duar import Duar
+
+logger = logging.getLogger("duar_auth.mcp")
 
 AGENT_GATED = "duar:agent-gated"
 
@@ -141,3 +151,41 @@ async def sync_tools(mcp: FastMCP, duar: Duar) -> list[str]:
     if actions:
         await duar.roles.register_actions(actions)
     return [a["action"] for a in actions]
+
+
+def mount_mcp(app: Starlette, mcp: FastMCP, duar: Duar, path: str = "/mcp") -> None:
+    """Serve ``mcp`` at ``path`` (endpoint ``<path>/``) inside a Duar-protected app.
+
+    Stateless HTTP only, behind the app's own Duar middleware, with the Duar gate
+    added and the agent-gated tools registered with Duar at startup — after the
+    app's own lifespan (Duar key fetch, realm discovery) and on the server's loop.
+    """
+    protected = any(m.cls in (AuthzMiddleware, JWTAuthMiddleware) for m in app.user_middleware)
+    if not protected:
+        raise RuntimeError("call duar.protect(app) before mount_mcp(...)")
+    if duar.mode == "authz" and not duar.auto_resolve:
+        logger.warning(
+            "mount_mcp: Duar(auto_resolve=False) — MCP callers can't authenticate with an IdP token "
+            "plus X-Workspace-Id; enable auto_resolve for apps that serve MCP"
+        )
+
+    mcp.add_middleware(DuarAuthMiddleware(duar))
+    mcp_app = mcp.http_app(path="/", stateless_http=True)
+    app.mount(path, mcp_app)
+
+    inner = app.router.lifespan_context
+
+    @asynccontextmanager
+    async def lifespan(a):
+        async with inner(a) as state:
+            async with mcp_app.lifespan(mcp_app):
+                try:
+                    await sync_tools(mcp, duar)
+                except (DuarError, httpx.HTTPError):
+                    logger.warning(
+                        "mount_mcp: agent-gated MCP tools not registered with Duar; they deny until registered",
+                        exc_info=True,
+                    )
+                yield state
+
+    app.router.lifespan_context = lifespan
