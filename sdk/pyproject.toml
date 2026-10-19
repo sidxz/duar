@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# MCP server PEP (duar_auth.mcp): FastMCP middleware + JWTVerifier + sync_tools.
+# Duar MCP (duar_auth.mcp): serve MCP tools from an app with mount_mcp (FastMCP).
 mcp = [
     "fastmcp>=4.1.1",
 ]

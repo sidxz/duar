@@ -170,7 +170,7 @@ def test_agent_action_unique_per_app():
     assert _agent_action("app-a", "t") != _agent_action("app-b", "t")
 
 
-# ── sync_tools ─────────────────────────────────────────────────────────
+# ── gated-tool registration ────────────────────────────────────────────
 
 
 def _server_with(gated_name: str = "export_notes") -> FastMCP:
