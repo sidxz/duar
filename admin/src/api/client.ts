@@ -109,9 +109,11 @@ export const getActivityInsights = (days = 30, userId?: string) =>
     `/admin/activity/insights?days=${days}${userId ? `&user_id=${userId}` : ""}`,
   );
 
-export const getActionsInsights = (days = 30, workspaceId?: string) =>
+export const getActionsInsights = (days = 30, workspaceId?: string, actionPrefix?: string) =>
   request<import("../types/api").ActionsInsights>(
-    `/admin/actions/insights?days=${days}${workspaceId ? `&workspace_id=${workspaceId}` : ""}`,
+    `/admin/actions/insights?days=${days}${workspaceId ? `&workspace_id=${workspaceId}` : ""}${
+      actionPrefix ? `&action_prefix=${encodeURIComponent(actionPrefix)}` : ""
+    }`,
   );
 
 export const getActivity = (params: {
@@ -380,16 +382,13 @@ export const deleteClientApp = (id: string) =>
 
 // ── Service Apps ────────────────────────────────────────────────────
 
-export const getServiceApps = (kind?: string) =>
-  request<ServiceApp[]>(
-    `/admin/service-apps${kind ? `?kind=${encodeURIComponent(kind)}` : ""}`,
-  );
+export const getServiceApps = () =>
+  request<ServiceApp[]>("/admin/service-apps");
 
 export const createServiceApp = (body: {
   name: string;
   service_name: string;
   allowed_origins?: string[];
-  kind?: string;
 }) =>
   request<ServiceAppCreateResponse>("/admin/service-apps", {
     method: "POST",

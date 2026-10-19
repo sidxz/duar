@@ -300,7 +300,6 @@ export interface ServiceApp {
   id: string;
   name: string;
   service_name: string;
-  kind: string; // "service" | "mcp_server"
   key_prefix: string;
   is_active: boolean;
   allowed_origins: string[];

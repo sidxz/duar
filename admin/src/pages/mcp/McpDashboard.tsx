@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { getActionsInsights, getServiceActions, getServiceApps } from "../../api/client";
+import { mcpApps } from "./agentTools";
 
 function Tile({ to, value, label }: { to: string; value: number; label: string }) {
   return (
@@ -15,27 +16,19 @@ function Tile({ to, value, label }: { to: string; value: number; label: string }
 }
 
 export function McpDashboard() {
-  const { data: servers = [], isLoading } = useQuery({
-    queryKey: ["mcp-servers"],
-    queryFn: () => getServiceApps("mcp_server"),
-  });
-  const { data: actions = [] } = useQuery({
-    queryKey: ["service-actions"],
-    queryFn: () => getServiceActions(),
-  });
+  const apps = useQuery({ queryKey: ["service-apps"], queryFn: getServiceApps });
+  const actions = useQuery({ queryKey: ["service-actions"], queryFn: () => getServiceActions() });
+  // Every agent-gated action starts with "mcp:", so this is exact across all apps.
   const { data: insights } = useQuery({
-    queryKey: ["actions-insights", 30, "all"],
-    queryFn: () => getActionsInsights(30),
+    queryKey: ["actions-insights", 30, "agent", "all"],
+    queryFn: () => getActionsInsights(30, undefined, "mcp:"),
   });
 
-  const serverNames = new Set(servers.map((s) => s.service_name));
-  const toolCount = actions.filter((a) => serverNames.has(a.service_name)).length;
-  const calls30 =
-    insights?.by_service
-      .filter((s) => serverNames.has(s.service_name))
-      .reduce((sum, s) => sum + s.count, 0) ?? 0;
+  const list = mcpApps(apps.data ?? [], actions.data ?? []);
+  const toolCount = (actions.data ?? []).filter((a) => a.action.startsWith("mcp:")).length;
+  const calls30 = insights?.by_service.reduce((sum, s) => sum + s.count, 0) ?? 0;
 
-  if (isLoading) {
+  if (apps.isLoading || actions.isLoading) {
     return (
       <div className="grid grid-cols-3 gap-4">
         {[0, 1, 2].map((i) => (
@@ -48,36 +41,25 @@ export function McpDashboard() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-3 gap-4">
-        <Tile to="/mcp/servers" value={servers.length} label="MCP servers" />
-        <Tile to="/mcp/servers" value={toolCount} label="Registered tools" />
-        <Tile to="/usage" value={calls30} label="Tool calls (30d)" />
+        <Tile to="/mcp/apps" value={list.length} label="MCP apps" />
+        <Tile to="/mcp/apps" value={toolCount} label="Agent-gated tools" />
+        <Tile to="/mcp/apps" value={calls30} label="Allowed gated-tool calls (30d)" />
       </div>
 
-      {servers.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border bg-card px-4 py-10 text-center">
-          <p className="text-sm text-foreground">No MCP servers registered yet.</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Register an MCP server to let human-driven AI agents call its tools — Duar
-            authorizes every call.
+      <div className="rounded-lg border border-border bg-card p-4">
+        <h2 className="text-sm font-medium">How Duar MCP works</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          An app serves MCP tools from its own API behind its Duar middleware. An agent calls them
+          with the signed-in user's identity, so it can do what that user can do in the app. Tools
+          the app marks as agent-gated also need a grant on <code className="font-mono">mcp:&lt;app&gt;.&lt;tool&gt;</code>,
+          checked live on every call and shown here.
+        </p>
+        {list.length === 0 && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            No app has registered agent-gated tools yet — see the SDK guide's MCP page.
           </p>
-          <Link
-            to="/mcp/servers"
-            className="mt-4 inline-block rounded-md bg-mcp-accent px-3 py-1.5 text-sm font-medium text-mcp-accent-foreground hover:opacity-90"
-          >
-            Register an MCP server
-          </Link>
-        </div>
-      ) : (
-        <div className="rounded-lg border border-border bg-card p-4">
-          <h2 className="text-sm font-medium">How Duar MCP works</h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Each MCP server verifies the user's Duar token, then asks Duar whether that
-            user may call the requested tool in their workspace. Tools are RBAC actions;
-            grant them to principals from a workspace's Roles. Open a server to see its
-            tools, grants, and tool-call audit.
-          </p>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

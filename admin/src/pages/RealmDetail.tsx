@@ -54,11 +54,8 @@ export function RealmDetail() {
   });
 
   const { data: allApps = [] } = useQuery({
-    // Distinct sub-key: the Services page caches ["service-apps","service"]
-    // (kind-filtered); a realm can contain any service app, so fetch all here.
-    // Both are prefix-matched by invalidateQueries(["service-apps"]).
-    queryKey: ["service-apps", "all"],
-    queryFn: () => getServiceApps(),
+    queryKey: ["service-apps"],
+    queryFn: getServiceApps,
   });
 
   const invalidate = () => {

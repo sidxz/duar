@@ -3,7 +3,7 @@ import { Plug } from "lucide-react";
 
 const SUBNAV = [
   { to: "/mcp", label: "Dashboard", end: true },
-  { to: "/mcp/servers", label: "MCP Servers", end: false },
+  { to: "/mcp/apps", label: "MCP Apps", end: false },
 ] as const;
 
 /**
@@ -21,7 +21,7 @@ export function McpLayout() {
         <div>
           <h1 className="text-xl font-semibold leading-tight">Duar MCP</h1>
           <p className="text-xs text-muted-foreground">
-            Authorize AI agents calling MCP tools — every tool call checked against Duar.
+            AI agents call your apps' MCP tools as the signed-in user — gated tools need an agent grant.
           </p>
         </div>
       </header>
