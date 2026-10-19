@@ -88,7 +88,7 @@ def _duar(keys, role: _RoleStub) -> Duar:
 
 
 def _mcp(duar: Duar) -> FastMCP:
-    mcp = FastMCP("t")
+    mcp = FastMCP("t", mask_error_details=True)
 
     @mcp.tool
     def whoami_tool() -> str:
@@ -99,6 +99,11 @@ def _mcp(duar: Duar) -> FastMCP:
     def secret_tool() -> str:
         """Gated tool."""
         return "secret"
+
+    @mcp.tool
+    def broken_tool() -> str:
+        """Fails with an internal error."""
+        raise RuntimeError("connection to db-internal:5432 refused")
 
     return mcp
 
@@ -165,7 +170,9 @@ def test_startup_registers_gated_tools(keys):
     assert role.register_calls == [[{"action": "mcp:team-notes.secret_tool", "description": "Gated tool."}]]
 
 
-def test_startup_sync_failure_does_not_block_app(keys, idp_token):
+def test_registration_rejected_by_duar_does_not_block_app(keys, idp_token):
+    # Duar reachable but registration fails (e.g. 5xx): app starts, gated tools deny.
+    # (Duar unreachable fails earlier, in duar.lifespan's key fetch — unchanged by MCP.)
     role = _RoleStub(allowed=False, register_error=DuarError("down", 503))
     with TestClient(_mounted(_duar(keys, role))) as client:
         assert _result(_rpc(client, "whoami_tool", _auth(idp_token)))["isError"] is False
@@ -190,6 +197,27 @@ def test_mounting_same_server_twice_checks_once(keys, idp_token):
     with TestClient(app) as client:
         assert _result(_rpc(client, "secret_tool", _auth(idp_token)))["isError"] is False
     assert len(role.check_calls) == 1
+
+
+def test_tool_errors_are_masked(keys, idp_token):
+    with TestClient(_mounted(_duar(keys, _RoleStub()))) as client:
+        result = _result(_rpc(client, "broken_tool", _auth(idp_token)))
+    assert result["isError"] is True
+    assert "db-internal" not in json.dumps(result)
+
+
+def test_gate_denial_message_survives_masking(keys, idp_token):
+    with TestClient(_mounted(_duar(keys, _RoleStub(allowed=False)))) as client:
+        result = _result(_rpc(client, "secret_tool", _auth(idp_token)))
+    assert "Not permitted" in result["content"][0]["text"]
+
+
+def test_mount_requires_error_masking(keys):
+    duar = _duar(keys, _RoleStub())
+    app = FastAPI()
+    duar.protect(app)
+    with pytest.raises(RuntimeError, match="mask_error_details=True"):
+        mount_mcp(app, FastMCP("unmasked"), duar)
 
 
 def test_mount_requires_protect(keys):

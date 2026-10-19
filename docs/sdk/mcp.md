@@ -31,7 +31,7 @@ duar = Duar(
 app = FastAPI(lifespan=duar.lifespan)
 duar.protect(app)
 
-mcp = FastMCP("team-notes")
+mcp = FastMCP("team-notes", mask_error_details=True)   # never return internal error text to agents
 
 
 @mcp.tool
@@ -55,13 +55,14 @@ mount_mcp(app, mcp, duar)   # call after duar.protect(app)
 
 `mount_mcp(app, mcp, duar, path="/mcp")`:
 
-- serves the tools at **`/mcp/`** (a request to `/mcp` is redirected there; MCP clients follow it),
+- serves the tools at **`/mcp/`** — configure MCP clients with the trailing slash. A request to `/mcp` gets a
+  redirect, and behind a TLS-terminating proxy that redirect can point at `http://` and drop the `Authorization` header,
 - always uses **stateless** streamable HTTP — every request carries its own credentials,
 - adds the Duar gate (every tool call needs an authenticated user; gated tools need their agent grant),
 - runs FastMCP's lifespan inside your app's lifespan, and
 - registers your agent-gated tools with Duar at startup, after `duar.lifespan` has fetched keys and discovered the realm.
 
-It raises `RuntimeError` unless the app runs Duar in AuthZ mode with `auto_resolve=True` (callers authenticate with the user's IdP token plus `X-Workspace-Id`) and is protected by `duar.protect(app)`.
+It raises `RuntimeError` unless the app runs Duar in AuthZ mode with `auto_resolve=True` (callers authenticate with the user's IdP token plus `X-Workspace-Id`), is protected by `duar.protect(app)`, and the FastMCP server is created with `mask_error_details=True`. Masking keeps exception text (hosts, SQL, paths) from reaching agents: a tool's `ToolError` message — including the gate's "Not permitted" — is returned as written, any other exception (an app helper's `HTTPException` too) as a generic tool error.
 
 Inside a tool, `duar.request_auth(get_http_request())` returns the request's `RequestAuth`, so the tool can call the same use cases, `check_action`, `can` and `accessible` your routes use.
 

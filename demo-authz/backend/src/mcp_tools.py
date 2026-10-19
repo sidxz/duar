@@ -15,7 +15,9 @@ from duar_auth.mcp import AGENT_GATED
 from src.config import duar
 from src.models import notes
 
-mcp = FastMCP("team-notes")
+mcp = FastMCP(
+    "team-notes", mask_error_details=True
+)  # never return internal error text to agents
 
 
 @mcp.tool

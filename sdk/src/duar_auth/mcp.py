@@ -155,6 +155,10 @@ def mount_mcp(app: Starlette, mcp: FastMCP, duar: Duar, path: str = "/mcp") -> N
         raise RuntimeError("mount_mcp needs Duar(mode='authz', auto_resolve=True, idp_provider=...)")
     if not any(m.cls is AuthzMiddleware for m in app.user_middleware):
         raise RuntimeError("call duar.protect(app) before mount_mcp(...)")
+    # Unmasked, a tool's exception text (hosts, SQL, paths) is returned to the MCP caller.
+    # Read defensively: if FastMCP renames the setting, refuse rather than leak.
+    if not getattr(mcp, "_mask_error_details", False):
+        raise RuntimeError("mount_mcp needs FastMCP(..., mask_error_details=True)")
 
     # One gate per server even if mount_mcp runs twice on it (e.g. the app's main module
     # executed twice under uvicorn reload) — a second gate would double every Duar check.
