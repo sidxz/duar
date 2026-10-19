@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 import httpx
 
-from duar_auth._utils import warn_if_insecure
+from duar_auth._utils import LoopLocalClient, warn_if_insecure
 from duar_auth.types import DuarError
 
 
@@ -113,9 +113,13 @@ class PermissionClient:
         self.base_url = base_url.rstrip("/")
         self.service_name = service_name
         self.service_key = service_key
-        self._client = httpx.AsyncClient(base_url=self.base_url, timeout=5.0)
+        self._http = LoopLocalClient(base_url=self.base_url, timeout=5.0)
         self._cache: _TTLCache | None = _TTLCache(ttl=cache_ttl) if cache_ttl > 0 else None
         warn_if_insecure(self.base_url, "PermissionClient")
+
+    @property
+    def _client(self) -> httpx.AsyncClient:
+        return self._http.get()
 
     def __repr__(self) -> str:
         return f"PermissionClient(base_url={self.base_url!r}, service_name={self.service_name!r})"
@@ -463,7 +467,7 @@ class PermissionClient:
         return response.json()
 
     async def close(self):
-        await self._client.aclose()
+        await self._http.aclose()
 
     async def __aenter__(self):
         return self

@@ -4,7 +4,7 @@ import uuid
 
 import httpx
 
-from duar_auth._utils import warn_if_insecure
+from duar_auth._utils import LoopLocalClient, warn_if_insecure
 from duar_auth.types import DuarError
 
 
@@ -18,16 +18,14 @@ class AuthzClient:
     def __init__(self, base_url: str, service_key: str):
         self.base_url = base_url.rstrip("/")
         self.service_key = service_key
-        self._client: httpx.AsyncClient | None = None
+        self._http = LoopLocalClient(timeout=10.0)
         warn_if_insecure(self.base_url, "AuthzClient")
 
     def __repr__(self) -> str:
         return f"AuthzClient(base_url={self.base_url!r})"
 
     async def _get_client(self) -> httpx.AsyncClient:
-        if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(timeout=10.0)
-        return self._client
+        return self._http.get()
 
     def _headers(self) -> dict[str, str]:
         return {"X-Service-Key": self.service_key}
@@ -78,8 +76,7 @@ class AuthzClient:
         return resp.json()
 
     async def close(self) -> None:
-        if self._client and not self._client.is_closed:
-            await self._client.aclose()
+        await self._http.aclose()
 
     async def __aenter__(self):
         return self
