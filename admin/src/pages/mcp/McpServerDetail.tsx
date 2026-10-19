@@ -13,7 +13,6 @@ import {
 import { StatusBadge } from "../../components/Badge";
 import { ConfirmModal } from "../../components/ConfirmModal";
 import { Modal } from "../../components/Modal";
-import { BarList } from "../../components/charts";
 import { Button } from "@/components/ui/button";
 import type { ServiceAppCreateResponse } from "../../types/api";
 
@@ -157,10 +156,10 @@ function AuditTab({ serviceName }: { serviceName: string }) {
 
   if (isLoading || !data) return <div className="h-40 bg-muted/50 rounded-lg animate-pulse" />;
 
+  // by_service is the unlimited per-service rollup, so this count is exact for
+  // this server. (top_actions is a global top-20 and can't be reliably scoped to
+  // one service — the per-tool breakdown lives behind "Full usage".)
   const calls = data.by_service.find((s) => s.service_name === serviceName)?.count ?? 0;
-  const topTools: [string, number][] = data.top_actions
-    .filter((a) => a.service_name === serviceName)
-    .map((a) => [a.action, a.count]);
 
   return (
     <div className="space-y-4">
@@ -196,17 +195,17 @@ function AuditTab({ serviceName }: { serviceName: string }) {
         <div className="mt-1 text-xs text-muted-foreground">
           Allowed tool calls in the last {days} days
         </div>
-      </div>
-
-      <div className="rounded-lg border border-border bg-card p-4">
-        <h3 className="mb-2 text-sm font-medium text-muted-foreground">Top tools</h3>
-        {topTools.length === 0 ? (
-          <div className="h-24 flex items-center justify-center text-sm text-muted-foreground">
-            No tool calls recorded yet for this server.
-          </div>
-        ) : (
-          <BarList rows={topTools} labelWidth={160} />
-        )}
+        <p className="mt-3 text-xs text-muted-foreground">
+          Per-tool breakdown is in{" "}
+          <Link to="/usage" className="text-mcp-accent hover:underline">
+            Full usage
+          </Link>
+          ; denied calls are in{" "}
+          <Link to="/activity" className="text-mcp-accent hover:underline">
+            Activity
+          </Link>
+          .
+        </p>
       </div>
     </div>
   );
@@ -245,6 +244,8 @@ export function McpServerDetail() {
     onSuccess: () => {
       setShowDelete(false);
       queryClient.invalidateQueries({ queryKey: ["mcp-servers"] });
+      // Realm picker lists all apps under ["service-apps","all"] (prefix match).
+      queryClient.invalidateQueries({ queryKey: ["service-apps"] });
       toast.success("MCP server and its permissions deleted");
       navigate("/mcp/servers");
     },
@@ -347,6 +348,7 @@ export function McpServerDetail() {
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
+            aria-pressed={tab === t.key}
             className={`-mb-px border-b-2 px-3 py-2 text-sm transition-colors ${
               tab === t.key
                 ? "border-mcp-accent text-foreground font-medium"

@@ -72,6 +72,8 @@ export function McpServers() {
       }),
     onSuccess: (result: ServiceAppCreateResponse) => {
       queryClient.invalidateQueries({ queryKey: ["mcp-servers"] });
+      // Realm picker lists all apps under ["service-apps","all"] (prefix match).
+      queryClient.invalidateQueries({ queryKey: ["service-apps"] });
       setShowCreate(false);
       setForm({ name: "", service_name: "" });
       toast.success("MCP server registered");

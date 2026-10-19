@@ -60,7 +60,9 @@ export function ServiceApps() {
   const [revealKey, setRevealKey] = useState<string | null>(null);
 
   const { data: apps = [], isLoading, error } = useQuery({
-    queryKey: ["service-apps"],
+    // Distinct sub-key from the realm picker's ["service-apps","all"] so the
+    // kind-filtered list never shares a cache entry with the unfiltered one.
+    queryKey: ["service-apps", "service"],
     // Plain service apps only — MCP servers live in the Duar MCP console.
     queryFn: () => getServiceApps("service"),
   });

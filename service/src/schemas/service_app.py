@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -22,7 +23,8 @@ class ServiceAppCreateRequest(BaseModel):
     allowed_idp_audiences: list[str] = Field(default_factory=list)
     # "service" (default) or "mcp_server" (Duar MCP). Marks the app as an MCP server
     # so the sub-branded console lists it; the auth tiers treat both identically.
-    kind: str = "service"
+    # Constrained so an unknown value can't persist and then match neither list filter.
+    kind: Literal["service", "mcp_server"] = "service"
 
     @field_validator("allowed_origins", mode="before")
     @classmethod

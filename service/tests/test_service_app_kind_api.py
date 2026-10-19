@@ -19,6 +19,7 @@ from datetime import UTC, datetime
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 from slowapi.errors import RateLimitExceeded
 
 from src.api.admin_routes import router as admin_router
@@ -83,6 +84,13 @@ def test_create_request_accepts_kind_and_defaults_to_service():
         ).kind
         == "mcp_server"
     )
+
+
+def test_create_request_rejects_unknown_kind():
+    """Only the two known kinds are valid — an arbitrary value would persist and
+    then match neither list filter, making the app unmanageable from both consoles."""
+    with pytest.raises(ValidationError):
+        ServiceAppCreateRequest(name="X", service_name="x-svc", kind="banana")
 
 
 # ---------------------------------------------------------------------------
