@@ -380,13 +380,16 @@ export const deleteClientApp = (id: string) =>
 
 // ── Service Apps ────────────────────────────────────────────────────
 
-export const getServiceApps = () =>
-  request<ServiceApp[]>("/admin/service-apps");
+export const getServiceApps = (kind?: string) =>
+  request<ServiceApp[]>(
+    `/admin/service-apps${kind ? `?kind=${encodeURIComponent(kind)}` : ""}`,
+  );
 
 export const createServiceApp = (body: {
   name: string;
   service_name: string;
   allowed_origins?: string[];
+  kind?: string;
 }) =>
   request<ServiceAppCreateResponse>("/admin/service-apps", {
     method: "POST",

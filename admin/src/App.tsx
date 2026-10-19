@@ -9,6 +9,10 @@ import { ClientApps } from "./pages/ClientApps";
 import { ActionsInsightsPage } from "./pages/ActionsInsights";
 import { Dashboard } from "./pages/Dashboard";
 import { Insights } from "./pages/Insights";
+import { McpLayout } from "./pages/mcp/McpLayout";
+import { McpDashboard } from "./pages/mcp/McpDashboard";
+import { McpServers } from "./pages/mcp/McpServers";
+import { McpServerDetail } from "./pages/mcp/McpServerDetail";
 import { ServiceAppDetail } from "./pages/ServiceAppDetail";
 import { ServiceApps } from "./pages/ServiceApps";
 import { Permissions } from "./pages/Permissions";
@@ -42,6 +46,11 @@ export default function App() {
           <Route path="/client-apps/:id" element={<ClientAppDetail />} />
           <Route path="/service-apps" element={<ServiceApps />} />
           <Route path="/service-apps/:id" element={<ServiceAppDetail />} />
+          <Route path="/mcp" element={<McpLayout />}>
+            <Route index element={<McpDashboard />} />
+            <Route path="servers" element={<McpServers />} />
+            <Route path="servers/:id" element={<McpServerDetail />} />
+          </Route>
           <Route path="/organizations" element={<Organizations />} />
           <Route path="/organizations/:id" element={<OrganizationDetail />} />
           <Route path="/realms" element={<Realms />} />

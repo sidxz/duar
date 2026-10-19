@@ -55,7 +55,7 @@ export function RealmDetail() {
 
   const { data: allApps = [] } = useQuery({
     queryKey: ["service-apps"],
-    queryFn: getServiceApps,
+    queryFn: () => getServiceApps(),
   });
 
   const invalidate = () => {

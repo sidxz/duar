@@ -61,7 +61,8 @@ export function ServiceApps() {
 
   const { data: apps = [], isLoading, error } = useQuery({
     queryKey: ["service-apps"],
-    queryFn: getServiceApps,
+    // Plain service apps only — MCP servers live in the Duar MCP console.
+    queryFn: () => getServiceApps("service"),
   });
 
   const create = useMutation({

@@ -35,6 +35,9 @@
   --sidebar-active: #bd1414;
   --sidebar-hover: #e01e1e;
   --sidebar-muted: #ffd1d1;
+  /* Duar MCP sub-brand accent (violet) — distinct from the red admin brand */
+  --mcp-accent: #6d4aff;
+  --mcp-accent-foreground: #ffffff;
   /* chart palette — validated (CVD + contrast) against --card per theme */
   --chart-series: #2a78d6;
   --chart-critical: #d03b3b;
@@ -73,6 +76,9 @@
   --sidebar-active: #bd1414;
   --sidebar-hover: #e01e1e;
   --sidebar-muted: #ffd1d1;
+  /* Duar MCP sub-brand accent — lifted for the dark surface */
+  --mcp-accent: #8b6dff;
+  --mcp-accent-foreground: #ffffff;
   /* chart palette — blue re-stepped for the dark surface */
   --chart-series: #3987e5;
   --chart-critical: #d03b3b;
@@ -112,6 +118,8 @@
   --color-sidebar-muted: var(--sidebar-muted);
   --color-chart-series: var(--chart-series);
   --color-chart-critical: var(--chart-critical);
+  --color-mcp-accent: var(--mcp-accent);
+  --color-mcp-accent-foreground: var(--mcp-accent-foreground);
 
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
