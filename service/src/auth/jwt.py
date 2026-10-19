@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 
 import jwt
@@ -105,10 +106,11 @@ def create_authz_token(
     org_id: str | None,
     org_slug: str | None,
     org_is_public: bool,
+    groups: Sequence[uuid.UUID] = (),
 ) -> str:
     """Create a short-lived authorization-only JWT.
 
-    This token carries workspace role and RBAC actions but NOT identity.
+    This token carries workspace role, groups and RBAC actions but NOT identity.
     Identity is proven by the IdP token (validated separately).
     The idp_sub claim binds this token to a specific IdP identity.
     The svc claim binds the token to a specific service (prevents cross-service replay).
@@ -124,6 +126,7 @@ def create_authz_token(
         "wslug": workspace_slug,
         "wrole": workspace_role,
         "actions": actions,
+        "groups": [str(g) for g in groups],
         "oid": org_id,
         "oslug": org_slug,
         "opub": org_is_public,

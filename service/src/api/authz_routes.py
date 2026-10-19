@@ -431,10 +431,11 @@ async def resolve(
 
     workspace = await db.get(Workspace, body.workspace_id)
 
-    # 5. Get RBAC actions for this service
+    # 5. Get RBAC actions for this service + the user's groups in this workspace
     actions = await get_user_actions(
         db, user.id, service_ctx.effective_scope, body.workspace_id
     )
+    group_ids = await auth_service.workspace_group_ids(db, user.id, workspace.id)
 
     # 6. Sign authz JWT
     bind_identity(
@@ -460,6 +461,7 @@ async def resolve(
         workspace_role=membership.role,
         actions=actions,
         service_name=service_ctx.effective_scope,
+        groups=group_ids,
         # org is guaranteed non-None here (the 403 gate above rejects an
         # unresolved org), so this always carries real org claims.
         **organization_service.org_claims(org),

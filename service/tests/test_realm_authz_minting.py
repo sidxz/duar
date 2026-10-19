@@ -58,9 +58,12 @@ class _MembershipResult:
     def scalar_one_or_none(self):
         return type("M", (), {"role": "editor"})()
 
+    def all(self):  # the group-id lookup: no groups
+        return []
+
 
 class _FakeDB:
-    """execute() -> the workspace membership row; get() -> the workspace."""
+    """execute() -> the workspace membership row (and no groups); get() -> the workspace."""
 
     def __init__(self, workspace):
         self._workspace = workspace

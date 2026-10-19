@@ -330,6 +330,33 @@ class TestAuthzMiddlewareOrgClaims:
         assert captured_user.org_is_public is False
 
 
+def test_groups_claim_parsed(idp_keypair, duar_keypair, dual_tokens):
+    _, idp_pub = idp_keypair
+    duar_priv, duar_pub = duar_keypair
+    idp_token, authz_token = dual_tokens
+    group_id = uuid.uuid4()
+    payload = pyjwt.decode(authz_token, options={"verify_signature": False})
+    authz_token = pyjwt.encode({**payload, "groups": [str(group_id)]}, duar_priv, algorithm="RS256")
+
+    async def protected(request: Request) -> JSONResponse:
+        return JSONResponse({"groups": [str(g) for g in request.state.user.groups]})
+
+    app = Starlette(routes=[Route("/protected", protected)])
+    app.add_middleware(
+        AuthzMiddleware,
+        service_name=TEST_SERVICE_NAME,
+        idp_audience=TEST_IDP_AUDIENCE,
+        idp_public_key=idp_pub,
+        duar_public_key=duar_pub,
+    )
+    resp = TestClient(app).get(
+        "/protected",
+        headers={"Authorization": f"Bearer {idp_token}", "X-Authz-Token": authz_token},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["groups"] == [str(group_id)]
+
+
 class _FakeDuar:
     """Minimal stand-in exposing what AuthzMiddleware reads from a Duar."""
 
