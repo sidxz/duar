@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Button } from "../components/ui/button";
@@ -8,18 +9,35 @@ import { StatusBadge } from "../components/Badge";
 import { SignInsChart, ActivityMixChart } from "../components/charts";
 import type { ActivityDailyCount, ActivityLog } from "../types/api";
 
+const AUTO_REFRESH_MS = 30_000;
+const AUTO_REFRESH_KEY = "dashboard-auto-refresh";
+
+function readAutoRefresh() {
+  try { return localStorage.getItem(AUTO_REFRESH_KEY) === "on"; } catch { return false; }
+}
+
 export function Dashboard() {
-  const statsQuery = useQuery({ queryKey: ["stats"], queryFn: getStats });
+  const [autoRefresh, setAutoRefresh] = useState(readAutoRefresh);
+  // Polls only while this tab is visible (React Query pauses intervals in background tabs).
+  const refetchInterval = autoRefresh ? AUTO_REFRESH_MS : false;
+  const statsQuery = useQuery({ queryKey: ["stats"], queryFn: getStats, refetchInterval });
   const activityQuery = useQuery({
     queryKey: ["activity-dashboard"],
     queryFn: () => getActivity({ page: 1, page_size: 8 }),
+    refetchInterval,
   });
-  const summaryQuery = useQuery({ queryKey: ["activity-summary"], queryFn: () => getActivitySummary(30) });
+  const summaryQuery = useQuery({ queryKey: ["activity-summary"], queryFn: () => getActivitySummary(30), refetchInterval });
   const { data, isLoading, error } = statsQuery;
   const summary = summaryQuery.data;
   const activity = activityQuery.data?.items;
   const refreshing = statsQuery.isFetching || activityQuery.isFetching || summaryQuery.isFetching;
   const refresh = () => { void statsQuery.refetch(); void activityQuery.refetch(); void summaryQuery.refetch(); };
+  const toggleAutoRefresh = () => {
+    const next = !autoRefresh;
+    setAutoRefresh(next);
+    try { localStorage.setItem(AUTO_REFRESH_KEY, next ? "on" : "off"); } catch { /* per-browser preference only */ }
+    if (next) refresh();
+  };
 
   if (isLoading) return <div role="status" aria-label="Loading dashboard" className="space-y-8 animate-pulse"><div className="h-16 w-64 rounded bg-muted" /><div className="h-24 bg-muted" /><div className="h-80 bg-muted" /></div>;
   if (error) return <ErrorState message={error.message} onRetry={refresh} />;
@@ -35,11 +53,23 @@ export function Dashboard() {
 
   return (
     <div>
-      <PageHeader title="Dashboard" description="Users, workspaces, and recent sign-in activity." actions={
-        <Button variant="ghost" size="sm" onClick={refresh} disabled={refreshing}>
-          <RefreshCw className={`size-3.5 ${refreshing ? "animate-spin" : ""}`} />{refreshing ? "Refreshing…" : "Refresh"}
+      <PageHeader title="Dashboard" description="Users, workspaces, and recent sign-in activity." actions={<>
+        {statsQuery.dataUpdatedAt > 0 && (
+          <span className="text-xs text-muted-foreground tabular-nums" aria-live="polite">
+            Updated {new Date(statsQuery.dataUpdatedAt).toLocaleTimeString()}
+          </span>
+        )}
+        <Button
+          variant={autoRefresh ? "secondary" : "ghost"}
+          size="sm"
+          onClick={toggleAutoRefresh}
+          aria-pressed={autoRefresh}
+          title={autoRefresh ? "Stop refreshing every 30 seconds" : "Refresh now and every 30 seconds"}
+        >
+          <RefreshCw className={`size-3.5 ${refreshing ? "animate-spin" : ""}`} />
+          {autoRefresh ? "Refreshing every 30s" : "Auto-refresh off"}
         </Button>
-      } />
+      </>} />
 
       <div className="metric-strip">
         {metrics.map((metric) => (
