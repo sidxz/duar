@@ -1,266 +1,204 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link } from "react-router-dom";
+import { ArrowRight, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
+import { Button } from "../components/ui/button";
+import { PageHeader } from "../components/PageHeader";
+import { detailValue } from "../lib/utils";
 import { getStats, getActivity, getActivitySummary } from "../api/client";
 import { StatusBadge } from "../components/Badge";
 import { SignInsChart, ActivityMixChart } from "../components/charts";
-import type { ActivityLog } from "../types/api";
+import type { ActivityDailyCount, ActivityLog } from "../types/api";
+
+const AUTO_REFRESH_MS = 30_000;
+const AUTO_REFRESH_KEY = "dashboard-auto-refresh";
+
+function readAutoRefresh() {
+  try { return localStorage.getItem(AUTO_REFRESH_KEY) === "on"; } catch { return false; }
+}
 
 export function Dashboard() {
-  const { data, isLoading, error } = useQuery({ queryKey: ["stats"], queryFn: getStats });
-  const { data: activityData } = useQuery({
+  const [autoRefresh, setAutoRefresh] = useState(readAutoRefresh);
+  // Polls only while this tab is visible (React Query pauses intervals in background tabs).
+  const refetchInterval = autoRefresh ? AUTO_REFRESH_MS : false;
+  const statsQuery = useQuery({ queryKey: ["stats"], queryFn: getStats, refetchInterval });
+  const activityQuery = useQuery({
     queryKey: ["activity-dashboard"],
-    queryFn: () => getActivity({ page: 1, page_size: 15 }),
+    queryFn: () => getActivity({ page: 1, page_size: 8 }),
+    refetchInterval,
   });
-  const { data: summary } = useQuery({
-    queryKey: ["activity-summary"],
-    queryFn: () => getActivitySummary(30),
-  });
-  const activity = activityData?.items;
+  const summaryQuery = useQuery({ queryKey: ["activity-summary"], queryFn: () => getActivitySummary(30), refetchInterval });
+  const { data, isLoading, error } = statsQuery;
+  const summary = summaryQuery.data;
+  const activity = activityQuery.data?.items;
+  const refreshing = statsQuery.isFetching || activityQuery.isFetching || summaryQuery.isFetching;
+  const refresh = () => { void statsQuery.refetch(); void activityQuery.refetch(); void summaryQuery.refetch(); };
+  const toggleAutoRefresh = () => {
+    const next = !autoRefresh;
+    setAutoRefresh(next);
+    try { localStorage.setItem(AUTO_REFRESH_KEY, next ? "on" : "off"); } catch { /* per-browser preference only */ }
+    if (next) refresh();
+  };
 
-  if (isLoading) return <Skeleton />;
-  if (error) return <ErrorState message={(error as Error).message} />;
+  if (isLoading) return <div role="status" aria-label="Loading dashboard" className="space-y-8 animate-pulse"><div className="h-16 w-64 rounded bg-muted" /><div className="h-24 bg-muted" /><div className="h-80 bg-muted" /></div>;
+  if (error) return <ErrorState message={error.message} onRetry={refresh} />;
   if (!data) return null;
 
-  const cards = [
-    { label: "Active Users", value: data.active_users, href: "/users" },
-    { label: "Inactive Users", value: data.inactive_users, href: "/users", dim: true },
+  const metrics = [
+    { label: "Active users", value: data.active_users, href: "/users" },
+    { label: "Inactive users", value: data.inactive_users, href: "/users" },
     { label: "Workspaces", value: data.total_workspaces, href: "/workspaces" },
     { label: "Groups", value: data.total_groups, href: "/workspaces" },
     { label: "Resources", value: data.total_resources, href: "/permissions" },
   ];
 
   return (
-    <div className="space-y-8">
-      <h1 className="text-xl font-semibold">Dashboard</h1>
+    <div>
+      <PageHeader title="Dashboard" description="Users, workspaces, and recent sign-in activity." actions={<>
+        {statsQuery.dataUpdatedAt > 0 && (
+          <span className="text-xs text-muted-foreground tabular-nums" aria-live="polite">
+            Updated {new Date(statsQuery.dataUpdatedAt).toLocaleTimeString()}
+          </span>
+        )}
+        <Button
+          variant={autoRefresh ? "secondary" : "ghost"}
+          size="sm"
+          onClick={toggleAutoRefresh}
+          aria-pressed={autoRefresh}
+          title={autoRefresh ? "Stop refreshing every 30 seconds" : "Refresh now and every 30 seconds"}
+        >
+          <RefreshCw className={`size-3.5 ${refreshing ? "animate-spin" : ""}`} />
+          {autoRefresh ? "Refreshing every 30s" : "Auto-refresh off"}
+        </Button>
+      </>} />
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-5 gap-4">
-        {cards.map((c) => (
-          <Link
-            key={c.label}
-            to={c.href}
-            className="rounded-lg border border-border bg-card p-5 transition-colors hover:bg-muted/50"
-          >
-            <div className={`text-2xl font-bold tabular-nums ${c.dim ? "text-muted-foreground" : ""}`}>
-              {c.value}
+      <div className="metric-strip">
+        {metrics.map((metric) => (
+          <Link key={metric.label} to={metric.href} className="group">
+            <p className="text-xs text-muted-foreground">{metric.label}</p>
+            <div className="mt-2 flex items-center gap-3">
+              <span className="text-[1.75rem] font-medium tracking-tight tabular-nums">{metric.value.toLocaleString()}</span>
+              <ArrowRight className="size-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
             </div>
-            <div className="text-xs text-muted-foreground mt-1">{c.label}</div>
           </Link>
         ))}
       </div>
 
-      {summary ? (
-        <SecuritySignalsCard items={summary.items} days={summary.days} />
-      ) : (
-        <div className="h-28 bg-muted/50 rounded-lg animate-pulse" />
-      )}
+      <div className="overview-layout">
+        <div className="overview-main">
+          <section className="overview-section">
+            <div className="section-heading">
+              <div><h2 className="section-title">Sign-in activity</h2><p className="mt-1 text-xs text-muted-foreground">Successful and failed sign-ins</p></div>
+              <span className="text-xs text-muted-foreground">Last 30 days</span>
+            </div>
+            {summaryQuery.isError ? <ErrorState message="Couldn’t load sign-in activity." onRetry={() => void summaryQuery.refetch()} /> : summary ? (
+              <SignInsChart items={summary.items} days={summary.days} />
+            ) : <div className="h-48 animate-pulse bg-muted" />}
+          </section>
 
-      {/* Security charts */}
-      <div className="grid grid-cols-2 gap-6">
-        <div className="rounded-lg border border-border bg-card p-4">
-          <div className="flex items-baseline justify-between mb-1">
-            <h2 className="text-sm font-medium text-muted-foreground">Sign-in activity</h2>
-            <span className="text-xs text-muted-foreground">Last 30 days</span>
-          </div>
-          {summary ? (
-            <SignInsChart items={summary.items} days={summary.days} />
-          ) : (
-            <div className="h-40 bg-muted/50 rounded animate-pulse" />
-          )}
+          <section className="overview-section">
+            <div className="section-heading">
+              <h2 className="section-title">Recent activity</h2>
+              <Link to="/activity" className="text-link">Open activity log <ArrowRight className="size-3.5" /></Link>
+            </div>
+            {activityQuery.isError ? <ErrorState message="Couldn’t load recent activity." onRetry={() => void activityQuery.refetch()} /> : !activity ? (
+              <div role="status" aria-label="Loading recent activity" className="h-32 animate-pulse bg-muted" />
+            ) : activity.length === 0 ? <p className="py-6 text-sm text-muted-foreground">No activity recorded yet.</p> : (
+              <div className="divide-y divide-border/60">{activity.map((entry) => <ActivityEntry key={entry.id} entry={entry} />)}</div>
+            )}
+          </section>
+
+          <section className="overview-section">
+            <div className="section-heading">
+              <h2 className="section-title">Top workspaces</h2>
+              <Link to="/workspaces" className="text-link">All workspaces <ArrowRight className="size-3.5" /></Link>
+            </div>
+            {data.top_workspaces.length ? <div className="divide-y divide-border/60">
+              {data.top_workspaces.map((workspace, index) => (
+                <Link key={workspace.id} to={`/workspaces/${workspace.id}`} className="group flex items-center gap-4 py-3">
+                  <span className="w-5 font-mono text-[10px] text-muted-foreground">{String(index + 1).padStart(2, "0")}</span>
+                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium group-hover:text-primary">{workspace.name}</p><p className="mt-0.5 truncate text-xs text-muted-foreground">{workspace.slug}</p></div>
+                  <span className="text-xs text-muted-foreground tabular-nums">{workspace.member_count} members</span>
+                  <ArrowRight className="size-3.5 text-muted-foreground" />
+                </Link>
+              ))}
+            </div> : <p className="py-6 text-sm text-muted-foreground">No workspaces yet.</p>}
+          </section>
         </div>
-        <div className="rounded-lg border border-border bg-card p-4">
-          <div className="flex items-baseline justify-between mb-1">
-            <h2 className="text-sm font-medium text-muted-foreground">Activity mix</h2>
-            <span className="text-xs text-muted-foreground">Last 30 days</span>
-          </div>
-          {summary ? (
+
+        <aside className="overview-rail" aria-label="Security and recent users">
+          <section className="overview-section">
+            {summaryQuery.isError ? <p className="text-sm text-muted-foreground">Security signals are unavailable.</p> : summary ? <SecuritySignals items={summary.items} /> : <div className="h-60 animate-pulse bg-muted" />}
+          </section>
+          {summary && !summaryQuery.isError && <section className="overview-section">
+            <div className="section-heading"><h2 className="section-title">Activity mix</h2><span className="text-xs text-muted-foreground">30 days</span></div>
             <ActivityMixChart items={summary.items} days={summary.days} />
-          ) : (
-            <div className="h-40 bg-muted/50 rounded animate-pulse" />
-          )}
-        </div>
+          </section>}
+          <section className="overview-section">
+            <div className="section-heading"><h2 className="section-title">Recent users</h2><Link to="/users" className="text-link">View all</Link></div>
+            <div className="space-y-4">
+              {data.recent_users.map((user) => (
+                <Link key={user.id} to={`/users/${user.id}`} className="group block">
+                  <div className="flex items-center justify-between gap-2"><p className="truncate text-sm font-medium group-hover:text-primary">{user.name}</p><StatusBadge active={user.is_active} /></div>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">{user.email}</p>
+                </Link>
+              ))}
+              {!data.recent_users.length && <p className="text-sm text-muted-foreground">No users yet.</p>}
+            </div>
+          </section>
+        </aside>
       </div>
-
-      <div className="grid grid-cols-2 gap-6">
-        {/* Top workspaces */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-medium text-muted-foreground">Top Workspaces</h2>
-            <Link to="/workspaces" className="text-xs text-muted-foreground hover:text-foreground">
-              View all &rarr;
-            </Link>
-          </div>
-          <div className="rounded-lg border border-border divide-y divide-border">
-            {data.top_workspaces.map((w) => (
-              <Link
-                key={w.id}
-                to={`/workspaces/${w.id}`}
-                className="flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors"
-              >
-                <div>
-                  <div className="text-sm font-medium">{w.name}</div>
-                  <div className="text-xs text-muted-foreground font-mono">{w.slug}</div>
-                </div>
-                <div className="text-xs text-muted-foreground tabular-nums">
-                  {w.member_count} member{w.member_count !== 1 ? "s" : ""}
-                </div>
-              </Link>
-            ))}
-            {data.top_workspaces.length === 0 && (
-              <div className="px-4 py-8 text-center text-sm text-muted-foreground">No workspaces yet</div>
-            )}
-          </div>
-        </div>
-
-        {/* Recent users */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-medium text-muted-foreground">Recent Users</h2>
-            <Link to="/users" className="text-xs text-muted-foreground hover:text-foreground">
-              View all &rarr;
-            </Link>
-          </div>
-          <div className="rounded-lg border border-border divide-y divide-border">
-            {data.recent_users.map((u) => (
-              <Link
-                key={u.id}
-                to={`/users/${u.id}`}
-                className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors"
-              >
-                <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground shrink-0">
-                  {u.name.charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{u.name}</div>
-                  <div className="text-xs text-muted-foreground truncate">{u.email}</div>
-                </div>
-                <StatusBadge active={u.is_active} />
-              </Link>
-            ))}
-            {data.recent_users.length === 0 && (
-              <div className="px-4 py-8 text-center text-sm text-muted-foreground">No users yet</div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Recent activity */}
-      {activity && activity.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-medium text-muted-foreground">Recent Activity</h2>
-            <Link to="/activity" className="text-xs text-muted-foreground hover:text-foreground">
-              View all &rarr;
-            </Link>
-          </div>
-          <div className="rounded-lg border border-border divide-y divide-border">
-            {activity.map((a) => (
-              <ActivityEntry key={a.id} entry={a} />
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
 function ActivityEntry({ entry }: { entry: ActivityLog }) {
-  const action = entry.action.replace(/_/g, " ");
-  const ago = timeAgo(entry.created_at);
-
   return (
-    <div className="flex items-center gap-3 px-4 py-2.5">
-      <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 shrink-0" />
-      <div className="flex-1 min-w-0 text-sm">
-        <span className="text-foreground">{entry.actor_name ?? entry.actor_email ?? "System"}</span>{" "}
-        <span className="text-muted-foreground">{action}</span>
-        {entry.detail &&
-          Object.entries(entry.detail).map(([k, v]) => (
-            <span key={k} className="text-muted-foreground ml-1">
-              {k}: <span className="text-foreground">{String(v)}</span>
-            </span>
-          ))}
+    <div className="flex items-start gap-4 py-3">
+      <span className="w-14 shrink-0 pt-0.5 font-mono text-[10px] text-muted-foreground" title={new Date(entry.created_at).toLocaleString()}>{timeAgo(entry.created_at)}</span>
+      <div className="min-w-0 flex-1 text-sm">
+        <p className="break-words"><span className="font-medium">{entry.actor_name ?? entry.actor_email ?? "System"}</span><span className="ml-2 text-muted-foreground">{entry.action.replace(/_/g, " ")}</span></p>
+        {entry.detail && Object.entries(entry.detail).length > 0 && <p className="mt-1 break-words text-xs text-muted-foreground">{Object.entries(entry.detail).map(([key, value]) => `${key}: ${detailValue(value)}`).join(" · ")}</p>}
       </div>
-      <span className="text-xs text-muted-foreground shrink-0">{ago}</span>
     </div>
   );
 }
 
-const SIGNAL_TILES = [
+const SIGNALS = [
   { action: "login_impossible_travel", label: "Impossible travel", high: true },
   { action: "credential_stuffing_suspected", label: "Credential stuffing", high: true },
   { action: "login_new_country", label: "New countries", high: false },
   { action: "login_new_device", label: "New devices", high: false },
 ];
 
-function SecuritySignalsCard({ items, days = 30 }: { items: import("../types/api").ActivityDailyCount[]; days?: number }) {
+function SecuritySignals({ items }: { items: ActivityDailyCount[] }) {
   const counts = new Map<string, number>();
-  for (const it of items) counts.set(it.action, (counts.get(it.action) ?? 0) + it.count);
+  for (const item of items) counts.set(item.action, (counts.get(item.action) ?? 0) + item.count);
+  const highRisk = SIGNALS.filter((signal) => signal.high).reduce((sum, signal) => sum + (counts.get(signal.action) ?? 0), 0);
+  const Icon = highRisk ? TriangleAlert : ShieldCheck;
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="flex items-baseline justify-between mb-3">
-        <h2 className="text-sm font-medium text-muted-foreground">Security signals</h2>
-        <span className="text-xs text-muted-foreground">Last {days} days</span>
+    <>
+      <div className="section-heading"><h2 className="section-title">Security signals</h2><span className="text-xs text-muted-foreground">30 days</span></div>
+      <div className={`mb-4 flex items-start gap-2.5 border-l-2 py-1 pl-3 ${highRisk ? "border-destructive text-destructive" : "border-emerald-600 text-emerald-800 dark:text-emerald-400"}`}>
+        <Icon className="mt-0.5 size-4 shrink-0" /><p className="text-xs leading-relaxed">{highRisk ? `${highRisk.toLocaleString()} high-risk events to review` : "No high-risk events recorded"}</p>
       </div>
-      <div className="grid grid-cols-4 gap-3">
-        {SIGNAL_TILES.map((t) => {
-          const n = counts.get(t.action) ?? 0;
-          return (
-            <Link
-              key={t.action}
-              to={`/activity?action=${t.action}`}
-              className="rounded-md border border-border p-3 transition-colors hover:bg-muted/50"
-            >
-              <div
-                className={`text-2xl font-bold tabular-nums ${
-                  n === 0
-                    ? "text-muted-foreground"
-                    : t.high
-                      ? "text-red-600 dark:text-red-400"
-                      : ""
-                }`}
-              >
-                {n}
-              </div>
-              <div className="text-xs text-muted-foreground mt-1">{t.label}</div>
-            </Link>
-          );
-        })}
+      <div className="divide-y divide-border/60">
+        {SIGNALS.map((signal) => <Link key={signal.action} to={`/activity?action=${signal.action}`} className="flex items-center justify-between gap-3 py-2.5 text-xs hover:text-primary">
+          <span>{signal.label}</span><span className={`font-mono tabular-nums ${signal.high && counts.get(signal.action) ? "text-destructive" : "text-muted-foreground"}`}>{(counts.get(signal.action) ?? 0).toLocaleString()}</span>
+        </Link>)}
       </div>
-    </div>
+    </>
   );
 }
 
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
+function timeAgo(date: string) {
+  const minutes = Math.max(0, Math.floor((Date.now() - new Date(date).getTime()) / 60000));
+  if (minutes < 1) return "now";
+  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`;
+  return `${Math.floor(minutes / 1440)}d ago`;
 }
 
-function Skeleton() {
-  return (
-    <div className="space-y-8 animate-pulse">
-      <div className="h-6 w-32 bg-muted rounded" />
-      <div className="grid grid-cols-5 gap-4">
-        {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="h-20 bg-muted rounded-lg" />
-        ))}
-      </div>
-      <div className="h-48 bg-muted rounded-lg" />
-    </div>
-  );
-}
-
-function ErrorState({ message }: { message: string }) {
-  return (
-    <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-6 text-center">
-      <div className="text-sm text-red-600 dark:text-red-400">Failed to load dashboard</div>
-      <div className="text-xs text-red-500/70 mt-1">{message}</div>
-    </div>
-  );
+function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return <div role="alert" className="border-l-2 border-destructive/50 py-3 pl-4"><p className="text-sm font-medium">Unable to load data</p><p className="mt-1 text-xs text-muted-foreground">{message}</p><Button variant="outline" size="sm" className="mt-3" onClick={onRetry}>Try again</Button></div>;
 }

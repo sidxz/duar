@@ -54,7 +54,7 @@ export function Login() {
         <img src="splash.png" alt="Duar" className="w-full object-cover" />
         <div className="px-8 pb-8 space-y-6">
           <div className="text-center">
-            <p className="mt-1 text-sm text-muted-foreground">Sign in to access the admin panel</p>
+            <p className="mt-1 text-sm text-muted-foreground">Sign in to Duar.io admin</p>
           </div>
 
           {error && (
@@ -83,7 +83,7 @@ export function Login() {
             })}
             {providers.length === 0 && (
               <p className="text-center text-sm text-muted-foreground">
-                No OAuth providers configured. Check your .env file.
+                No sign-in providers are available. Check the OAuth configuration.
               </p>
             )}
           </div>

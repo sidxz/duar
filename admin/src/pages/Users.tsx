@@ -2,13 +2,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { Download, Upload } from "lucide-react";
 import { bulkUserStatus, exportUsers, getUsers } from "../api/client";
 import { StatusBadge } from "../components/Badge";
 import { ConfirmModal } from "../components/ConfirmModal";
 import { CsvImportModal } from "../components/CsvImportModal";
 import { DataTable } from "../components/DataTable";
+import { TableIdentity } from "../components/TableIdentity";
+import { PageHeader } from "../components/PageHeader";
 import { SearchInput } from "../components/SearchInput";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { User } from "../types/api";
 
 export function Users() {
@@ -19,6 +23,7 @@ export function Users() {
   const [showImport, setShowImport] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState<"activate" | "deactivate" | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["users", page, search],
@@ -28,8 +33,10 @@ export function Users() {
   const bulkMutation = useMutation({
     mutationFn: ({ ids, active }: { ids: string[]; active: boolean }) =>
       bulkUserStatus(ids, active),
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
+      toast.success(`${result.affected} users updated`);
       setSelectedIds(new Set());
       setBulkAction(null);
     },
@@ -46,7 +53,7 @@ export function Users() {
 
   const toggleAll = () => {
     if (!data) return;
-    if (selectedIds.size === data.items.length) {
+    if (data.items.every((user) => selectedIds.has(user.id))) {
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(data.items.map((u) => u.id)));
@@ -57,21 +64,17 @@ export function Users() {
     {
       key: "select",
       header: (
-        <input
-          type="checkbox"
-          checked={!!data && data.items.length > 0 && selectedIds.size === data.items.length}
-          onChange={toggleAll}
-          className="rounded border-border bg-background"
-          onClick={(e) => e.stopPropagation()}
+        <Checkbox
+          aria-label="Select all users on this page"
+          checked={data?.items.length && data.items.every((user) => selectedIds.has(user.id)) ? true : selectedIds.size > 0 ? "indeterminate" : false}
+          onCheckedChange={toggleAll}
         />
-      ) as unknown as string,
+      ),
       render: (u: User) => (
-        <input
-          type="checkbox"
+        <Checkbox
+          aria-label={`Select ${u.name}`}
           checked={selectedIds.has(u.id)}
-          onChange={() => toggleSelect(u.id)}
-          onClick={(e) => e.stopPropagation()}
-          className="rounded border-border bg-background"
+          onCheckedChange={() => toggleSelect(u.id)}
         />
       ),
       className: "w-10",
@@ -79,17 +82,7 @@ export function Users() {
     {
       key: "name",
       header: "User",
-      render: (u: User) => (
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground shrink-0">
-            {u.name.charAt(0).toUpperCase()}
-          </div>
-          <div>
-            <div className="font-medium text-sm text-foreground">{u.name}</div>
-            <div className="text-xs text-muted-foreground font-mono">{u.email}</div>
-          </div>
-        </div>
-      ),
+      render: (u: User) => <TableIdentity name={u.name} detail={u.email} seed={u.id} />,
     },
     {
       key: "status",
@@ -100,7 +93,7 @@ export function Users() {
     {
       key: "workspaces",
       header: "Workspaces",
-      render: (u: User) => <span className="text-muted-foreground tabular-nums">{u.workspace_count}</span>,
+      render: (u: User) => <span className="table-count">{u.workspace_count}</span>,
       className: "w-28",
     },
     {
@@ -114,18 +107,23 @@ export function Users() {
   ];
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Users</h1>
-        <div className="flex items-center gap-3">
-          <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search users..." />
-          <Button variant="outline" size="sm" onClick={() => exportUsers()}>
-            Export CSV
+    <div>
+      <PageHeader title="Users" actions={<>
+          <Button variant="outline" disabled={exporting} onClick={async () => {
+            setExporting(true);
+            try { await exportUsers(); } catch (error) { toast.error(error instanceof Error ? error.message : "Export failed"); }
+            finally { setExporting(false); }
+          }}>
+            <Download className="size-4" />{exporting ? "Exporting…" : "Export CSV"}
           </Button>
-          <Button size="sm" onClick={() => setShowImport(true)}>
-            + Import CSV
+          <Button onClick={() => setShowImport(true)}>
+            <Upload className="size-4" />Import CSV
           </Button>
-        </div>
+      </>} />
+
+      <div className="collection-toolbar">
+        <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); setSelectedIds(new Set()); }} placeholder="Search users by name or email…" />
+        <span role="status" className="text-xs text-muted-foreground">{data ? `${data.total.toLocaleString()} ${search ? "matches" : "people"}` : error ? "Count unavailable" : "Loading…"}</span>
       </div>
 
       {isLoading ? (
@@ -135,19 +133,21 @@ export function Users() {
           <DataTable
             columns={columns}
             data={data?.items ?? []}
+            getRowKey={(u) => u.id}
+            isRowSelected={(u) => selectedIds.has(u.id)}
             onRowClick={(u) => navigate(`/users/${u.id}`)}
-            emptyMessage="No users found"
+            emptyMessage={search ? "No users match your search. Try a different name or email." : "No users found. Import users from a CSV file."}
             error={error}
           />
           {data && data.total > data.page_size && (
-            <Pagination page={data.page} total={data.total} pageSize={data.page_size} onChange={setPage} />
+            <Pagination page={data.page} total={data.total} pageSize={data.page_size} onChange={(next) => { setPage(next); setSelectedIds(new Set()); }} />
           )}
         </>
       )}
 
       {/* Bulk action bar */}
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-card border border-border rounded-lg px-4 py-2.5 flex items-center gap-3 shadow-xl z-50">
+        <div className="sticky bottom-4 z-10 mx-auto flex w-fit max-w-full flex-wrap items-center justify-center gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-xl">
           <span className="text-sm text-foreground">{selectedIds.size} selected</span>
           <button
             onClick={() => setBulkAction("activate")}
@@ -174,7 +174,7 @@ export function Users() {
           })
         }
         title={bulkAction === "activate" ? "Activate Users" : "Deactivate Users"}
-        message={`Are you sure you want to ${bulkAction} ${selectedIds.size} user(s)?`}
+        message={`${bulkAction === "activate" ? "Activate" : "Deactivate"} ${selectedIds.size} ${selectedIds.size === 1 ? "user" : "users"}?`}
         confirmLabel={bulkAction === "activate" ? "Activate" : "Deactivate"}
         danger={bulkAction === "deactivate"}
         isPending={bulkMutation.isPending}
@@ -192,8 +192,8 @@ export function Users() {
 function Pagination({ page, total, pageSize, onChange }: { page: number; total: number; pageSize: number; onChange: (p: number) => void }) {
   const totalPages = Math.ceil(total / pageSize);
   return (
-    <div className="flex items-center justify-between text-xs text-muted-foreground">
-      <span>{total} total</span>
+    <div className="collection-footer">
+      <span>{(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total.toLocaleString()}</span>
       <div className="flex items-center gap-1">
         <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => onChange(page - 1)}>Prev</Button>
         <span className="px-2 py-1">{page} / {totalPages}</span>

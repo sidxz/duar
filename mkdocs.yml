@@ -103,6 +103,7 @@ nav:
     - Permissions: sdk/permissions.md
     - Roles: sdk/roles.md
     - Realms & M2M: sdk/realms.md
+    - MCP (Agents): sdk/mcp.md
     - DDD / Clean Architecture: sdk/ddd.md
   - JS/TS SDK:
     - js-sdk/index.md

@@ -3,7 +3,7 @@ from importlib.metadata import version
 from duar_auth.auth import RequestAuth, SystemAuth
 from duar_auth.authz import AuthzClient
 from duar_auth.authz_middleware import AuthzMiddleware
-from duar_auth.dependencies import get_token
+from duar_auth.dependencies import forward_headers, get_token
 from duar_auth.duar import Duar
 from duar_auth.middleware import JWTAuthMiddleware
 from duar_auth.permissions import PermissionClient
@@ -26,5 +26,6 @@ __all__ = [
     "WorkspaceContext",
     "__version__",
     "create_proxy_router",
+    "forward_headers",
     "get_token",
 ]

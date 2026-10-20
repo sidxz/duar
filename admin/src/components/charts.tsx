@@ -128,18 +128,21 @@ export function DailyStackChart({
             </BarChart>
           </ResponsiveContainer>
 
-          {/* table fallback: every value reachable without hover */}
-          <table className="sr-only">
-            <caption>{`Daily ${okLabel.toLowerCase()} and ${failLabel.toLowerCase()}, last ${days} days`}</caption>
-            <thead>
-              <tr><th>Day</th><th>{okLabel}</th><th>{failLabel}</th></tr>
-            </thead>
-            <tbody>
-              {data.map((d) => (
-                <tr key={d.day}><td>{d.day}</td><td>{d.ok}</td><td>{d.fail}</td></tr>
-              ))}
-            </tbody>
-          </table>
+          {/* table fallback: every value reachable without hover. The sr-only box is a div:
+              a table ignores sr-only's 1px height and would stretch the page. */}
+          <div className="sr-only">
+            <table>
+              <caption>{`Daily ${okLabel.toLowerCase()} and ${failLabel.toLowerCase()}, last ${days} days`}</caption>
+              <thead>
+                <tr><th>Day</th><th>{okLabel}</th><th>{failLabel}</th></tr>
+              </thead>
+              <tbody>
+                {data.map((d) => (
+                  <tr key={d.day}><td>{d.day}</td><td>{d.ok}</td><td>{d.fail}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
     </div>

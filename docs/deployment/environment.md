@@ -147,7 +147,7 @@ service app's allowed IdP audiences. See
 | Variable | Default | Required |
 |----------|---------|----------|
 | `SELF_SERVE_ENABLED` | `false` | No |
-| `SELF_SERVE_MAX_WORKSPACES_PER_USER` | `1` | No |
+| `SELF_SERVE_MAX_WORKSPACES_PER_USER` | `3` | No |
 | `SELF_SERVE_MAX_CREATES_PER_HOUR` | `30` | No |
 
 With the flag on, also register `{BASE_URL}/onboard/callback/{provider}` as a
