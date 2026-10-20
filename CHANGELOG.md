@@ -12,13 +12,43 @@ For versions prior to `0.11.0`, see the git tag history (`git log --oneline -- s
 
 <!-- Add next-version entries here -->
 
+---
+
+## [1.5.1] - 2026-10-19 — Group shares in AuthZ mode
+
+### Fixed
+- service: authz tokens minted by `/authz/resolve` carry a `groups` claim (the user's group ids in the token's workspace), as access tokens do. Resources shared with a group now resolve for AuthZ-mode callers on `/permissions/check` and `/permissions/accessible`; before, only direct user shares did. Group membership changes apply from the next minted authz token. Minting adds one query; the check path adds none.
+- Python SDK: `AuthzMiddleware` fills `AuthenticatedUser.groups` from the claim.
+- JS SDK: `authzTokenToUser` fills `DuarUser.groups` from the claim.
+
+Upgrade the service and the SDKs together: an older service mints tokens without the claim, and an older SDK ignores it.
+
+---
+
+## [1.5.0] - 2026-10-19 — Duar MCP
+
 ### Added
+- **Duar MCP** (Python SDK, `pip install "duar-auth[mcp]"`): `duar_auth.mcp.mount_mcp(app, mcp, duar)` serves a FastMCP server at `/mcp/` inside an AuthZ-mode app (`Duar(mode="authz", auto_resolve=True, idp_provider=...)`, protected with `duar.protect(app)`, `FastMCP(..., mask_error_details=True)`, stateless HTTP). Every tool call needs an authenticated Duar user and runs with that user's own permissions. Tools tagged `AGENT_GATED` also need a grant on the action `mcp:<service_name>.<tool>`, checked live on every call and fail-closed, so a revoked grant applies on the next call. Gated tools are registered as Duar actions at startup. Grant them by adding the action to a workspace role. See `docs/sdk/mcp.md`.
+- Python SDK: `Duar.request_auth(request)` returns the `RequestAuth` for a request the Duar middleware authenticated, for code outside FastAPI dependencies (e.g. inside an MCP tool). `forward_headers(request)` returns the headers that call another first-party app as the current user (IdP token + verified `X-Workspace-Id`).
+- service: rate-limit tier `RATE_LIMIT_TOOL_CHECK` (default `600/minute`) on `POST /roles/check-action` and `POST /permissions/check`, keyed per calling app + user. Shown in the admin Settings panel.
+- service: `GET /admin/actions/insights` accepts `action_prefix` and `service_name` to scope usage and the allowed/denied trend.
+- admin: Duar MCP console: apps serving gated tools, each app's tools and grant actions, and a tool-call audit (allowed/denied over 7/30/90 days).
+- admin: dashboard auto-refreshes every 30 seconds (toggle).
 - `SECURITY.md`: supported versions (the latest release only) and private vulnerability reporting through GitHub, acknowledged within 5 working days.
 - CI: the Trivy dependency and image scans also run weekly and on manual dispatch, so CVEs published between pushes surface without a commit. Dependabot now covers uv, npm (admin, JS SDKs) and Docker base images alongside GitHub Actions, weekly, with minor and patch updates grouped.
 - Lint: ruff's bandit rules (`S`) are enabled for the service and the Python SDK. `S101` is ignored, test fixtures may hold placeholder tokens, and each remaining hit carries an inline reason.
 
 ### Changed
-- admin image: nginx now sends `X-Frame-Options: DENY`, `Permissions-Policy` (camera, microphone, geolocation off) and `Content-Security-Policy: frame-ancestors 'none'`, matching the service's own response headers.
+- **Behavior change:** `/roles/check-action` and `/permissions/check` are limited per calling app + user (`RATE_LIMIT_TOOL_CHECK`, 600/min) instead of the per-IP default (120/min) and aggregate tiers. All users of one app no longer share its server's IP bucket, and one app's traffic for a user can't throttle that user in other apps. Like the other decorated tiers, these routes are not throttled before authentication; put edge rate limiting in front of Duar.
+- **Behavior change:** `SELF_SERVE_MAX_WORKSPACES_PER_USER` defaults to `3` (was `1`). Set it explicitly to keep the old cap.
+- service: a denied `check-action` records at most one `action_denied` activity event per user, workspace, app and action every 5 minutes, so an agent retrying a tool it has no grant for doesn't flood the activity log. If Redis is unavailable every denial is recorded.
+- Python SDK: `RoleClient`, `PermissionClient` and `AuthzClient` keep working when reused across event loops (e.g. `asyncio.run(...)` at startup, then the server's loop), and closing them on a different loop no longer fails. `RoleClient._client` and `PermissionClient._client` are now read-only properties.
+- admin: refreshed UI (compact brand, page headers without record counts, rounded favicon).
+- admin image: nginx now sends `X-Frame-Options: DENY`, `Permissions-Policy` (camera, microphone, geolocation off) and `Content-Security-Policy: frame-ancestors 'none'`, matching the service's own response headers. Built with `node:26-alpine` and Vite 8.
+- service image: `python:3.14-alpine`, without the unused global pip/setuptools.
+
+### Fixed
+- service image: the container healthcheck probes `127.0.0.1`, so the container reports healthy (Alpine resolved `localhost` to IPv6 only, while the server listens on IPv4).
 
 ---
 
