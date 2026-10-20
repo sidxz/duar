@@ -13,7 +13,7 @@ from src.api.dependencies import (
 )
 from src.config import settings
 from src.database import get_db
-from src.middleware.rate_limit import limiter, user_or_ip_key
+from src.middleware.rate_limit import limiter, service_user_key
 from src.schemas.role import (
     CheckActionRequest,
     CheckActionResponse,
@@ -53,7 +53,7 @@ async def register_actions(
 
 
 @router.post("/check-action", response_model=CheckActionResponse)
-@limiter.limit(settings.rate_limit_tool_check, key_func=user_or_ip_key)
+@limiter.limit(settings.rate_limit_tool_check, key_func=service_user_key)
 async def check_action(
     request: Request,
     body: CheckActionRequest,

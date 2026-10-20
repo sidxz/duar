@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { getActionsInsights, getServiceActions, getServiceApps } from "../../api/client";
-import { mcpApps } from "./agentTools";
+import { mcpApps, useRealms } from "./agentTools";
 
 function Tile({ to, value, label }: { to: string; value: number; label: string }) {
   return (
@@ -24,7 +24,9 @@ export function McpDashboard() {
     queryFn: () => getActionsInsights(30, undefined, "mcp:"),
   });
 
-  const list = mcpApps(apps.data ?? [], actions.data ?? []);
+  const realms = useRealms();
+
+  const list = mcpApps(apps.data ?? [], actions.data ?? [], realms.data ?? []);
   const toolCount = (actions.data ?? []).filter((a) => a.action.startsWith("mcp:")).length;
   const calls30 = insights?.by_service.reduce((sum, s) => sum + s.count, 0) ?? 0;
 

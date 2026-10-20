@@ -76,21 +76,18 @@ def _agent_action(service_name: str, tool_name: str) -> str:
     return action
 
 
-def _caller(tool_name: str) -> tuple[str, uuid.UUID]:
+def _caller(duar: Duar, tool_name: str) -> tuple[str, uuid.UUID]:
     """(token, workspace_id) of the authenticated caller, or raise ``ToolError``."""
     try:
         request = get_http_request()
-    except RuntimeError:
-        request = None
-    user = getattr(request.state, "user", None) if request is not None else None
-    token = getattr(request.state, "token", None) if request is not None else None
-    if user is not None and token:
-        # Duar's middleware sets request.state only; the MCP SDK binds a session to
-        # scope["user"], so a stateful session here would not be owner-bound.
-        if request.headers.get("mcp-session-id"):
-            raise ToolError("Not permitted: stateful MCP sessions are not supported; serve with stateless_http=True")
-        return token, user.workspace_id
-    raise ToolError(f"Not permitted: no authenticated Duar user for '{tool_name}'")
+        auth = duar.request_auth(request)
+    except (RuntimeError, DuarError):
+        raise ToolError(f"Not permitted: no authenticated Duar user for '{tool_name}'") from None
+    # Duar's middleware sets request.state only; the MCP SDK binds a session to
+    # scope["user"], so a stateful session here would not be owner-bound.
+    if request.headers.get("mcp-session-id"):
+        raise ToolError("Not permitted: stateful MCP sessions are not supported; serve with stateless_http=True")
+    return auth._token, auth.user.workspace_id
 
 
 class _DuarGate(Middleware):
@@ -102,7 +99,7 @@ class _DuarGate(Middleware):
 
     async def on_call_tool(self, context: MiddlewareContext, call_next):  # type: ignore[override]
         tool_name = context.message.name
-        token, workspace_id = _caller(tool_name)
+        token, workspace_id = _caller(self.duar, tool_name)
 
         server = getattr(context.fastmcp_context, "fastmcp", None)
         try:
@@ -162,8 +159,9 @@ def mount_mcp(app: Starlette, mcp: FastMCP, duar: Duar, path: str = "/mcp") -> N
 
     # One gate per server even if mount_mcp runs twice on it (e.g. the app's main module
     # executed twice under uvicorn reload) — a second gate would double every Duar check.
+    # Outermost, so no earlier middleware (a response cache, say) can answer a gated call.
     if not any(isinstance(m, _DuarGate) for m in mcp.middleware):
-        mcp.add_middleware(_DuarGate(duar))
+        mcp.middleware.insert(0, _DuarGate(duar))
     mcp_app = mcp.http_app(path="/", stateless_http=True)
     app.mount(path, mcp_app)
 

@@ -81,3 +81,11 @@ def test_same_loop_reuses_client():
 
     first, second = asyncio.run(twice())
     assert first is second
+
+
+def test_aclose_skips_client_from_dead_loop(duar_url):
+    # Used under asyncio.run at startup, then closed on the server's loop at shutdown
+    # without any call there: closing the dead loop's client would raise.
+    rc = RoleClient(duar_url, "svc", "sk")
+    assert asyncio.run(rc.check_action("t", "a", uuid.uuid4())) is True
+    asyncio.run(rc.close())

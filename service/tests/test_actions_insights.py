@@ -447,6 +447,29 @@ async def test_action_prefix_realm_scope(db):
     assert out["by_service"] == [{"service_name": "realm-x", "count": 2}]
 
 
+@pytest.mark.asyncio
+async def test_service_name_excludes_other_namespace(db):
+    # Another app registering "mcp:team-notes.*" under its own namespace isn't counted.
+    ws = _workspace()
+    u = _user()
+    db.add_all([ws, u])
+    db.add_all(
+        [
+            _usage(ws, u, "team-notes", "mcp:team-notes.export_notes", count=2),
+            _usage(ws, u, "intruder", "mcp:team-notes.export_all", count=9),
+            _denied(ws, u, "team-notes", "mcp:team-notes.export_notes"),
+            _denied(ws, u, "intruder", "mcp:team-notes.export_all"),
+        ]
+    )
+    await db.flush()
+
+    out = await actions_insights(
+        db, days=30, action_prefix="mcp:team-notes.", service_name="team-notes"
+    )
+    assert out["by_service"] == [{"service_name": "team-notes", "count": 2}]
+    assert sum(t["denied"] for t in out["trend"]) == 1
+
+
 def test_action_prefix_route_param():
     app = FastAPI()
     app.include_router(admin_router)
@@ -463,7 +486,8 @@ def test_action_prefix_route_param():
     with patch.object(actions_insights_service, "actions_insights") as mock_insights:
         mock_insights.return_value = {"days": 30, "top_actions": []}
         resp = TestClient(app).get(
-            "/admin/actions/insights?action_prefix=mcp:team-notes."
+            "/admin/actions/insights?action_prefix=mcp:team-notes.&service_name=team-notes"
         )
         assert resp.status_code == 200, resp.text
         assert mock_insights.call_args.kwargs["action_prefix"] == "mcp:team-notes."
+        assert mock_insights.call_args.kwargs["service_name"] == "team-notes"

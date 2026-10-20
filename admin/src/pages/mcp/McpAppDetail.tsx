@@ -5,7 +5,8 @@ import { Copy } from "lucide-react";
 import { toast } from "sonner";
 import { getActionsInsights, getServiceActions, getServiceApp } from "../../api/client";
 import { StatusBadge } from "../../components/Badge";
-import { agentPrefix, agentTools, toolName } from "./agentTools";
+import type { ServiceApp } from "../../types/api";
+import { actionScope, agentPrefix, agentTools, toolName, useRealms } from "./agentTools";
 
 type Tab = "tools" | "grants" | "audit";
 
@@ -26,16 +27,18 @@ function CopyButton({ value, label }: { value: string; label: string }) {
   );
 }
 
-function useAgentTools(serviceName: string) {
+function useAgentTools(app: ServiceApp) {
   const { data = [], isLoading } = useQuery({
     queryKey: ["service-actions"],
     queryFn: () => getServiceActions(),
   });
-  return { tools: agentTools(data, serviceName), isLoading };
+  const realms = useRealms();
+  return { tools: agentTools(data, app, realms.data ?? []), isLoading: isLoading || realms.isLoading };
 }
 
-function ToolsTab({ serviceName }: { serviceName: string }) {
-  const { tools, isLoading } = useAgentTools(serviceName);
+function ToolsTab({ app }: { app: ServiceApp }) {
+  const serviceName = app.service_name;
+  const { tools, isLoading } = useAgentTools(app);
   if (isLoading) return <div className="h-40 bg-muted/50 rounded-lg animate-pulse" />;
 
   return (
@@ -83,8 +86,8 @@ function ToolsTab({ serviceName }: { serviceName: string }) {
   );
 }
 
-function GrantsTab({ serviceName }: { serviceName: string }) {
-  const { tools } = useAgentTools(serviceName);
+function GrantsTab({ app }: { app: ServiceApp }) {
+  const { tools } = useAgentTools(app);
 
   return (
     <div className="space-y-3">
@@ -121,12 +124,16 @@ function GrantsTab({ serviceName }: { serviceName: string }) {
 
 const RANGES = [7, 30, 90] as const;
 
-function AuditTab({ serviceName }: { serviceName: string }) {
+function AuditTab({ app }: { app: ServiceApp }) {
+  const serviceName = app.service_name;
   const [days, setDays] = useState<(typeof RANGES)[number]>(30);
   const prefix = agentPrefix(serviceName);
+  const realms = useRealms();
+  const scope = actionScope(app, realms.data ?? []);
   const { data, isLoading } = useQuery({
-    queryKey: ["actions-insights", days, "agent", serviceName],
-    queryFn: () => getActionsInsights(days, undefined, prefix),
+    queryKey: ["actions-insights", days, "agent", scope, serviceName],
+    queryFn: () => getActionsInsights(days, undefined, prefix, scope),
+    enabled: !realms.isLoading,
   });
 
   if (isLoading || !data) return <div className="h-40 bg-muted/50 rounded-lg animate-pulse" />;
@@ -275,9 +282,9 @@ export function McpAppDetail() {
         ))}
       </div>
 
-      {tab === "tools" && <ToolsTab serviceName={app.service_name} />}
-      {tab === "grants" && <GrantsTab serviceName={app.service_name} />}
-      {tab === "audit" && <AuditTab serviceName={app.service_name} />}
+      {tab === "tools" && <ToolsTab app={app} />}
+      {tab === "grants" && <GrantsTab app={app} />}
+      {tab === "audit" && <AuditTab app={app} />}
     </div>
   );
 }

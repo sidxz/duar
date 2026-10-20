@@ -11,8 +11,8 @@ Coverage model (slowapi 0.1.10 — verified against the installed source):
     ``Depends`` (bad token/service key) is therefore not throttled here.
 
 ACCEPTED TRADEOFF: app-layer limiting provides NO volumetric DoS protection and
-NO pre-auth throttling for decorated routes (/authz/resolve, /auth/token, admin
-POSTs). Deploy EDGE rate limiting (nginx/Cloudflare/ALB) for that. See
+NO pre-auth throttling for decorated routes (/authz/resolve, /auth/token,
+/roles/check-action, /permissions/check, admin POSTs). Deploy EDGE rate limiting (nginx/Cloudflare/ALB) for that. See
 docs/security.md.
 
 Fail-open: ``swallow_errors=True`` — a storage (Redis) error lets the request
@@ -85,6 +85,20 @@ def service_or_ip_key(request: Request) -> str:
     return f"ip:{get_client_ip(request)}"
 
 
+def service_user_key(request: Request) -> str:
+    """Rate-limit key for the permission-check hot path: bucket by (calling app, user).
+
+    Per user so all users of one app (sharing its egress IP) don't share a bucket;
+    per app too so one app's agent loop can't exhaust the user's checks in every
+    other app. ``get_user_for_service_call`` binds both before the check fires.
+    """
+    svc = getattr(request.state, "caller_service", None)
+    actor = getattr(request.state, "actor", None)
+    if svc and actor:
+        return f"svc:{svc}|user:{actor}"
+    return user_or_ip_key(request)
+
+
 def rate_limit_report() -> list[dict[str, str]]:
     """Live view of the active limit tiers for the admin Settings panel.
 
@@ -114,6 +128,10 @@ def rate_limit_report() -> list[dict[str, str]]:
         {
             "endpoint": "authenticated reads · per user",
             "limit": settings.rate_limit_read,
+        },
+        {
+            "endpoint": "permission checks (check-action, permissions/check) · per app+user",
+            "limit": settings.rate_limit_tool_check,
         },
         {
             "endpoint": "admin writes · per user",

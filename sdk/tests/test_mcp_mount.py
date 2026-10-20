@@ -199,6 +199,28 @@ def test_mounting_same_server_twice_checks_once(keys, idp_token):
     assert len(role.check_calls) == 1
 
 
+def test_gate_runs_before_earlier_middleware(keys, idp_token):
+    # A middleware added before mount_mcp (e.g. a response cache) must not see a denied call.
+    from fastmcp.server.middleware import Middleware
+
+    reached = []
+
+    class _Earlier(Middleware):
+        async def on_call_tool(self, context, call_next):
+            reached.append(context.message.name)
+            return await call_next(context)
+
+    duar = _duar(keys, _RoleStub(allowed=False))
+    mcp = _mcp(duar)
+    mcp.add_middleware(_Earlier())
+    app = FastAPI()
+    duar.protect(app)
+    mount_mcp(app, mcp, duar)
+    with TestClient(app) as client:
+        assert _result(_rpc(client, "secret_tool", _auth(idp_token)))["isError"] is True
+    assert reached == []
+
+
 def test_tool_errors_are_masked(keys, idp_token):
     with TestClient(_mounted(_duar(keys, _RoleStub()))) as client:
         result = _result(_rpc(client, "broken_tool", _auth(idp_token)))

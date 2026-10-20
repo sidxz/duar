@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
 from src.logging_events import log_audit, log_security
-from src.middleware.rate_limit import limiter, service_or_ip_key, user_or_ip_key
+from src.middleware.rate_limit import limiter, service_or_ip_key, service_user_key
 
 from src.api.dependencies import (
     CurrentUser,
@@ -39,7 +39,7 @@ router = APIRouter(prefix="/permissions", tags=["permissions"])
 
 
 @router.post("/check", response_model=PermissionCheckResponse)
-@limiter.limit(settings.rate_limit_tool_check, key_func=user_or_ip_key)
+@limiter.limit(settings.rate_limit_tool_check, key_func=service_user_key)
 async def check_permissions(
     request: Request,
     body: PermissionCheckRequest,

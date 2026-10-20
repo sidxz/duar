@@ -6,14 +6,16 @@ import { DataTable } from "../../components/DataTable";
 import { StatusBadge } from "../../components/Badge";
 import { TableIdentity } from "../../components/TableIdentity";
 import type { ServiceApp } from "../../types/api";
-import { agentTools, mcpApps } from "./agentTools";
+import { agentTools, mcpApps, useRealms } from "./agentTools";
 
 export function McpApps() {
   const navigate = useNavigate();
   const apps = useQuery({ queryKey: ["service-apps"], queryFn: getServiceApps });
   const actions = useQuery({ queryKey: ["service-actions"], queryFn: () => getServiceActions() });
 
-  const list = mcpApps(apps.data ?? [], actions.data ?? []);
+  const realms = useRealms();
+
+  const list = mcpApps(apps.data ?? [], actions.data ?? [], realms.data ?? []);
 
   const columns = [
     {
@@ -33,7 +35,7 @@ export function McpApps() {
       header: "Gated Tools",
       render: (a: ServiceApp) => (
         <span className="tabular-nums text-sm">
-          {agentTools(actions.data ?? [], a.service_name).length}
+          {agentTools(actions.data ?? [], a, realms.data ?? []).length}
         </span>
       ),
       className: "w-28",

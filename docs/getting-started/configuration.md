@@ -112,6 +112,7 @@ These callbacks are only used for the admin panel's server-side OAuth flow. In A
 | `RATE_LIMIT_AUTH_ADMIN` | `5/minute` | Admin auth endpoints (`/auth/admin/login`, `/auth/admin/callback`). |
 | `RATE_LIMIT_AUTHZ_RESOLVE` | `60/minute` | `POST /authz/resolve` — authz token minting. |
 | `RATE_LIMIT_READ` | `60/minute` | Read-heavy endpoints (member search, group listing, enriched ACL). |
+| `RATE_LIMIT_TOOL_CHECK` | `600/minute` | Permission-check hot path (`/roles/check-action`, `/permissions/check`, incl. MCP tool calls), per calling app + user. Not throttled before authentication — see the edge-limiting note in [Security](../security.md#rate-limiting). |
 | `RATE_LIMIT_ADMIN_WRITE` | `10/minute` | Admin mutation endpoints (POST/PATCH/PUT/DELETE under `/admin/`). |
 | `RATE_LIMIT_SENSITIVE` | `5/minute` | High-sensitivity endpoints (service purge, key rotation). |
 
@@ -160,7 +161,7 @@ Public instances only — see [Self-serve Workspaces](../guide/self-serve.md).
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SELF_SERVE_ENABLED` | `false` | Hosts `/onboard` (join by invitation link / create a workspace). Off: `/onboard` is 404 and `POST /workspaces` is 403. |
-| `SELF_SERVE_MAX_WORKSPACES_PER_USER` | `1` | Workspaces one user may create. `0` = join-only. |
+| `SELF_SERVE_MAX_WORKSPACES_PER_USER` | `3` | Workspaces one user may create. `0` = join-only. |
 | `SELF_SERVE_MAX_CREATES_PER_HOUR` | `30` | Instance-wide breaker on successful creations. |
 
 ---

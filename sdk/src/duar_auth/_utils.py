@@ -16,7 +16,8 @@ class LoopLocalClient:
     later loop (``asyncio.run(...)`` at startup, then a server's own loop) fails its
     first request with "Event loop is closed". ``get()`` hands out a fresh client
     whenever the running loop has changed; the old one is dropped, since its loop is
-    gone and it cannot be closed from here.
+    gone and it cannot be closed from here. ``aclose()`` likewise only closes a client
+    owned by the running loop.
     """
 
     def __init__(self, **httpx_kwargs):
@@ -32,8 +33,9 @@ class LoopLocalClient:
         return self._client
 
     async def aclose(self) -> None:
-        if self._client is not None and not self._client.is_closed:
-            await self._client.aclose()
+        client, self._client = self._client, None
+        if client is not None and not client.is_closed and self._loop is asyncio.get_running_loop():
+            await client.aclose()
 
 
 _SAFE_HOSTS = {"localhost", "127.0.0.1", "::1"}

@@ -6,6 +6,7 @@ import { getActivity, getAllWorkspaces, getUsers } from "../api/client";
 import type { ActivityLog } from "../types/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { detailValue } from "@/lib/utils";
 
 export function Activity() {
   const [searchParams] = useSearchParams();
@@ -246,11 +247,6 @@ export function Activity() {
       )}
     </div>
   );
-}
-
-function detailValue(v: unknown): string {
-  const s = typeof v === "object" && v !== null ? JSON.stringify(v) : String(v);
-  return s.length > 60 ? `${s.slice(0, 60)}…` : s;
 }
 
 function ActivityRow({ entry, workspaceName }: { entry: ActivityLog; workspaceName?: string }) {

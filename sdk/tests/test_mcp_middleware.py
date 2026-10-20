@@ -14,6 +14,7 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 
 from duar_auth import mcp as mcp_mod
+from duar_auth.duar import Duar
 from duar_auth.mcp import AGENT_GATED, _agent_action, _DuarGate, _sync_tools
 from duar_auth.types import AuthenticatedUser
 
@@ -93,8 +94,14 @@ def env(monkeypatch):
 TOOLS = {"list_notes": set(), "export_notes": {AGENT_GATED}}
 
 
+def _gate(role: _RoleStub, service_name="team-notes") -> _DuarGate:
+    duar = SimpleNamespace(service_name=service_name, roles=role, permissions=None)
+    duar.request_auth = lambda request: Duar.request_auth(duar, request)
+    return _DuarGate(duar)
+
+
 async def _call(role: _RoleStub, name: str, tools=TOOLS, service_name="team-notes"):
-    gate = _DuarGate(SimpleNamespace(service_name=service_name, roles=role))
+    gate = _gate(role, service_name)
     nxt = _CallNext()
     result = await gate.on_call_tool(_Ctx(name, _Server(tools)), nxt)
     return result, nxt
@@ -130,7 +137,7 @@ async def test_gated_pdp_error_fails_closed(env):
 
 async def test_gate_is_live_per_call(env):
     role = _RoleStub(allowed=True)
-    gate = _DuarGate(SimpleNamespace(service_name="team-notes", roles=role))
+    gate = _gate(role)
     nxt = _CallNext()
     await gate.on_call_tool(_Ctx("export_notes", _Server(TOOLS)), nxt)
     role.allowed = False
@@ -157,7 +164,7 @@ async def test_unknown_tool_denied(env):
 
 
 async def test_missing_fastmcp_context_denied(env):
-    gate = _DuarGate(SimpleNamespace(service_name="team-notes", roles=_RoleStub()))
+    gate = _gate(_RoleStub())
     with pytest.raises(ToolError, match="unknown tool"):
         await gate.on_call_tool(_Ctx("list_notes", None), _CallNext())
 

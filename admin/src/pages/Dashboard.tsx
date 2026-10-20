@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { PageHeader } from "../components/PageHeader";
+import { detailValue } from "../lib/utils";
 import { getStats, getActivity, getActivitySummary } from "../api/client";
 import { StatusBadge } from "../components/Badge";
 import { SignInsChart, ActivityMixChart } from "../components/charts";
@@ -157,7 +158,7 @@ function ActivityEntry({ entry }: { entry: ActivityLog }) {
       <span className="w-14 shrink-0 pt-0.5 font-mono text-[10px] text-muted-foreground" title={new Date(entry.created_at).toLocaleString()}>{timeAgo(entry.created_at)}</span>
       <div className="min-w-0 flex-1 text-sm">
         <p className="break-words"><span className="font-medium">{entry.actor_name ?? entry.actor_email ?? "System"}</span><span className="ml-2 text-muted-foreground">{entry.action.replace(/_/g, " ")}</span></p>
-        {entry.detail && Object.entries(entry.detail).length > 0 && <p className="mt-1 break-words text-xs text-muted-foreground">{Object.entries(entry.detail).map(([key, value]) => `${key}: ${String(value)}`).join(" · ")}</p>}
+        {entry.detail && Object.entries(entry.detail).length > 0 && <p className="mt-1 break-words text-xs text-muted-foreground">{Object.entries(entry.detail).map(([key, value]) => `${key}: ${detailValue(value)}`).join(" · ")}</p>}
       </div>
     </div>
   );
