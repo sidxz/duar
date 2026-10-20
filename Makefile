@@ -16,18 +16,7 @@ setup: ## One-time setup: keys, TLS certs, env files, deps, dev containers
 	fi
 	@# ── TLS certs for Postgres + Redis (internal CA + server cert) ──
 	@if [ ! -f keys/tls/ca.crt ]; then \
-		openssl req -x509 -newkey rsa:2048 \
-			-keyout keys/tls/ca.key -out keys/tls/ca.crt \
-			-days 3650 -nodes -subj "/CN=Duar Internal CA" 2>/dev/null && \
-		openssl req -newkey rsa:2048 \
-			-keyout keys/tls/server.key -out /tmp/duar-server.csr \
-			-nodes -subj "/CN=duar-internal" 2>/dev/null && \
-		openssl x509 -req -in /tmp/duar-server.csr \
-			-CA keys/tls/ca.crt -CAkey keys/tls/ca.key -CAcreateserial \
-			-out keys/tls/server.crt -days 3650 \
-			-extfile <(printf "subjectAltName=DNS:localhost,DNS:postgres,DNS:redis,IP:127.0.0.1") 2>/dev/null && \
-		rm -f /tmp/duar-server.csr keys/tls/ca.srl && \
-		chmod 600 keys/tls/server.key keys/tls/ca.key && \
+		./scripts/gen-tls-certs.sh keys/tls && \
 		echo "✓ Generated TLS certs (keys/tls/)"; \
 	else \
 		echo "· TLS certs already exist"; \

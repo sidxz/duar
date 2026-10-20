@@ -95,6 +95,7 @@ async def lifespan(app: FastAPI):
 
     # Redis connectivity and auth check
     _redis_down = False
+    _redis_error = ""
     _redis_no_auth = False
     _redis_no_tls = False
     _redis_no_cert_verify = False
@@ -109,8 +110,10 @@ async def lifespan(app: FastAPI):
             _redis_no_tls = True
         elif settings.redis_tls_verify != "required":
             _redis_no_cert_verify = True
-    except Exception:
+    except Exception as exc:
+        # Keep the cause: a TLS certificate rejection must not read as a network outage.
         _redis_down = True
+        _redis_error = f"{type(exc).__name__}: {exc}"
 
     if not settings.debug:
         errors: list[tuple[str, str]] = []
@@ -132,7 +135,8 @@ async def lifespan(app: FastAPI):
             errors.append(
                 (
                     "redis_down",
-                    "Redis is unreachable — auth codes, refresh tokens, and denylist will fail",
+                    "Redis is unreachable — auth codes, refresh tokens, and denylist will fail "
+                    f"({_redis_error})",
                 )
             )
         if _redis_no_auth:
@@ -191,7 +195,12 @@ async def lifespan(app: FastAPI):
                 "app.config.insecure", category="app", reason="insecure_cookie"
             )
         if _redis_down:
-            logger.warning("app.config.insecure", category="app", reason="redis_down")
+            logger.warning(
+                "app.config.insecure",
+                category="app",
+                reason="redis_down",
+                error=_redis_error,
+            )
         if _redis_no_auth:
             logger.warning(
                 "app.config.insecure", category="app", reason="redis_no_auth"
