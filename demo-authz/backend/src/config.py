@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 9200
     frontend_url: str = "http://localhost:9201"
+    # This app's own MCP endpoint — the /agent route calls its tools as the user.
+    mcp_url: str = "http://localhost:9200/mcp/"
 
 
 settings = Settings()
@@ -36,6 +38,9 @@ duar = Duar(
     idp_jwks_url=settings.idp_jwks_url,
     idp_audience=settings.idp_audience,
     idp_issuer=settings.idp_issuer,
+    # MCP callers send the IdP token + X-Workspace-Id; the middleware mints the authz token.
+    auto_resolve=True,
+    idp_provider="google",
     actions=[
         {"action": "notes:export", "description": "Export notes as JSON"},
         {"action": "notes:bulk-delete", "description": "Bulk delete notes"},

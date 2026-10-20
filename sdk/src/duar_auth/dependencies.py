@@ -33,6 +33,20 @@ def get_token(request: Request) -> str:
     return auth.removeprefix("Bearer ")
 
 
+def forward_headers(request: Request) -> dict[str, str]:
+    """Headers that call another first-party app's MCP endpoint (or API) as this request's user.
+
+    AuthZ mode: the user's IdP token plus the workspace the Duar middleware verified —
+    never copied from raw inbound headers. The target app runs with
+    ``auto_resolve=True`` and mints its own authz token.
+    """
+    user: AuthenticatedUser | None = getattr(request.state, "user", None)
+    idp_token: str | None = getattr(request.state, "idp_token", None)
+    if user is None or not idp_token:
+        raise DuarError("Not authenticated (needs an AuthZ-mode request)", 401)
+    return {"Authorization": f"Bearer {idp_token}", "X-Workspace-Id": str(user.workspace_id)}
+
+
 def get_current_user(request: Request) -> AuthenticatedUser:
     """Extract the authenticated user from request state (set by JWTAuthMiddleware)."""
     user: AuthenticatedUser | None = getattr(request.state, "user", None)

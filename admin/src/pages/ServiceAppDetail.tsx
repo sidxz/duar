@@ -138,7 +138,7 @@ export function ServiceAppDetail() {
       setShowPurge(false);
       setPurgeName("");
       queryClient.invalidateQueries({ queryKey: ["admin-permissions"] });
-      toast.success(`Purged ${data.deleted_count} permission(s) for ${app!.service_name}`);
+      toast.success(`Deleted ${data.deleted_count} ${data.deleted_count === 1 ? "permission" : "permissions"} for ${app!.service_name}`);
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -185,14 +185,14 @@ export function ServiceAppDetail() {
       </div>
 
       {/* Header card */}
-      <div className="rounded-lg border border-border bg-card p-5">
-        <div className="flex items-start justify-between">
+      <div className="record-header">
+        <div className="flex flex-wrap items-start justify-between gap-5">
           <div>
-            <div className="flex items-center gap-3">
-              <h2 className="text-lg font-semibold">{app.name}</h2>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="page-title">{app.name}</h1>
               <StatusBadge active={app.is_active} />
             </div>
-            <div className="mt-2 space-y-1">
+            <div className="mt-5 grid gap-x-10 gap-y-3 sm:grid-cols-2">
               <div className="text-xs text-muted-foreground">
                 Service:{" "}
                 <code className="text-foreground font-mono">{app.service_name}</code>
@@ -236,7 +236,7 @@ export function ServiceAppDetail() {
               )}
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={openEdit}>
               Edit
             </Button>
@@ -297,7 +297,7 @@ export function ServiceAppDetail() {
               rows={3}
               className="mt-1 font-mono"
             />
-            <p className="mt-1 text-xs text-muted-foreground">One origin per line. Required for browser-direct authz mode.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Enter one origin per line. Required when browsers call Duar’s authorization API directly.</p>
           </div>
           {update.isError && (
             <div className="text-xs text-destructive">{(update.error as Error).message}</div>
@@ -348,7 +348,7 @@ export function ServiceAppDetail() {
         onClose={() => setShowPurge(false)}
         onConfirm={() => purge.mutate()}
         title="Purge All Permissions"
-        message={`This will delete ALL resource permissions and shares for service "${app.service_name}". This cannot be undone. Type the service name to confirm.`}
+        message={`This will delete all resource permissions and shares for service "${app.service_name}". This cannot be undone. Type the service name to confirm.`}
         confirmLabel="Purge Permissions"
         danger
         isPending={purge.isPending}

@@ -127,10 +127,10 @@ export function WorkspaceDetail() {
       </div>
 
       {/* Header */}
-      <div className="rounded-lg border border-border bg-card p-5">
-        <div className="flex items-start justify-between">
+      <div className="record-header">
+        <div className="flex flex-wrap items-start justify-between gap-5">
           <div>
-            <h2 className="text-lg font-semibold">{workspace.name}</h2>
+            <h1 className="page-title">{workspace.name}</h1>
             <div className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1.5">
               <span className="font-mono">{workspace.slug}</span>
               <Button
@@ -153,7 +153,7 @@ export function WorkspaceDetail() {
               {" · "}{workspace.member_count} members · {workspace.group_count} groups
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={openEdit}>
               Edit
             </Button>
@@ -169,7 +169,7 @@ export function WorkspaceDetail() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-border">
+      <div className="flex gap-3 overflow-x-auto border-b border-border">
         {TABS.map((t) => (
           <button
             key={t}
@@ -1062,7 +1062,7 @@ function AccessTabInner({
           Organization access
         </h3>
         <p className="text-xs text-muted-foreground">
-          Restrict which organizations' users may be added to this workspace.
+          Choose which organizations can have members in this workspace.
         </p>
       </div>
 
@@ -1076,7 +1076,7 @@ function AccessTabInner({
       </label>
       {!restrict && (
         <p className="text-xs text-muted-foreground -mt-2">
-          Open: members from any organization may be added.
+          You can add members from any organization.
         </p>
       )}
 
@@ -1099,8 +1099,7 @@ function AccessTabInner({
           </ul>
           {selected.size === 0 && (
             <p className="text-xs text-amber-700 dark:text-amber-400 -mt-2">
-              Select at least one organization, or turn off the restriction.
-              Saving with none selected leaves the workspace open to all.
+              Select at least one organization, or turn off the restriction to allow any organization.
             </p>
           )}
         </>

@@ -1,8 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Building2, Download, Plus } from "lucide-react";
+import { toast } from "sonner";
 import { getWorkspaces, createWorkspace, exportWorkspaces } from "../api/client";
 import { DataTable } from "../components/DataTable";
+import { TableIdentity } from "../components/TableIdentity";
+import { PageHeader } from "../components/PageHeader";
+import { WorkspacePreview } from "../components/WorkspacePreview";
 import { Modal } from "../components/Modal";
 import { SearchInput } from "../components/SearchInput";
 import { Button } from "@/components/ui/button";
@@ -14,8 +19,11 @@ export function Workspaces() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const previewRef = useRef<HTMLElement>(null);
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [form, setForm] = useState({ name: "", slug: "", description: "" });
 
   const { data, isLoading, error } = useQuery({
@@ -48,27 +56,13 @@ export function Workspaces() {
     {
       key: "name",
       header: "Workspace",
-      render: (w: Workspace) => (
-        <div>
-          <div className="font-medium text-sm">{w.name}</div>
-          <div className="text-xs text-muted-foreground font-mono">{w.slug}</div>
-        </div>
-      ),
+      render: (w: Workspace) => <TableIdentity name={w.name} detail={w.slug} Icon={Building2} tone="amber" />,
     },
     {
       key: "members",
       header: "Members",
-      render: (w: Workspace) => <span className="text-muted-foreground tabular-nums">{w.member_count}</span>,
+      render: (w: Workspace) => <span className="table-count">{w.member_count}</span>,
       className: "w-28",
-    },
-    {
-      key: "description",
-      header: "Description",
-      render: (w: Workspace) => (
-        <span className="text-muted-foreground text-sm truncate block max-w-xs">
-          {w.description || "--"}
-        </span>
-      ),
     },
     {
       key: "created",
@@ -80,44 +74,63 @@ export function Workspaces() {
     },
   ];
 
-  return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Workspaces</h1>
-        <div className="flex items-center gap-3">
-          <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search workspaces..." />
-          <Button variant="outline" size="sm" onClick={() => exportWorkspaces()}>
-            Export CSV
-          </Button>
-          <Button size="sm" onClick={() => setShowCreate(true)}>
-            + Create Workspace
-          </Button>
-        </div>
-      </div>
+  const selected = data?.items.find((workspace) => workspace.id === selectedId) ?? data?.items[0];
 
-      {isLoading ? (
-        <div className="h-64 bg-muted/50 rounded-lg animate-pulse" />
-      ) : (
-        <>
-          <DataTable
-            columns={columns}
-            data={data?.items ?? []}
-            onRowClick={(w) => navigate(`/workspaces/${w.id}`)}
-            emptyMessage="No workspaces found"
-            error={error}
-          />
-          {data && data.total > data.page_size && (
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>{data.total} total</span>
-              <div className="flex gap-1">
-                <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Prev</Button>
-                <span className="px-2 py-1">{data.page} / {Math.ceil(data.total / data.page_size)}</span>
-                <Button variant="outline" size="sm" disabled={page >= Math.ceil(data.total / data.page_size)} onClick={() => setPage(page + 1)}>Next</Button>
-              </div>
-            </div>
+  return (
+    <div>
+      <PageHeader title="Workspaces" actions={<>
+          <Button variant="outline" disabled={exporting} onClick={async () => {
+            setExporting(true);
+            try { await exportWorkspaces(); } catch (error) { toast.error(error instanceof Error ? error.message : "Export failed"); }
+            finally { setExporting(false); }
+          }}>
+            <Download className="size-4" />{exporting ? "Exporting…" : "Export CSV"}
+          </Button>
+          <Button onClick={() => setShowCreate(true)}>
+            <Plus className="size-4" />Create workspace
+          </Button>
+      </>} />
+      <div className="directory-layout">
+        <div className="min-w-0">
+          <div className="collection-toolbar">
+            <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search workspaces…" />
+            <span role="status" className="px-1 text-xs text-muted-foreground">{data ? `${data.total.toLocaleString()} ${search ? "matches" : "workspaces"}` : error ? "Count unavailable" : "Loading workspaces…"}</span>
+          </div>
+
+          {isLoading ? (
+            <div className="h-64 bg-muted/50 rounded-lg animate-pulse" />
+          ) : (
+            <>
+              <DataTable
+                columns={columns}
+                data={data?.items ?? []}
+                getRowKey={(w) => w.id}
+                isRowSelected={(w) => selected?.id === w.id}
+                rowActionLabel="Preview workspace"
+                onRowClick={(w) => {
+                  setSelectedId(w.id);
+                  if (window.matchMedia("(max-width: 1279px)").matches) {
+                    requestAnimationFrame(() => previewRef.current?.scrollIntoView({ block: "nearest", behavior: "instant" }));
+                  }
+                }}
+                emptyMessage="No workspaces found"
+                error={error}
+              />
+              {data && data.total > data.page_size && (
+                <div className="collection-footer">
+                  <span>{data.total} total</span>
+                  <div className="flex gap-1">
+                    <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Prev</Button>
+                    <span className="px-2 py-1">{data.page} / {Math.ceil(data.total / data.page_size)}</span>
+                    <Button variant="outline" size="sm" disabled={page >= Math.ceil(data.total / data.page_size)} onClick={() => setPage(page + 1)}>Next</Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
-        </>
-      )}
+        </div>
+        {selected && !error && <aside ref={previewRef} className="directory-preview" aria-label="Workspace preview"><WorkspacePreview key={selected.id} workspace={selected} /></aside>}
+      </div>
 
       <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Create Workspace">
         <div className="space-y-3">

@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException, Request
 from jwt.algorithms import RSAAlgorithm
 
 from duar_auth._utils import warn_if_insecure
-from duar_auth.auth import SystemAuth
+from duar_auth.auth import RequestAuth, SystemAuth
 from duar_auth.authz import AuthzClient
 from duar_auth.authz_middleware import AuthzMiddleware
 from duar_auth.dependencies import get_current_user, get_request_auth_factory
@@ -324,6 +324,18 @@ class Duar:
     def require_action(self, action: str) -> Callable:
         """Dependency factory that enforces an RBAC action."""
         return _require_action(self.roles, action)
+
+    def request_auth(self, request: Request) -> RequestAuth:
+        """The ``RequestAuth`` for a request the Duar middleware already authenticated.
+
+        The non-FastAPI-dependency form of ``get_auth`` — e.g. inside an MCP tool:
+        ``duar.request_auth(get_http_request())``.
+        """
+        user = getattr(request.state, "user", None)
+        token = getattr(request.state, "token", None)
+        if user is None or not token:
+            raise DuarError("Not authenticated", 401)
+        return RequestAuth(user=user, _token=token, _permissions=self.permissions, _roles=self.roles)
 
     # -- No-user (m2m) tokens -------------------------------------------------
 

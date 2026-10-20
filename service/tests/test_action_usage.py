@@ -67,8 +67,30 @@ async def test_allowed_upserts_daily_rollup():
     assert "action_usage.count +" in sql  # increments, not overwrites
 
 
+class _FakeRedis:
+    def __init__(self):
+        self.kv = {}
+
+    async def set(self, k, v, ex=None, nx=False):
+        if nx and k in self.kv:
+            return None
+        self.kv[k] = v
+        return True
+
+
+@pytest.fixture
+def fake_redis(monkeypatch):
+    fake = _FakeRedis()
+
+    async def _get():
+        return fake
+
+    monkeypatch.setattr(role_service, "get_redis", _get)
+    return fake
+
+
 @pytest.mark.asyncio
-async def test_denied_writes_action_denied_activity_row():
+async def test_denied_writes_action_denied_activity_row(fake_redis):
     db = _FakeDB()
     await _record(db, allowed=False)
     assert db.statements == []  # no rollup write for denials
@@ -81,6 +103,25 @@ async def test_denied_writes_action_denied_activity_row():
     assert row.target_id == USER_ID
     assert row.workspace_id == WORKSPACE_ID
     assert row.detail == {"service_name": "notes", "action": "notes:read"}
+
+
+@pytest.mark.asyncio
+async def test_repeated_denials_log_once_per_window(fake_redis):
+    db = _FakeDB()
+    for _ in range(5):
+        await _record(db, allowed=False)
+    assert len(db.added) == 1
+
+
+@pytest.mark.asyncio
+async def test_denial_still_logged_when_redis_down(monkeypatch):
+    async def _boom():
+        raise RuntimeError("redis down")
+
+    monkeypatch.setattr(role_service, "get_redis", _boom)
+    db = _FakeDB()
+    await _record(db, allowed=False)
+    assert len(db.added) == 1
 
 
 class _ExplodingDB(_FakeDB):

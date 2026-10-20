@@ -1,3 +1,4 @@
+import { PageHeader } from "../components/PageHeader";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getActionsInsights, getAllWorkspaces } from "../api/client";
@@ -9,9 +10,9 @@ type Days = (typeof RANGES)[number];
 
 function Card({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="flex items-baseline justify-between mb-2">
-        <h2 className="text-sm font-medium text-muted-foreground">{title}</h2>
+    <div className="min-w-0 border-t border-border pt-5">
+      <div className="section-heading">
+        <h2 className="section-title">{title}</h2>
         {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
       </div>
       {children}
@@ -27,8 +28,8 @@ function Empty({ text }: { text: string }) {
 
 function DormantGrantsTable({ items, total }: { items: DormantGrant[]; total: number }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+    <div className="table-surface">
+      <table className="admin-table">
         <thead>
           <tr className="text-left text-xs text-muted-foreground border-b border-border">
             <th className="py-1.5 pr-3 font-medium">User</th>
@@ -67,30 +68,32 @@ function DormantGrantsTable({ items, total }: { items: DormantGrant[]; total: nu
 
 function UnusedRolesTable({ roles }: { roles: UnusedRole[] }) {
   return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="text-left text-xs text-muted-foreground border-b border-border">
-          <th className="py-1.5 pr-3 font-medium">Role</th>
-          <th className="py-1.5 pr-3 font-medium">Workspace</th>
-          <th className="py-1.5 font-medium">Assignees</th>
-        </tr>
-      </thead>
-      <tbody>
-        {roles.map((r) => (
-          <tr key={r.id} className="border-b border-border last:border-0">
-            <td className="py-1.5 pr-3">{r.name}</td>
-            <td className="py-1.5 pr-3">{r.workspace_name}</td>
-            <td className="py-1.5">
-              {r.no_assignees ? (
-                <span className="text-xs text-muted-foreground">none</span>
-              ) : (
-                r.assignees
-              )}
-            </td>
+    <div className="table-surface">
+      <table className="admin-table">
+        <thead>
+          <tr className="text-left text-xs text-muted-foreground border-b border-border">
+            <th className="py-1.5 pr-3 font-medium">Role</th>
+            <th className="py-1.5 pr-3 font-medium">Workspace</th>
+            <th className="py-1.5 font-medium">Assignees</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {roles.map((r) => (
+            <tr key={r.id} className="border-b border-border last:border-0">
+              <td className="py-1.5 pr-3">{r.name}</td>
+              <td className="py-1.5 pr-3">{r.workspace_name}</td>
+              <td className="py-1.5">
+                {r.no_assignees ? (
+                  <span className="text-xs text-muted-foreground">none</span>
+                ) : (
+                  r.assignees
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -105,7 +108,7 @@ export function ActionsInsightsView({ workspaceId }: { workspaceId?: string }) {
     return (
       <div className="space-y-6 animate-pulse">
         <div className="h-40 bg-muted rounded-lg" />
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="h-48 bg-muted rounded-lg" />
           <div className="h-48 bg-muted rounded-lg" />
         </div>
@@ -147,10 +150,10 @@ export function ActionsInsightsView({ workspaceId }: { workspaceId?: string }) {
         <ActionsTrendChart items={data.trend} days={days} />
       </Card>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card title="Top actions" hint={windowHint}>
           {data.top_actions.length === 0 ? (
-            <Empty text="No action checks recorded yet" />
+            <Empty text="No action checks recorded" />
           ) : (
             <BarList
               rows={data.top_actions.map((a) => [`${a.service_name}:${a.action}`, a.count])}
@@ -160,7 +163,7 @@ export function ActionsInsightsView({ workspaceId }: { workspaceId?: string }) {
         </Card>
         <Card title="By service" hint={windowHint}>
           {data.by_service.length === 0 ? (
-            <Empty text="No action checks recorded yet" />
+            <Empty text="No action checks recorded" />
           ) : (
             <BarList rows={data.by_service.map((s) => [s.service_name, s.count])} />
           )}
@@ -169,15 +172,15 @@ export function ActionsInsightsView({ workspaceId }: { workspaceId?: string }) {
 
       <Card title="Most active users" hint={windowHint}>
         {data.top_users.length === 0 ? (
-          <Empty text="No action checks recorded yet" />
+          <Empty text="No action checks recorded" />
         ) : (
           <BarList rows={data.top_users.map((u) => [u.name || u.email, u.count])} labelWidth={160} />
         )}
       </Card>
 
-      <Card title="Dormant grants" hint={`No usage since ${partialData ? data.data_since : data.since}`}>
+      <Card title="Unused grants" hint={`No usage since ${partialData ? data.data_since : data.since}`}>
         {data.dormant_grants.total === 0 ? (
-          <Empty text="Every grant was exercised in this window" />
+          <Empty text="No unused grants in this period" />
         ) : (
           <DormantGrantsTable items={data.dormant_grants.items} total={data.dormant_grants.total} />
         )}
@@ -185,7 +188,7 @@ export function ActionsInsightsView({ workspaceId }: { workspaceId?: string }) {
 
       <Card title="Unused roles" hint={windowHint}>
         {data.unused_roles.length === 0 ? (
-          <Empty text="Every role was exercised in this window" />
+          <Empty text="No unused roles in this period" />
         ) : (
           <UnusedRolesTable roles={data.unused_roles} />
         )}
@@ -202,9 +205,8 @@ export function ActionsInsightsPage() {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Usage</h1>
+    <div>
+      <PageHeader title="Usage" description="Action usage, active users, and unused permissions." actions={
         <select
           aria-label="Workspace"
           value={workspaceId ?? ""}
@@ -217,8 +219,7 @@ export function ActionsInsightsPage() {
               {w.name}
             </option>
           ))}
-        </select>
-      </div>
+        </select>      } />
       <ActionsInsightsView workspaceId={workspaceId} />
     </div>
   );

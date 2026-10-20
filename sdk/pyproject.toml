@@ -13,12 +13,17 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Duar MCP (duar_auth.mcp): serve MCP tools from an app with mount_mcp (FastMCP).
+mcp = [
+    "fastmcp>=4.1.1",
+]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
     "pytest-cov>=6.0",
     "respx>=0.22",
     "ruff>=0.9.0",
+    "fastmcp>=4.1.1",
 ]
 
 [build-system]

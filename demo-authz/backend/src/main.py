@@ -55,11 +55,19 @@ app.add_middleware(
 )
 
 # Mount routes
+from src.agent_routes import router as agent_router  # noqa: E402
 from src.auth_routes import router as auth_router  # noqa: E402
+from src.mcp_tools import mcp  # noqa: E402
 from src.routes import router  # noqa: E402
+
+from duar_auth.mcp import mount_mcp  # noqa: E402
 
 app.include_router(auth_router)
 app.include_router(router)
+app.include_router(agent_router)
+
+# MCP tools at /mcp/ — behind the same Duar middleware as every route above.
+mount_mcp(app, mcp, duar)
 
 
 @app.get("/health", tags=["system"])

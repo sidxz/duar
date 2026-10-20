@@ -17,6 +17,7 @@ from src.models.role import (
 )
 from src.models.user import User
 from src.services import activity_service
+from src.services.token_service import get_redis
 
 
 async def register_actions(
@@ -141,6 +142,23 @@ async def check_action(
     return (len(roles) > 0, roles)
 
 
+_DENIED_FLAG = "action_denied:{}:{}:{}:{}"
+_DENIED_WINDOW_SECONDS = 300
+
+
+async def _first_denial_in_window(
+    user_id: uuid.UUID, workspace_id: uuid.UUID, service_name: str, action: str
+) -> bool:
+    """True once per (user, workspace, app, action) per window, so an agent retrying a
+    tool it has no grant for can't flood the activity log. Fail-open: Redis down → log."""
+    try:
+        r = await get_redis()
+        key = _DENIED_FLAG.format(user_id, workspace_id, service_name, action)
+        return bool(await r.set(key, "1", ex=_DENIED_WINDOW_SECONDS, nx=True))
+    except Exception:
+        return True
+
+
 async def record_action_check(
     db: AsyncSession,
     *,
@@ -154,7 +172,8 @@ async def record_action_check(
     recording failure break the check response — this is the SDK hot path).
 
     Allowed → +1 on the action_usage daily rollup (per-event rows would bloat).
-    Denied → admin-visible ``action_denied`` activity event (rare, high signal).
+    Denied → admin-visible ``action_denied`` activity event, at most one per
+    (user, workspace, app, action) per window.
     """
     if allowed:
         stmt = (
@@ -179,7 +198,7 @@ async def record_action_check(
             )
         )
         await db.execute(stmt)
-    else:
+    elif await _first_denial_in_window(user_id, workspace_id, service_name, action):
         await activity_service.log_activity(
             db,
             action="action_denied",

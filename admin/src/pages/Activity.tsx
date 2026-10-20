@@ -1,3 +1,4 @@
+import { PageHeader } from "../components/PageHeader";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -5,6 +6,7 @@ import { getActivity, getAllWorkspaces, getUsers } from "../api/client";
 import type { ActivityLog } from "../types/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { detailValue } from "@/lib/utils";
 
 export function Activity() {
   const [searchParams] = useSearchParams();
@@ -99,11 +101,11 @@ export function Activity() {
   const totalPages = data ? Math.ceil(data.total / data.page_size) : 0;
 
   return (
-    <div className="space-y-5">
-      <h1 className="text-xl font-semibold">Activity Log</h1>
+    <div className="space-y-5 [&>.page-header]:pb-0">
+      <PageHeader title="Activity Log" description="Sign-ins, access changes, and admin activity." />
 
       {/* Filters */}
-      <div className="flex flex-wrap items-end gap-3">
+      <div className="grid items-end gap-3 border-y border-border py-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 [&_input]:w-full [&_select]:h-9 [&_select]:w-full">
         <div>
           <label className="text-xs text-muted-foreground block mb-1">Action</label>
           <select
@@ -193,21 +195,25 @@ export function Activity() {
         </div>
       ) : (
         <>
-          <div className="rounded-lg border border-border divide-y divide-border">
-            <div className="grid grid-cols-[1fr_120px_150px_100px_140px] px-4 py-2 text-xs text-muted-foreground font-medium">
-              <span>Action</span>
-              <span>Actor</span>
-              <span>Target</span>
-              <span>Workspace</span>
-              <span>Time</span>
-            </div>
-            {data?.items.map((entry) => (
-              <ActivityRow
-                key={entry.id}
-                entry={entry}
-                workspaceName={entry.workspace_id ? wsNames.get(entry.workspace_id) : undefined}
-              />
-            ))}
+          <div className="table-surface">
+            <table className="admin-table">
+              <thead><tr>
+                <th scope="col">Action</th>
+                <th scope="col">Actor</th>
+                <th scope="col">Target</th>
+                <th scope="col">Workspace</th>
+                <th scope="col">Time</th>
+              </tr></thead>
+              <tbody>
+                {data?.items.map((entry) => (
+                  <ActivityRow
+                    key={entry.id}
+                    entry={entry}
+                    workspaceName={entry.workspace_id ? wsNames.get(entry.workspace_id) : undefined}
+                  />
+                ))}
+              </tbody>
+            </table>
             {data?.items.length === 0 && (
               <div className="px-4 py-8 text-center text-sm text-muted-foreground">No activity found</div>
             )}
@@ -243,39 +249,33 @@ export function Activity() {
   );
 }
 
-function detailValue(v: unknown): string {
-  const s = typeof v === "object" && v !== null ? JSON.stringify(v) : String(v);
-  return s.length > 60 ? `${s.slice(0, 60)}…` : s;
-}
-
 function ActivityRow({ entry, workspaceName }: { entry: ActivityLog; workspaceName?: string }) {
   const action = entry.action.replace(/_/g, " ");
   const time = new Date(entry.created_at).toLocaleString();
 
   return (
-    <div className="grid grid-cols-[1fr_120px_150px_100px_140px] px-4 py-2.5 text-sm items-center">
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 shrink-0" />
-        <span className="text-foreground">{action}</span>
+    <tr>
+      <td>
+        <span className="font-medium text-foreground">{action}</span>
         {entry.detail &&
           Object.entries(entry.detail).map(([k, v]) => (
-            <span key={k} className="text-muted-foreground text-xs" title={String(v)}>
+            <span key={k} className="mt-1 block text-muted-foreground text-xs" title={String(v)}>
               {k}: <span className="font-mono text-muted-foreground">{detailValue(v)}</span>
             </span>
           ))}
-      </div>
-      <span className="text-muted-foreground text-xs truncate">{entry.actor_name ?? entry.actor_email ?? "System"}</span>
-      <span className="text-muted-foreground text-xs truncate" title={`${entry.target_type} ${entry.target_id}`}>
+      </td>
+      <td className="text-muted-foreground text-xs">{entry.actor_name ?? entry.actor_email ?? "System"}</td>
+      <td className="text-muted-foreground text-xs" title={`${entry.target_type} ${entry.target_id}`}>
         {entry.target_label ?? (
           <>
             {entry.target_type} <span className="font-mono">{entry.target_id.slice(0, 8)}</span>
           </>
         )}
-      </span>
-      <span className="text-muted-foreground text-xs truncate" title={entry.workspace_id ?? undefined}>
+      </td>
+      <td className="text-muted-foreground text-xs" title={entry.workspace_id ?? undefined}>
         {workspaceName ?? (entry.workspace_id ? <span className="font-mono">{entry.workspace_id.slice(0, 8)}</span> : "--")}
-      </span>
-      <span className="text-muted-foreground text-xs">{time}</span>
-    </div>
+      </td>
+      <td className="text-muted-foreground text-xs whitespace-nowrap">{time}</td>
+    </tr>
   );
 }

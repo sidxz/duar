@@ -93,6 +93,16 @@ def test_route_keying_is_wired():
         assert rl.service_or_ip_key in by_route[name], name
         assert rl.user_or_ip_key not in by_route[name], name
 
+    # The tool-check hot path (check-action, permissions/check) uses dual auth, which
+    # binds both caller_service and actor, so it keys per (app, user): not per IP (one
+    # app's egress IP for all its users) and not per user alone (one app's agent loop
+    # would 429 that user in every other app).
+    for name in (
+        "src.api.role_routes.check_action",
+        "src.api.permission_routes.check_permissions",
+    ):
+        assert rl.service_user_key in by_route[name], name
+
     # User-JWT / admin-cookie routes bind actor, so they MUST key per user.
     for name in (
         "src.api.workspace_routes.list_members",
@@ -153,3 +163,20 @@ def test_rate_limit_report_shows_disabled_aggregate(monkeypatch):
     report = rl.rate_limit_report()
     agg = next(r for r in report if r["endpoint"].startswith("aggregate"))
     assert agg["limit"] == "disabled"
+
+
+def test_service_user_key_buckets_per_app_and_user():
+    from types import SimpleNamespace
+
+    def req(**state):
+        return SimpleNamespace(
+            state=SimpleNamespace(**state),
+            headers={},
+            client=SimpleNamespace(host="10.0.0.1"),
+        )
+
+    a = rl.service_user_key(req(caller_service="app-a", actor="u1"))
+    b = rl.service_user_key(req(caller_service="app-b", actor="u1"))
+    assert a == "svc:app-a|user:u1" and a != b
+    assert rl.service_user_key(req(actor="u1")) == "user:u1"
+    assert rl.service_user_key(req()) == "ip:10.0.0.1"

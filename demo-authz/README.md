@@ -129,6 +129,36 @@ curl -X POST http://localhost:9200/notes \
   -d '{"title": "My Note", "content": "Hello from AuthZ mode"}'
 ```
 
+## MCP Tools (Duar MCP)
+
+The backend also serves MCP tools at **`http://localhost:9200/mcp/`**, behind the same Duar
+middleware as the REST routes (`mount_mcp` in `src/main.py`, tools in `src/mcp_tools.py`).
+An MCP caller sends the user's IdP token plus `X-Workspace-Id`; the middleware mints the
+authz token itself (`auto_resolve=True` in `src/config.py`).
+
+| Tool | Gated | Who can call it |
+|------|-------|-----------------|
+| `list_notes` | no | anyone who can use the workspace — the user's own permissions |
+| `export_notes` | **agent-gated** | needs `notes:export` **and** a grant on `mcp:team-notes.export_notes` |
+
+To allow `export_notes` for agents, add `mcp:team-notes.export_notes` (and `notes:export`) to a
+workspace role in the admin panel (Workspaces → *your workspace* → Roles) and assign it. The
+action is registered automatically when the backend starts.
+
+`GET /agent/tools/{name}` shows the caller side: a backend calling its MCP tools as the
+signed-in user with `forward_headers(request)`. Call it with the usual dual-token headers:
+
+```bash
+curl http://localhost:9200/agent/tools/list_notes \
+  -H "Authorization: Bearer eyJ...(IdP token)" \
+  -H "X-Authz-Token: eyJ...(authz token)"
+
+# 403 "Not permitted" until the agent grant above exists
+curl http://localhost:9200/agent/tools/export_notes \
+  -H "Authorization: Bearer eyJ...(IdP token)" \
+  -H "X-Authz-Token: eyJ...(authz token)"
+```
+
 ## SDK Features Used
 
 | Feature | File | Usage |
@@ -141,6 +171,10 @@ curl -X POST http://localhost:9200/notes \
 | `require_role()` | `src/routes.py` | Enforces editor/admin roles |
 | `require_action()` | `src/routes.py` | Enforces RBAC action on export |
 | `PermissionClient` | `src/routes.py` | Entity-level resource registration |
+| `mount_mcp()` | `src/main.py` | Serves the MCP tools at `/mcp/` (stateless, Duar gate, startup registration) |
+| `duar.request_auth()` | `src/mcp_tools.py` | The user's auth context inside an MCP tool |
+| `AGENT_GATED` | `src/mcp_tools.py` | Marks `export_notes` as needing an agent grant |
+| `forward_headers()` | `src/agent_routes.py` | Calls MCP tools as the signed-in user |
 
 ## Security Properties
 

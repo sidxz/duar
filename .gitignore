@@ -54,3 +54,4 @@ pentest/.creds.local*
 
 # Internal planning/spec notes — kept out of the repo
 docs/superpowers/
+internal-docs/

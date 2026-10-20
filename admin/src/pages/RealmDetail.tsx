@@ -162,7 +162,7 @@ export function RealmDetail() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-foreground">{realm.name}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{realm.name}</h1>
           <div className="flex items-center gap-1.5">
             <code className="text-xs text-muted-foreground font-mono">
               {realm.slug}
@@ -179,7 +179,7 @@ export function RealmDetail() {
             </button>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            m2m token TTL: <span className="font-mono">{realm.m2m_ttl_s}s</span>
+            Service token lifetime: <span className="font-mono">{realm.m2m_ttl_s}s</span>
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -195,8 +195,7 @@ export function RealmDetail() {
         <h2 className="text-sm font-semibold text-foreground">Member services</h2>
         {members.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No services yet. Add a standalone service below. Members share this
-            realm's permission scope.
+            Add a service to let it share permissions with other services in this realm.
           </p>
         ) : (
           <ul className="space-y-1">
@@ -213,9 +212,9 @@ export function RealmDetail() {
                   {m.has_grants && (
                     <span
                       className="ml-2 text-xs text-amber-700 dark:text-amber-400"
-                      title="This service has its own permission grants, which are NOT visible under the realm scope."
+                      title="This service has separate permissions that aren’t available through this realm."
                     >
-                      ⚠ has own grants
+                      ⚠ separate permissions
                     </span>
                   )}
                 </span>
@@ -268,9 +267,8 @@ export function RealmDetail() {
       <section className="space-y-2 border border-destructive/30 bg-destructive/5 rounded-lg p-4">
         <h2 className="text-sm font-semibold text-destructive">Danger zone</h2>
         <p className="text-sm text-muted-foreground">
-          Deleting a realm un-assigns its member services (their{" "}
-          <code className="font-mono">realm_id</code> is cleared). Permissions
-          written under the realm scope are NOT deleted.
+          Deleting this realm removes its services from the realm. Permissions
+          stored under the realm’s scope are kept.
         </p>
         <Button
           variant="destructive"
@@ -302,7 +300,7 @@ export function RealmDetail() {
           </div>
           <div>
             <Label htmlFor="realm_ttl" className="text-muted-foreground">
-              m2m token TTL (seconds)
+              Service token lifetime (seconds)
             </Label>
             <Input
               id="realm_ttl"
@@ -316,7 +314,7 @@ export function RealmDetail() {
               className="mt-1 font-mono"
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              Between 30 and 3600.
+              Choose a value from 30 to 3600 seconds.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -334,7 +332,7 @@ export function RealmDetail() {
             </Label>
           </div>
           <p className="text-xs text-muted-foreground">
-            Slug is immutable and cannot be changed.
+            The slug cannot be changed.
           </p>
           {update.isError && (
             <div className="text-xs text-destructive">
@@ -366,7 +364,7 @@ export function RealmDetail() {
         onClose={() => setShowDelete(false)}
         onConfirm={() => remove.mutate()}
         title="Delete Realm"
-        message={`This permanently deletes "${realm.name}" and clears realm_id on its member services. Type the slug to confirm.`}
+        message={`This permanently deletes "${realm.name}" and removes its services from the realm. Permissions stored under the realm’s scope are kept. Type the slug to confirm.`}
         confirmLabel="Delete Realm"
         danger
         isPending={remove.isPending}

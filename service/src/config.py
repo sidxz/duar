@@ -94,6 +94,9 @@ class Settings(BaseSettings):
     rate_limit_read: str = "60/minute"  # authenticated reads (per user)
     rate_limit_admin_write: str = "10/minute"  # admin mutations (per user)
     rate_limit_sensitive: str = "5/minute"  # destructive/expensive admin ops (per user)
+    # Permission-check hot path (/roles/check-action, /permissions/check), incl. MCP tool calls.
+    # Per (app, user), not per IP — see rate_limit.service_user_key; sized for agent tool loops.
+    rate_limit_tool_check: str = "600/minute"
 
     @field_validator("base_url", "admin_url", "frontend_url")
     @classmethod
@@ -108,6 +111,7 @@ class Settings(BaseSettings):
         "rate_limit_read",
         "rate_limit_admin_write",
         "rate_limit_sensitive",
+        "rate_limit_tool_check",
     )
     @classmethod
     def _validate_decorated_tier(cls, v: str, info) -> str:
@@ -138,7 +142,7 @@ class Settings(BaseSettings):
     # Off: /onboard* is 404 and POST /workspaces is 403. Consortium deployments
     # leave this unset.
     self_serve_enabled: bool = False
-    self_serve_max_workspaces_per_user: int = 1  # created_by count; 0 = join-only
+    self_serve_max_workspaces_per_user: int = 3  # created_by count; 0 = join-only
     self_serve_max_creates_per_hour: int = 30  # instance-wide, successful creates
 
     # Admin
