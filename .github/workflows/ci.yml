@@ -59,6 +59,17 @@ jobs:
       - name: Run tests with coverage
         run: cd sdk && uv run pytest -q --cov=duar_auth --cov-report=xml
 
+  tls-certs:
+    # `make setup` certs must pass strict X.509 checks (Python 3.13+ verifies Redis
+    # TLS that way). Runs weekly too, to catch a stricter OpenSSL before a release.
+    name: TLS Certs (strict)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Generate and strictly verify the setup certs
+        run: ./scripts/gen-tls-certs.sh "$RUNNER_TEMP/tls"
+
   dependency-scan:
     name: Dependency Scan (Trivy)
     runs-on: ubuntu-latest

@@ -133,7 +133,24 @@ Serving under a path prefix (e.g. `/duar` + `/duar-admin` on a shared ingress)? 
 - [ ] `BEHIND_PROXY=true` so rate limiting reads `X-Forwarded-For`
 - [ ] PostgreSQL connection uses `?ssl=require`
 - [ ] Redis uses `rediss://` with `REDIS_TLS_VERIFY=required`
-- [ ] TLS certs generated for internal services (`keys/tls/`)
+- [ ] TLS certs generated for internal services (`keys/tls/`) and passing strict verification (below)
+
+#### Internal TLS certificates
+
+With `REDIS_TLS_VERIFY=required`, Duar verifies Redis's certificate with strict X.509 checks (the default since Python 3.13; the service image runs 3.14). The CA needs a `keyUsage` extension and the server cert an authority key identifier. Otherwise Duar refuses to start with `Redis is unreachable … (SSLCertVerificationError: …)`. Certs made by `make setup` before 1.5.2 fail. Check yours:
+
+```bash
+openssl verify -x509_strict -CAfile keys/tls/ca.crt keys/tls/server.crt   # must print: OK
+```
+
+To reissue, move the old certs aside and generate new ones with the same script `make setup` uses:
+
+```bash
+mv keys/tls keys/tls.old
+./scripts/gen-tls-certs.sh keys/tls
+```
+
+Then restart Postgres, Redis and Duar so they load the new files. Docker Swarm secrets can't be changed in place: remove the stack and deploy it again, or give the `tls_*` secrets new names.
 
 ### Secrets
 

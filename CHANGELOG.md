@@ -14,6 +14,17 @@ For versions prior to `0.11.0`, see the git tag history (`git log --oneline -- s
 
 ---
 
+## [1.5.2] - 2026-10-19 — Strict TLS certificates for Redis
+
+### Fixed
+- `make setup` generates TLS certs that pass strict X.509 verification: the CA carries `keyUsage`, the server cert `keyUsage`, `extendedKeyUsage` and an authority key identifier. The recipe lives in `scripts/gen-tls-certs.sh`, which also checks its output with `openssl verify -x509_strict`. Existing certs are not regenerated; see the 1.5.0 breaking change for how to check and reissue them.
+- service: when Redis fails at startup, the error names the cause (e.g. `Redis is unreachable — … (SSLCertVerificationError: certificate verify failed: …)`), so a rejected certificate no longer looks like a network outage. The dev-mode warning carries it too.
+
+### Added
+- CI: a job generates the setup certs and verifies them strictly, on every push and weekly.
+
+---
+
 ## [1.5.1] - 2026-10-19 — Group shares in AuthZ mode
 
 ### Fixed
@@ -26,6 +37,9 @@ Upgrade the service and the SDKs together: an older service mints tokens without
 ---
 
 ## [1.5.0] - 2026-10-19 — Duar MCP
+
+### Breaking changes
+- Redis over TLS with `REDIS_TLS_VERIFY=required` needs certificates that pass strict X.509 checks. The service image moved to Python 3.14, whose default TLS context verifies strictly (since 3.13): the CA must carry a `keyUsage` extension and the server cert an authority key identifier. Certs made by `make setup` before 1.5.2 have neither, so the service refuses to start with `Refusing to start: … Redis is unreachable`, even though Redis is up. Check with `openssl verify -x509_strict -CAfile keys/tls/ca.crt keys/tls/server.crt` (must print `OK`). To fix, reissue with `./scripts/gen-tls-certs.sh` (1.5.2+) and restart Postgres, Redis and Duar; see [Deployment](docs/deployment/index.md#internal-tls-certificates). Postgres connections (`ssl=require`) encrypt without verifying, so they are unaffected.
 
 ### Added
 - **Duar MCP** (Python SDK, `pip install "duar-auth[mcp]"`): `duar_auth.mcp.mount_mcp(app, mcp, duar)` serves a FastMCP server at `/mcp/` inside an AuthZ-mode app (`Duar(mode="authz", auto_resolve=True, idp_provider=...)`, protected with `duar.protect(app)`, `FastMCP(..., mask_error_details=True)`, stateless HTTP). Every tool call needs an authenticated Duar user and runs with that user's own permissions. Tools tagged `AGENT_GATED` also need a grant on the action `mcp:<service_name>.<tool>`, checked live on every call and fail-closed, so a revoked grant applies on the next call. Gated tools are registered as Duar actions at startup. Grant them by adding the action to a workspace role. See `docs/sdk/mcp.md`.
