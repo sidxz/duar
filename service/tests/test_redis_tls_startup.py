@@ -43,6 +43,7 @@ def test_setup_certs_pass_strict_verification(tmp_path):
     # forced so this fails on any Python, not just 3.13+ where it is the default.
     client = ssl.create_default_context(cafile=tmp_path / "ca.crt")
     client.verify_flags |= ssl.VERIFY_X509_STRICT
+    client.minimum_version = ssl.TLSVersion.TLSv1_2
     with socket.create_connection(("127.0.0.1", port)) as raw:
         client.wrap_socket(raw, server_hostname="redis").close()
     listener.close()
