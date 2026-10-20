@@ -358,7 +358,7 @@ class AuthzMiddleware(BaseHTTPMiddleware):
                 workspace_id=uuid.UUID(authz_payload["wid"]),
                 workspace_slug=authz_payload.get("wslug", ""),
                 workspace_role=authz_payload["wrole"],
-                groups=[],
+                groups=[uuid.UUID(g) for g in authz_payload.get("groups", [])],
                 org_id=uuid.UUID(authz_payload["oid"]) if authz_payload.get("oid") else None,
                 org_slug=authz_payload.get("oslug"),
                 org_is_public=bool(authz_payload.get("opub", False)),

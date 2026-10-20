@@ -111,6 +111,11 @@ const authzPayload = {
 }
 
 describe('authzTokenToUser', () => {
+  it('maps the authz token groups claim', () => {
+    const token = makeJwt({ ...authzPayload, groups: ['group-a', 'group-b'] })
+    expect(authzTokenToUser(token, null).groups).toEqual(['group-a', 'group-b'])
+  })
+
   it('maps authz token claims with identity to DuarUser', () => {
     const token = makeJwt(authzPayload)
     const user = authzTokenToUser(token, { email: 'test@example.com', name: 'Test User' })

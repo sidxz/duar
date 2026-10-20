@@ -200,6 +200,22 @@ async def find_or_create_user(
     return user
 
 
+async def workspace_group_ids(
+    db: AsyncSession, user_id: uuid.UUID, workspace_id: uuid.UUID
+) -> list[uuid.UUID]:
+    """IDs of the user's groups in one workspace (the ``groups`` token claim)."""
+    stmt = (
+        select(GroupMembership.group_id)
+        .join(GroupMembership.group)
+        .where(
+            GroupMembership.user_id == user_id,
+            GroupMembership.group.has(workspace_id=workspace_id),
+        )
+    )
+    result = await db.execute(stmt)
+    return [row[0] for row in result.all()]
+
+
 async def issue_tokens(
     db: AsyncSession,
     user: User,
@@ -223,17 +239,7 @@ async def issue_tokens(
     ):
         raise ValueError("User's organization is not permitted in this workspace")
 
-    # Get group IDs
-    stmt = (
-        select(GroupMembership.group_id)
-        .join(GroupMembership.group)
-        .where(
-            GroupMembership.user_id == user.id,
-            GroupMembership.group.has(workspace_id=workspace_id),
-        )
-    )
-    result = await db.execute(stmt)
-    group_ids = [row[0] for row in result.all()]
+    group_ids = await workspace_group_ids(db, user.id, workspace_id)
 
     org = await organization_service.org_for_claims(db, user.organization_id)
     access_token = create_access_token(
@@ -385,17 +391,7 @@ async def rotate_refresh_token(
 
         workspace = await db.get(Workspace, workspace_id)
 
-        # Get group IDs
-        stmt = (
-            select(GroupMembership.group_id)
-            .join(GroupMembership.group)
-            .where(
-                GroupMembership.user_id == user.id,
-                GroupMembership.group.has(workspace_id=workspace_id),
-            )
-        )
-        db_result = await db.execute(stmt)
-        group_ids = [row[0] for row in db_result.all()]
+        group_ids = await workspace_group_ids(db, user.id, workspace_id)
 
         # Enforce the real-org kill-switch on refresh too: a disabled tenant must
         # not keep its sessions alive by rotating. org_for_claims raises OrgDisabled,

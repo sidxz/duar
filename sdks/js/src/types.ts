@@ -106,6 +106,7 @@ export interface AuthzJWTPayload {
   wslug: string
   wrole: WorkspaceRole
   actions: string[]
+  groups?: string[]
   oid?: string | null
   oslug?: string | null
   opub?: boolean
