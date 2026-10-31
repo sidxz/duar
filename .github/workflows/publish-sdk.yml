@@ -41,6 +41,6 @@ jobs:
         # that current hatchling emits ("not a valid metadata version") — it
         # failed the 0.20.1 publish while every other artifact went out. v1.14.2
         # ships twine 7, which accepts 2.5.
-        uses: pypa/gh-action-pypi-publish@v1.14.2
+        uses: pypa/gh-action-pypi-publish@v1.14.3
         with:
           packages-dir: sdk/dist/
