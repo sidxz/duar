@@ -14,7 +14,7 @@ from dataclasses import asdict
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from duar_auth.types import AuthenticatedUser
+from duar_auth.types import AuthenticatedUser, DuarError
 
 from src.config import duar
 from src.deps import get_current_user, get_token, get_workspace_id, require_role
@@ -195,10 +195,14 @@ async def delete_note(
 
     # Duar first: if it cannot be reached the note stays and the delete can be
     # retried, rather than leaving a permission record with no note behind it.
-    await duar.permissions.deregister_resource(
-        resource_type="note",
-        resource_id=note_id,
-    )
+    try:
+        await duar.permissions.deregister_resource(
+            resource_type="note",
+            resource_id=note_id,
+        )
+    except DuarError as exc:
+        if exc.status_code != 404:  # 404: Duar has no record, nothing to remove
+            raise
     notes.delete(note_id)
     return {"ok": True}
 
