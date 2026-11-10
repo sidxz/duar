@@ -47,7 +47,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "jose": "^5.0.0"
+    "jose": "^6.2.15"
   },
   "peerDependencies": {
     "next": "^14.2.25 || ^15.5.18 || ^16.2.11",
