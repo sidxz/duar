@@ -24,6 +24,9 @@ For versions prior to `0.11.0`, see the git tag history (`git log --oneline -- s
 - CI: every pull request also builds and tests the JS SDKs, lints and builds the admin panel, and runs a system test (`make system-test`) that boots `docker-compose.prod.yml` from an empty database and exercises sign-in, sessions, authorization and both SDKs against it. See [Testing](docs/contributing/testing.md).
 - service tests: `tests/route_table.txt` pins every route with the credential it requires and its declared rate limit; the suite fails when a route is added or its protection changes without the file being updated.
 
+### Fixed
+- Admin sign-in page: when the list of sign-in providers cannot be loaded, the page says so and shows the reason (for example a rate limit) instead of reporting that no providers are configured.
+
 ---
 
 ## [1.5.2] - 2026-10-19 — Strict TLS certificates for Redis
