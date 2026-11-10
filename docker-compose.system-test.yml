@@ -1,0 +1,110 @@
+# System-test overlay for docker-compose.prod.yml.
+#
+# The stack under test is the production compose file as documented. This file
+# only adds what a test run needs around it: locally built images, a throwaway
+# OIDC provider (Dex) to sign in against, a TLS reverse proxy in front (as the
+# deployment docs require), and a host port for the internal listener.
+#
+# Do not use directly: system-tests/run.sh generates the keys, certs and env
+# file this expects, then runs
+#   docker compose -f docker-compose.prod.yml -f docker-compose.system-test.yml ...
+
+x-test-env: &test_env
+  # Sign-in provider: Dex, on the compose network.
+  DEX_CLIENT_ID: duar-system-test
+  DEX_CLIENT_SECRET: ${DEX_CLIENT_SECRET}
+  DEX_SERVER_METADATA_URL: http://dex:5556/dex/.well-known/openid-configuration
+  # AuthZ mode: the tests sign IdP tokens with a key whose public half is given
+  # here (the service's test-only static-key provider, off unless this is set).
+  TEST_TRUSTED_ISSUER_PUBKEY: ${TEST_TRUSTED_ISSUER_PUBKEY}
+  TEST_TRUSTED_ISSUER: https://idp.system-test.invalid
+  TEST_TRUSTED_AUDIENCE: system-test-client
+  # Every test request comes from one address, so the per-IP sign-in tiers are
+  # raised here and the per-IP aggregate ceiling in run.sh. The other tiers stay
+  # at their production defaults; the tests assert enforcement on one of those.
+  RATE_LIMIT_AUTH: 600/minute
+  RATE_LIMIT_AUTH_ADMIN: 600/minute
+
+services:
+  duar:
+    image: duar:system-test
+    build:
+      context: .
+      dockerfile: service/Dockerfile
+    environment:
+      <<: *test_env
+      # One listener for everything, behind the TLS proxy. The SDKs fetch the
+      # signing keys and call the service-key routes on the same base URL, and
+      # the public/internal split serves those from two different listeners.
+      # duar-internal below still runs as the production file defines it.
+      TIER: all
+    restart: "no"   # a crash must fail the run, not be papered over by a restart
+    depends_on:
+      dex:
+        condition: service_healthy
+
+  duar-internal:
+    image: duar:system-test
+    environment: *test_env
+    restart: "no"
+    # Unpublished in production. The tests stand in for backends on the overlay
+    # network, so they need a way in from the host.
+    ports:
+      - "127.0.0.1:19010:9010"
+
+  duar-admin:
+    image: duar-admin:system-test
+    build:
+      context: admin
+
+  dex:
+    image: ghcr.io/dexidp/dex:v2.46.0-alpine
+    command: ["dex", "serve", "/etc/dex/config.yaml"]
+    environment:
+      DEX_CLIENT_SECRET: ${DEX_CLIENT_SECRET}
+    volumes:
+      - ./system-tests/dex.yaml:/etc/dex/config.yaml:ro
+    ports:
+      - "127.0.0.1:15556:5556"
+    networks:
+      - duar
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:5556/dex/healthz"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # TLS termination in front of the public listener and the admin panel.
+  proxy:
+    image: caddy:2-alpine
+    volumes:
+      - ./system-tests/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${SYSTEM_TEST_DIR}/tls:/tls:ro
+    ports:
+      - "127.0.0.1:19443:19443"
+      - "127.0.0.1:19444:19444"
+    networks:
+      - duar
+    depends_on:
+      duar:
+        condition: service_healthy
+      duar-admin:
+        condition: service_healthy
+
+# The production file deploys to a swarm overlay network and reads its secrets
+# from ./keys; a test run uses a plain bridge and freshly generated material.
+networks:
+  duar:
+    driver: bridge
+
+secrets:
+  jwt_private_key:
+    file: ${SYSTEM_TEST_DIR}/private.pem
+  jwt_public_key:
+    file: ${SYSTEM_TEST_DIR}/public.pem
+  tls_cert:
+    file: ${SYSTEM_TEST_DIR}/tls/server.crt
+  tls_key:
+    file: ${SYSTEM_TEST_DIR}/tls/server.key
+  tls_ca:
+    file: ${SYSTEM_TEST_DIR}/tls/ca.crt

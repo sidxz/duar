@@ -1,0 +1,14 @@
+{
+  "name": "duar-system-tests-js",
+  "private": true,
+  "type": "module",
+  "description": "Runs the published shape of the JS SDKs against the system-test stack. Installed by system-tests/run.sh from freshly packed tarballs, with pnpm.",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@duar-auth/js": "file:../.work/packs/duar-auth-js.tgz",
+    "@duar-auth/nextjs": "file:../.work/packs/duar-auth-nextjs.tgz",
+    "@duar-auth/react": "file:../.work/packs/duar-auth-react.tgz"
+  }
+}

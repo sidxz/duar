@@ -21,6 +21,8 @@ For versions prior to `0.11.0`, see the git tag history (`git log --oneline -- s
 
 ### Added
 - CI: the service test suite runs on every push and pull request, on the Python version the service image ships.
+- CI: every pull request also builds and tests the JS SDKs, lints and builds the admin panel, and runs a system test (`make system-test`) that boots `docker-compose.prod.yml` from an empty database and exercises sign-in, sessions, authorization and both SDKs against it. See [Testing](docs/contributing/testing.md).
+- service tests: `tests/route_table.txt` pins every route with the credential it requires and its declared rate limit; the suite fails when a route is added or its protection changes without the file being updated.
 
 ---
 

@@ -1,0 +1,18 @@
+# TLS reverse proxy for the system-test stack: what the deployment docs ask an
+# operator to put in front of Duar. Certs come from scripts/gen-tls-certs.sh.
+{
+	auto_https off
+	admin off
+}
+
+# Public listener
+https://localhost:19443 {
+	tls /tls/server.crt /tls/server.key
+	reverse_proxy duar:9003
+}
+
+# Admin panel (nginx: static app + /api proxy to the public listener)
+https://localhost:19444 {
+	tls /tls/server.crt /tls/server.key
+	reverse_proxy duar-admin:80
+}
