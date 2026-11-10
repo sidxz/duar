@@ -9,6 +9,8 @@ Coverage model (slowapi 0.1.10 — verified against the installed source):
     so aggregate/default limits do NOT apply, and the decorator's check runs in
     the endpoint wrapper AFTER dependencies — a request rejected by an auth
     ``Depends`` (bad token/service key) is therefore not throttled here.
+  * A route is one bucket per key (``key_style="endpoint"``): requests to
+    ``/things/a`` and ``/things/b`` count together against ``/things/{id}``.
 
 ACCEPTED TRADEOFF: app-layer limiting provides NO volumetric DoS protection and
 NO pre-auth throttling for decorated routes (/authz/resolve, /auth/token,
@@ -136,8 +138,12 @@ def rate_limit_report() -> list[dict[str, str]]:
             "limit": settings.rate_limit_read,
         },
         {
-            "endpoint": "permission checks (check-action, permissions/check) · per app+user",
+            "endpoint": "permission checks and lookups (check-action, permissions/check, accessible, share, user-actions) · per app+user",
             "limit": settings.rate_limit_tool_check,
+        },
+        {
+            "endpoint": "service-key routes without a user (register, visibility, ACL, actions) · per service",
+            "limit": settings.rate_limit_service,
         },
         {
             "endpoint": "admin writes · per user",
@@ -160,6 +166,12 @@ class _FailOpenLimiter(Limiter):
     injection sees ``None`` (a no-op given ``headers_enabled=False``) and the
     request passes through with its real response instead of 500ing.
     """
+
+    def __init__(self, *args, **kwargs):
+        # One bucket per route: every request to a route counts together,
+        # whatever the values of its path parameters.
+        kwargs.setdefault("key_style", "endpoint")
+        super().__init__(*args, **kwargs)
 
     def _check_request_limit(self, request, endpoint_func, in_middleware=True):
         try:

@@ -112,7 +112,8 @@ These callbacks are only used for the admin panel's server-side OAuth flow. In A
 | `RATE_LIMIT_AUTH_ADMIN` | `5/minute` | Admin auth endpoints (`/auth/admin/login`, `/auth/admin/callback`). |
 | `RATE_LIMIT_AUTHZ_RESOLVE` | `60/minute` | `POST /authz/resolve` — authz token minting. |
 | `RATE_LIMIT_READ` | `60/minute` | Read-heavy endpoints (member search, group listing, enriched ACL). |
-| `RATE_LIMIT_TOOL_CHECK` | `600/minute` | Permission-check hot path (`/roles/check-action`, `/permissions/check`, incl. MCP tool calls), per calling app + user. Not throttled before authentication — see the edge-limiting note in [Security](../security.md#rate-limiting). |
+| `RATE_LIMIT_TOOL_CHECK` | `600/minute` | Permission checks and lookups made for a user (`/roles/check-action`, `/permissions/check`, incl. MCP tool calls, `/permissions/accessible`, `/permissions/{id}/share`, `/roles/user-actions`), per calling app + user. Not throttled before authentication — see the edge-limiting note in [Security](../security.md#rate-limiting). |
+| `RATE_LIMIT_SERVICE` | `3000/minute` | Service-key routes without a user (`/permissions/register`, visibility, share removal, resource ACL read and delete, `/roles/actions/register`, `/organizations`), per calling service. A ceiling for a runaway loop; raise it for bulk imports. |
 | `RATE_LIMIT_ADMIN_WRITE` | `10/minute` | Admin mutation endpoints (POST/PATCH/PUT/DELETE under `/admin/`). |
 | `RATE_LIMIT_SENSITIVE` | `5/minute` | High-sensitivity endpoints (service purge, key rotation). |
 

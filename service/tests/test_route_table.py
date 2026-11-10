@@ -194,3 +194,15 @@ def test_every_internal_listener_route_requires_a_service_credential():
     assert len(rows) > 10
     allowed = {"service-key", "service-key+user", "service-key-or-origin"}
     assert [row for row in rows if row[1] not in allowed] == []
+
+
+def test_every_service_key_route_is_limited_per_caller():
+    # A backend calls these from one address on behalf of all its users, so a
+    # per-address tier would throttle the whole app at once.
+    rows = [
+        (name, limit)
+        for name, auth, limit in route_rows()
+        if auth.startswith("service-key")
+    ]
+    assert len(rows) > 10
+    assert [row for row in rows if " by service_" not in row[1]] == []

@@ -53,6 +53,15 @@ def _client(*, default="100/minute", aggregate=None):
     async def exempt():
         return {"ok": True}
 
+    @router.get("/items/{item_id}")
+    async def item(item_id: str):
+        return {"ok": True}
+
+    @router.get("/reports/{name}")
+    @lim.limit("2/minute")
+    async def report(request: Request, name: str):
+        return {"ok": True}
+
     router.include_router(nested)
     app.include_router(router)
     return TestClient(app)
@@ -96,6 +105,20 @@ def test_decorated_route_is_bound_only_by_its_own_limit():
 def test_exempt_route_is_never_throttled():
     c = _client(default="1/minute")
     assert _statuses(c, "/api/exempt", 3) == [200, 200, 200]
+
+
+def test_default_tier_counts_a_route_once_whatever_its_path_parameters():
+    c = _client(default="2/minute")
+    assert [c.get(f"/api/items/{n}").status_code for n in "abc"] == [200, 200, 429]
+
+
+def test_a_routes_own_limit_counts_it_once_whatever_its_path_parameters():
+    c = _client()
+    assert [c.get(f"/api/reports/{n}").status_code for n in "abc"] == [200, 200, 429]
+
+
+def test_the_service_limiter_counts_per_route():
+    assert rl.limiter._key_style == "endpoint"
 
 
 def test_unknown_path_passes_through_unthrottled():

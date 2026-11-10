@@ -13,7 +13,7 @@ from src.api.dependencies import (
 )
 from src.config import settings
 from src.database import get_db
-from src.middleware.rate_limit import limiter, service_user_key
+from src.middleware.rate_limit import limiter, service_or_ip_key, service_user_key
 from src.schemas.role import (
     CheckActionRequest,
     CheckActionResponse,
@@ -33,7 +33,9 @@ logger = structlog.get_logger()
 @router.post(
     "/actions/register", response_model=list[ServiceActionResponse], status_code=201
 )
+@limiter.limit(settings.rate_limit_service, key_func=service_or_ip_key)
 async def register_actions(
+    request: Request,
     body: RegisterActionsRequest,
     svc: ServiceKeyContext = Depends(require_service_key),
     db: AsyncSession = Depends(get_db),
@@ -99,7 +101,9 @@ async def check_action(
 
 
 @router.get("/user-actions", response_model=UserActionsResponse)
+@limiter.limit(settings.rate_limit_tool_check, key_func=service_user_key)
 async def get_user_actions(
+    request: Request,
     workspace_id: uuid.UUID = Query(...),
     service_name: str = Query(...),
     svc: ServiceKeyContext = Depends(require_service_key),

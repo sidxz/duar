@@ -90,7 +90,9 @@ async def check_permissions(
 
 
 @router.post("/accessible", response_model=AccessibleResourcesResponse)
+@limiter.limit(settings.rate_limit_tool_check, key_func=service_user_key)
 async def accessible_resources(
+    request: Request,
     body: AccessibleResourcesRequest,
     svc: ServiceKeyContext = Depends(require_service_key),
     user: CurrentUser = Depends(get_user_for_service_call),
@@ -122,7 +124,9 @@ async def accessible_resources(
 
 
 @router.post("/{permission_id}/share", status_code=201)
+@limiter.limit(settings.rate_limit_tool_check, key_func=service_user_key)
 async def share_resource(
+    request: Request,
     permission_id: uuid.UUID,
     body: ShareRequest,
     svc: ServiceKeyContext = Depends(require_service_key),
@@ -175,7 +179,9 @@ async def share_resource(
 
 
 @router.post("/register", response_model=ResourcePermissionResponse, status_code=201)
+@limiter.limit(settings.rate_limit_service, key_func=service_or_ip_key)
 async def register_resource(
+    request: Request,
     body: RegisterResourceRequest,
     svc: ServiceKeyContext = Depends(require_service_key),
     db: AsyncSession = Depends(get_db),
@@ -205,7 +211,9 @@ async def register_resource(
 
 
 @router.patch("/{permission_id}/visibility", response_model=ResourcePermissionResponse)
+@limiter.limit(settings.rate_limit_service, key_func=service_or_ip_key)
 async def update_visibility(
+    request: Request,
     permission_id: uuid.UUID,
     body: UpdateVisibilityRequest,
     svc: ServiceKeyContext = Depends(require_service_key),
@@ -228,7 +236,9 @@ async def update_visibility(
 
 
 @router.delete("/{permission_id}/share")
+@limiter.limit(settings.rate_limit_service, key_func=service_or_ip_key)
 async def revoke_share(
+    request: Request,
     permission_id: uuid.UUID,
     body: ShareRequest,
     svc: ServiceKeyContext = Depends(require_service_key),
@@ -260,7 +270,9 @@ async def revoke_share(
 @router.delete(
     "/resource/{service_name}/{resource_type}/{resource_id}", status_code=204
 )
+@limiter.limit(settings.rate_limit_service, key_func=service_or_ip_key)
 async def deregister_resource(
+    request: Request,
     service_name: str,
     resource_type: str,
     resource_id: uuid.UUID,
@@ -287,7 +299,9 @@ async def deregister_resource(
     "/resource/{service_name}/{resource_type}/{resource_id}",
     response_model=ResourcePermissionResponse,
 )
+@limiter.limit(settings.rate_limit_service, key_func=service_or_ip_key)
 async def get_resource_acl(
+    request: Request,
     service_name: str,
     resource_type: str,
     resource_id: uuid.UUID,
