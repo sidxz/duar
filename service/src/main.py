@@ -32,10 +32,10 @@ from src.config import settings
 from src.logging_config import configure_logging
 from src.version import __version__
 from src.middleware.rate_limit import (
+    RateLimitMiddleware,
     limiter,
     rate_limit_exceeded_handler,
 )
-from slowapi.middleware import SlowAPIASGIMiddleware
 from src.middleware.access_log import AccessLogMiddleware
 from src.middleware.cors import DynamicCORSMiddleware, refresh_origins
 from src.middleware.request_context import RequestContextMiddleware
@@ -288,7 +288,7 @@ def create_app(tier: str) -> FastAPI:
     # Rate limiting (slowapi). Deliberately positioned INSIDE
     # RequestContext/AccessLog/CORS (added after this) so a 429 still carries the
     # request-id, is access-logged, and gets CORS headers. See middleware/rate_limit.py.
-    app.add_middleware(SlowAPIASGIMiddleware)
+    app.add_middleware(RateLimitMiddleware)
 
     # Security headers on every response
     app.add_middleware(SecurityHeadersMiddleware, hsts=settings.cookie_secure)

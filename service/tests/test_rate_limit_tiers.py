@@ -121,8 +121,6 @@ def test_fail_open_when_storage_unreachable():
     # -> HTTP 500. _FailOpenLimiter pre-seeds the attribute so a Redis outage passes
     # traffic through (with the real response) on BOTH the undecorated (middleware)
     # and decorated (endpoint-wrapper) paths.
-    from slowapi.middleware import SlowAPIASGIMiddleware
-
     dead_redis = "redis://127.0.0.1:6390/0"  # nothing listening -> connection refused
     lim = rl._FailOpenLimiter(
         key_func=rl.get_client_ip,
@@ -135,7 +133,7 @@ def test_fail_open_when_storage_unreachable():
     app = FastAPI()
     app.state.limiter = lim
     app.add_exception_handler(RateLimitExceeded, rl.rate_limit_exceeded_handler)
-    app.add_middleware(SlowAPIASGIMiddleware)
+    app.add_middleware(rl.RateLimitMiddleware)
 
     @app.get("/u")
     async def u(request: Request):

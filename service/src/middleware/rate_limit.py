@@ -3,7 +3,7 @@
 Coverage model (slowapi 0.1.10 — verified against the installed source):
   * Routes WITHOUT a decorator → ``application_limits`` (per-IP aggregate,
     "global" scope) + ``default_limits`` (per-IP, per-route), enforced by
-    ``SlowAPIASGIMiddleware`` BEFORE auth/dependencies run.
+    ``RateLimitMiddleware`` (below) BEFORE auth/dependencies run.
   * Routes WITH an ``@limiter.limit(...)`` decorator → ONLY that decorator's
     limit. slowapi intentionally EXEMPTS decorated routes from the middleware,
     so aggregate/default limits do NOT apply, and the decorator's check runs in
@@ -27,10 +27,16 @@ that hole with ``_FailOpenLimiter`` below, which guarantees the attribute is
 always defined so the (no-op, headers-disabled) injection can't crash.
 """
 
+from collections.abc import Callable, Sequence
+
+from fastapi.routing import iter_route_contexts
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import _should_exempt, async_check_limits
 from starlette.requests import Request
 from starlette.responses import JSONResponse
+from starlette.routing import BaseRoute, Match
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from src.config import settings
 from src.logging_events import log_security
@@ -174,6 +180,46 @@ limiter = _FailOpenLimiter(
     swallow_errors=True,  # fail OPEN: a Redis blip must not 500 or throttle legit traffic
     enabled=settings.rate_limit_enabled,  # master switch (False on ephemeral pentest targets)
 )
+
+
+def find_route_handler(routes: Sequence[BaseRoute], scope: Scope) -> Callable | None:
+    """The endpoint a request will reach, or None when no route serves it.
+
+    Walks every registered route, including those added with
+    ``include_router()``, which FastAPI keeps grouped under their router rather
+    than listing in ``app.routes``. First full match wins, as in the router.
+    """
+    for route in iter_route_contexts(routes):
+        match, _ = route.matches(scope)
+        if match == Match.FULL and route.endpoint is not None:
+            return route.endpoint
+    return None
+
+
+class RateLimitMiddleware:
+    """Applies the default and aggregate tiers to undecorated routes.
+
+    Decorated and exempt routes pass straight through (the decorator enforces
+    its own limit in the endpoint wrapper), as does a request no route serves.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http":
+            app = scope["app"]
+            active: Limiter = app.state.limiter
+            if active.enabled:
+                handler = find_route_handler(app.routes, scope)
+                if not _should_exempt(active, handler):
+                    request = Request(scope, receive=receive, send=send)
+                    rejection, _ = await async_check_limits(
+                        active, request, handler, app
+                    )
+                    if rejection is not None:
+                        return await rejection(scope, receive, send)
+        await self.app(scope, receive, send)
 
 
 async def rate_limit_exceeded_handler(
