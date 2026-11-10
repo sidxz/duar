@@ -12,6 +12,9 @@ For versions prior to `0.11.0`, see the git tag history (`git log --oneline -- s
 
 <!-- Add next-version entries here -->
 
+### Breaking changes
+- `@duar-auth/js` and `@duar-auth/nextjs` depend on `jose` 6 (was 5). The SDK API is unchanged. jose 6 is ESM-only and drops Node.js 18: an app that `require()`s the SDK needs Node.js 20.19+ or 22.12+; an app that `import`s it (Next.js, Vite, any bundler) is unaffected. jose 6 also fetches the signing keys with the platform `fetch` instead of Node's `https`, so a framework that caches `fetch` by default (Next.js 14) now applies that cache to the key fetch; Next.js 15 and 16 do not cache by default.
+
 ### Added
 - CI: the service test suite runs on every push and pull request, on the Python version the service image ships.
 
