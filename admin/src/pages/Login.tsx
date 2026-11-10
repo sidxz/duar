@@ -33,7 +33,9 @@ function readLoginError(): string | null {
 }
 
 export function Login() {
-  const [providers, setProviders] = useState<string[]>([]);
+  // null until the list has loaded, so "none configured" is never shown early.
+  const [providers, setProviders] = useState<string[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   // Derived once at mount from the URL — no setState-in-effect.
   const [error] = useState(readLoginError);
 
@@ -45,7 +47,7 @@ export function Login() {
     }
     getAuthProviders()
       .then((r) => setProviders(r.providers))
-      .catch(() => {});
+      .catch((e: Error) => setLoadError(e.message));
   }, []);
 
   return (
@@ -64,7 +66,7 @@ export function Login() {
           )}
 
           <div className="space-y-3">
-            {providers.map((p) => {
+            {providers?.map((p) => {
               const meta = PROVIDER_META[p] ?? { label: p, icon: "" };
               return (
                 <a
@@ -81,7 +83,12 @@ export function Login() {
                 </a>
               );
             })}
-            {providers.length === 0 && (
+            {loadError && (
+              <p className="text-center text-sm text-muted-foreground">
+                Sign-in options could not be loaded ({loadError}). Reload the page in a moment.
+              </p>
+            )}
+            {providers?.length === 0 && (
               <p className="text-center text-sm text-muted-foreground">
                 No sign-in providers are available. Check the OAuth configuration.
               </p>

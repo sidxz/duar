@@ -18,6 +18,7 @@ For versions prior to `0.11.0`, see the git tag history (`git log --oneline -- s
 ### Fixed
 - `docker-compose.prod.yml` and the admin image probe `127.0.0.1` in their health checks. They probed `localhost`, which resolves to IPv6 first inside the Alpine images while the service and nginx listen on IPv4, so the `duar`, `duar-internal` and `duar-admin` containers stayed unhealthy and anything waiting on them never started.
 - `make setup` generates the Postgres and Redis passwords as hex. A base64 password can contain `/`, which made `REDIS_URL` unparseable and stopped the service at startup. If your `.env.prod` has a `/` in `REDIS_PASSWORD`, replace the password.
+- Admin sign-in page: when the list of sign-in providers cannot be loaded, the page says so and shows the reason (for example a rate limit) instead of reporting that no providers are configured.
 
 ### Added
 - CI: the service test suite runs on every push and pull request, on the Python version the service image ships.
