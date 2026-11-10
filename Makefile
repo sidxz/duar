@@ -35,8 +35,8 @@ setup: ## One-time setup: keys, TLS certs, env files, deps, dev containers
 	fi
 	@# ── Prod env (.env.prod) ────────────────────────────────────────
 	@if [ ! -f .env.prod ]; then \
-		PG_PASS=$$(openssl rand -base64 24); \
-		REDIS_PASS=$$(openssl rand -base64 24); \
+		PG_PASS=$$(openssl rand -hex 24); \
+		REDIS_PASS=$$(openssl rand -hex 24); \
 		SESSION_KEY=$$(python3 -c "import secrets; print(secrets.token_urlsafe(32))"); \
 		sed "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$$PG_PASS|; \
 		     s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=$$REDIS_PASS|; \
