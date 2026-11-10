@@ -114,6 +114,8 @@ services:
       RATE_LIMIT_AGGREGATE: ${RATE_LIMIT_AGGREGATE:-300/minute}
       RATE_LIMIT_DEFAULT: ${RATE_LIMIT_DEFAULT:-120/minute}
       RATE_LIMIT_AUTHZ_RESOLVE: ${RATE_LIMIT_AUTHZ_RESOLVE:-60/minute}
+      RATE_LIMIT_TOOL_CHECK: ${RATE_LIMIT_TOOL_CHECK:-600/minute}
+      RATE_LIMIT_SERVICE: ${RATE_LIMIT_SERVICE:-3000/minute}
       # Security signals (detect-only). Tunable from .env.prod; defaults match config.py.
       SIGNALS_ENABLED: ${SIGNALS_ENABLED:-true}
       SIGNAL_IMPOSSIBLE_TRAVEL_KMH: ${SIGNAL_IMPOSSIBLE_TRAVEL_KMH:-900}

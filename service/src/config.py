@@ -97,6 +97,11 @@ class Settings(BaseSettings):
     # Permission-check hot path (/roles/check-action, /permissions/check), incl. MCP tool calls.
     # Per (app, user), not per IP — see rate_limit.service_user_key; sized for agent tool loops.
     rate_limit_tool_check: str = "600/minute"
+    # Service-key routes with no user (register, visibility, ACL reads, deregister,
+    # action registration, org directory). Per calling service: a backend makes
+    # these from one address for all of its users. A ceiling for a runaway loop,
+    # not a throttle on normal traffic.
+    rate_limit_service: str = "3000/minute"
 
     @field_validator("base_url", "admin_url", "frontend_url")
     @classmethod
@@ -112,6 +117,7 @@ class Settings(BaseSettings):
         "rate_limit_admin_write",
         "rate_limit_sensitive",
         "rate_limit_tool_check",
+        "rate_limit_service",
     )
     @classmethod
     def _validate_decorated_tier(cls, v: str, info) -> str:

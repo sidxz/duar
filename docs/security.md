@@ -242,12 +242,13 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 | Auth | `RATE_LIMIT_AUTH` | `10/minute` | `/auth/login`, `/auth/callback`, `/auth/token`, `/auth/refresh` |
 | Auth admin | `RATE_LIMIT_AUTH_ADMIN` | `5/minute` | `/auth/admin/login`, `/auth/admin/callback` |
 | Authz resolve | `RATE_LIMIT_AUTHZ_RESOLVE` | `60/minute` | `POST /authz/resolve` |
-| Read | `RATE_LIMIT_READ` | `60/minute` | Member search, group listing, enriched ACL |
-| Tool check | `RATE_LIMIT_TOOL_CHECK` | `600/minute` | `POST /roles/check-action`, `POST /permissions/check` (incl. MCP tool calls) — keyed per calling app + user |
+| Read | `RATE_LIMIT_READ` | `60/minute` | Member search, group and group-member listing, `GET /users/me` — keyed per user |
+| Tool check | `RATE_LIMIT_TOOL_CHECK` | `600/minute` | `POST /roles/check-action`, `POST /permissions/check` (incl. MCP tool calls), `POST /permissions/accessible`, `POST /permissions/{id}/share`, `GET /roles/user-actions` — keyed per calling app + user |
+| Service | `RATE_LIMIT_SERVICE` | `3000/minute` | Service-key routes without a user: `POST /permissions/register`, visibility, share removal, resource ACL reads (plain and enriched) and delete, `POST /roles/actions/register`, `GET /organizations` — keyed per calling service |
 | Admin write | `RATE_LIMIT_ADMIN_WRITE` | `10/minute` | Admin mutation endpoints |
 | Sensitive | `RATE_LIMIT_SENSITIVE` | `5/minute` | Service purge, key-rotation |
 
-Keys are per IP address, except the authenticated tiers: read and admin tiers key per user, authz resolve per calling service, and tool check per calling app + user (so one app's agent loop can't throttle that user in other apps). When `BEHIND_PROXY=true`, the client IP is read from `X-Forwarded-For` using the rightmost trusted hop (controlled by `TRUSTED_PROXY_COUNT`). Exceeding any limit returns `429 Too Many Requests` with a `Retry-After` header.
+Keys are per IP address, except the authenticated tiers: read and admin tiers key per user, authz resolve and service per calling service, and tool check per calling app + user (so one app's agent loop can't throttle that user in other apps). A limit counts every request to a route together, whatever the values of its path parameters. When `BEHIND_PROXY=true`, the client IP is read from `X-Forwarded-For` using the rightmost trusted hop (controlled by `TRUSTED_PROXY_COUNT`). Exceeding any limit returns `429 Too Many Requests` with a `Retry-After` header.
 
 If Redis is unreachable the limiter **fails open** (requests are not blocked). This is intentional for availability; edge rate limiting should be the backstop for volumetric attacks.
 

@@ -138,7 +138,10 @@ async def delete_workspace(
     _require_workspace_match(user, workspace_id)
     _require_role(user, "owner")
     workspace = await workspace_service.get_workspace(db, workspace_id)
-    await workspace_service.delete_workspace(db, workspace_id)
+    try:
+        await workspace_service.delete_workspace(db, workspace_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     if workspace:
         await activity_service.log_activity(
             db,

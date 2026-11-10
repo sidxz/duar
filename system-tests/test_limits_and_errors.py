@@ -7,15 +7,33 @@ NOWHERE = "00000000-0000-4000-8000-000000000000"
 
 
 def test_the_sensitive_admin_tier_stops_the_sixth_call_in_a_minute(admin):
-    # Purging a service's permissions is on the 5/minute tier, at its production value.
-    responses = [admin.request("DELETE", "/admin/permissions/service/no-such-service") for _ in range(6)]
+    # Purging a service's permissions is on the 5/minute tier, at its production
+    # value. The limit is the route's: a different service name each time still counts.
+    responses = [admin.request("DELETE", f"/admin/permissions/service/no-such-service-{n}") for n in range(6)]
     assert [r.status_code for r in responses[:5]] == [200] * 5, [r.text for r in responses[:5]]
     limited = responses[5]
     assert limited.status_code == 429
     assert limited.json() == {"detail": "Too many requests"}
     assert limited.headers["retry-after"] == "60"
-    # The limit is that route's, for that admin: the rest of the panel still answers.
+    # ...and that admin's only: the rest of the panel still answers.
     assert admin.request("GET", "/admin/users").status_code == 200
+
+
+def test_the_default_tier_stops_the_121st_request_to_a_route_before_it_is_handled(api):
+    # A route with no limit of its own, at the production default of 120/minute
+    # per address. Anonymous on purpose: the tier applies ahead of authentication.
+    statuses = [api.get(f"{BASE}/admin/stats").status_code for _ in range(121)]
+    assert statuses == [401] * 120 + [429]
+    # Another route from the same address is unaffected.
+    assert api.get(f"{BASE}/admin/activity").status_code == 401
+
+
+def test_a_backend_is_limited_per_service_not_by_the_address_its_users_share(api, world):
+    # 130 calls from one address to one service-key route: past the per-address
+    # default, well inside the per-service tier.
+    path = f"{BASE}/permissions/resource/{world.notes}/note/{NOWHERE}"
+    statuses = {api.get(path, headers=service_headers(world.notes_key)).status_code for _ in range(130)}
+    assert statuses == {404}
 
 
 def test_malformed_input_is_a_client_error(api, admin, world, alice):
