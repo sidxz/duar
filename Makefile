@@ -125,7 +125,7 @@ endif
 pentest: ## Run pentest suite (usage: make pentest [ARGS="--sast|--custom|--zap|..."])
 	@cd pentest && python run_all.py $(or $(ARGS),--all)
 
-pentest-fast: ## Run pentest suite with relaxed rate limits (RATE_LIMIT_RPM=1000, 5s cooldown)
+pentest-fast: ## Run pentest suite with a 5s cooldown, for a target started with RATE_LIMIT_ENABLED=false
 	@cd pentest && PENTEST_FAST=1 python run_all.py $(or $(ARGS),--all)
 
 pentest-setup: ## Install pentest tools
