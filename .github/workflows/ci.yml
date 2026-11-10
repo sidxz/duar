@@ -59,6 +59,41 @@ jobs:
       - name: Run tests with coverage
         run: cd sdk && uv run pytest -q --cov=duar_auth --cov-report=xml
 
+  service-test:
+    name: Service Tests
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    env:
+      # Test on the Python the service image ships (service/Dockerfile), which is
+      # newer than the dev pin in .python-version.
+      UV_PYTHON: '3.14'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+
+      # Whole workspace: the integration tests import the SDK.
+      - name: Install workspace with dev deps
+        run: uv sync --all-packages --extra dev
+
+      # The suite needs no database or Redis, only a signing keypair.
+      - name: Generate a throwaway JWT keypair
+        run: |
+          openssl genrsa -out "$RUNNER_TEMP/private.pem" 2048
+          openssl rsa -in "$RUNNER_TEMP/private.pem" -pubout -out "$RUNNER_TEMP/public.pem"
+
+      - name: Run tests
+        env:
+          JWT_PRIVATE_KEY_PATH: ${{ runner.temp }}/private.pem
+          JWT_PUBLIC_KEY_PATH: ${{ runner.temp }}/public.pem
+        run: cd service && uv run --no-sync pytest -q
+
   tls-certs:
     # `make setup` certs must pass strict X.509 checks (Python 3.13+ verifies Redis
     # TLS that way). Runs weekly too, to catch a stricter OpenSSL before a release.

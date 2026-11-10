@@ -12,6 +12,9 @@ For versions prior to `0.11.0`, see the git tag history (`git log --oneline -- s
 
 <!-- Add next-version entries here -->
 
+### Added
+- CI: the service test suite runs on every push and pull request, on the Python version the service image ships.
+
 ---
 
 ## [1.5.2] - 2026-10-19 — Strict TLS certificates for Redis
