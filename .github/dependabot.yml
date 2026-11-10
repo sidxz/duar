@@ -17,6 +17,10 @@ updates:
       # Linter — each bump adds rules that fail CI (0.17 surfaced 318), so we
       # upgrade it deliberately in its own PR, not via grouped dependency bumps.
       - dependency-name: "ruff"
+      # pentest/tools/schemathesis_scan.py drives the v3 CLI (see the pin in
+      # pentest/requirements.txt). Lift with that script's v4 migration.
+      - dependency-name: "schemathesis"
+        update-types: ["version-update:semver-major"]
     groups:
       minor-and-patch:
         update-types:
@@ -29,6 +33,12 @@ updates:
       - /sdks
     schedule:
       interval: weekly
+    ignore:
+      # TypeScript 7 drops the JS compiler API: typescript-eslint (admin lint)
+      # and tsup's declaration build (sdks) both fail on it. Lift once both
+      # support it.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
     groups:
       minor-and-patch:
         update-types:
