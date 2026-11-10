@@ -188,9 +188,18 @@ async def delete_note(
     note_id: uuid.UUID,
     user: AuthenticatedUser = Depends(require_role("admin")),
 ):
-    """Delete a note. Requires at least 'admin' workspace role."""
-    if not notes.delete(note_id):
+    """Delete a note and its Duar permission record. Requires 'admin' role or higher."""
+    note = notes.get(note_id)
+    if not note or note.workspace_id != user.workspace_id:
         raise HTTPException(status_code=404, detail="Note not found")
+
+    # Duar first: if it cannot be reached the note stays and the delete can be
+    # retried, rather than leaving a permission record with no note behind it.
+    await duar.permissions.deregister_resource(
+        resource_type="note",
+        resource_id=note_id,
+    )
+    notes.delete(note_id)
     return {"ok": True}
 
 
