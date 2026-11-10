@@ -1,0 +1,152 @@
+GET /admin/stats  auth=admin  limit=default
+GET /admin/activity/summary  auth=admin  limit=default
+GET /admin/activity/insights  auth=admin  limit=default
+GET /admin/actions/insights  auth=admin  limit=default
+GET /admin/activity  auth=admin  limit=default
+GET /admin/workspaces/all  auth=admin  limit=default
+GET /admin/system/health  auth=admin  limit=default
+GET /admin/system/settings  auth=admin  limit=default
+POST /admin/users/bulk-status  auth=admin  limit=5 per 1 minute by user_or_ip_key
+GET /admin/users  auth=admin  limit=default
+GET /admin/users/{user_id}  auth=admin  limit=default
+PATCH /admin/users/{user_id}  auth=admin  limit=default
+POST /admin/users/{user_id}/workspaces  auth=admin  limit=default
+POST /admin/users/{user_id}/revoke-tokens  auth=admin  limit=10 per 1 minute by user_or_ip_key
+GET /admin/workspaces  auth=admin  limit=default
+POST /admin/workspaces  auth=admin  limit=default
+GET /admin/workspaces/{workspace_id}  auth=admin  limit=default
+PATCH /admin/workspaces/{workspace_id}  auth=admin  limit=default
+DELETE /admin/workspaces/{workspace_id}  auth=admin  limit=default
+GET /admin/workspaces/{workspace_id}/members  auth=admin  limit=default
+POST /admin/workspaces/{workspace_id}/members/invite  auth=admin  limit=default
+PATCH /admin/workspaces/{workspace_id}/members/{user_id}  auth=admin  limit=default
+DELETE /admin/workspaces/{workspace_id}/members/{user_id}  auth=admin  limit=default
+GET /admin/workspaces/{workspace_id}/groups  auth=admin  limit=default
+POST /admin/workspaces/{workspace_id}/groups  auth=admin  limit=default
+PATCH /admin/groups/{group_id}  auth=admin  limit=default
+DELETE /admin/groups/{group_id}  auth=admin  limit=default
+GET /admin/groups/{group_id}/members  auth=admin  limit=default
+POST /admin/groups/{group_id}/members/{user_id}  auth=admin  limit=default
+DELETE /admin/groups/{group_id}/members/{user_id}  auth=admin  limit=default
+GET /admin/permissions  auth=admin  limit=default
+GET /admin/permissions/{permission_id}  auth=admin  limit=default
+PATCH /admin/permissions/{permission_id}/visibility  auth=admin  limit=default
+POST /admin/permissions/{permission_id}/share  auth=admin  limit=default
+DELETE /admin/permissions/{permission_id}/share  auth=admin  limit=default
+DELETE /admin/permissions/service/{service_name}  auth=admin  limit=5 per 1 minute by user_or_ip_key
+GET /admin/service-actions  auth=admin  limit=default
+DELETE /admin/service-actions/{action_id}  auth=admin  limit=default
+GET /admin/workspaces/{workspace_id}/roles  auth=admin  limit=default
+POST /admin/workspaces/{workspace_id}/roles  auth=admin  limit=default
+PATCH /admin/roles/{role_id}  auth=admin  limit=default
+DELETE /admin/roles/{role_id}  auth=admin  limit=default
+GET /admin/roles/{role_id}/actions  auth=admin  limit=default
+POST /admin/roles/{role_id}/actions  auth=admin  limit=default
+DELETE /admin/roles/{role_id}/actions/{service_action_id}  auth=admin  limit=default
+GET /admin/roles/{role_id}/members  auth=admin  limit=default
+POST /admin/roles/{role_id}/members/{user_id}  auth=admin  limit=default
+DELETE /admin/roles/{role_id}/members/{user_id}  auth=admin  limit=default
+GET /admin/roles/{role_id}/groups  auth=admin  limit=default
+POST /admin/roles/{role_id}/groups/{group_id}  auth=admin  limit=default
+DELETE /admin/roles/{role_id}/groups/{group_id}  auth=admin  limit=default
+GET /admin/client-apps  auth=admin  limit=default
+POST /admin/client-apps  auth=admin  limit=default
+GET /admin/client-apps/{app_id}  auth=admin  limit=default
+PATCH /admin/client-apps/{app_id}  auth=admin  limit=default
+DELETE /admin/client-apps/{app_id}  auth=admin  limit=default
+GET /admin/service-apps  auth=admin  limit=default
+POST /admin/service-apps  auth=admin  limit=5 per 1 minute by user_or_ip_key
+GET /admin/service-apps/{app_id}  auth=admin  limit=default
+PATCH /admin/service-apps/{app_id}  auth=admin  limit=default
+POST /admin/service-apps/{app_id}/rotate-key  auth=admin  limit=5 per 1 minute by user_or_ip_key
+DELETE /admin/service-apps/{app_id}  auth=admin  limit=default
+POST /admin/import/csv/preview  auth=admin  limit=5 per 1 minute by user_or_ip_key
+POST /admin/import/csv/execute  auth=admin  limit=5 per 1 minute by user_or_ip_key
+GET /admin/export/users  auth=admin  limit=default
+GET /admin/export/workspaces  auth=admin  limit=default
+GET /admin/realms  auth=admin  limit=default
+POST /admin/realms  auth=admin  limit=default
+GET /admin/realms/{realm_id}  auth=admin  limit=default
+PATCH /admin/realms/{realm_id}  auth=admin  limit=default
+DELETE /admin/realms/{realm_id}  auth=admin  limit=default
+GET /admin/realms/{realm_id}/members  auth=admin  limit=default
+POST /admin/realms/{realm_id}/members/{service_app_id}  auth=admin  limit=default
+DELETE /admin/realms/{realm_id}/members/{service_app_id}  auth=admin  limit=default
+GET /admin/organizations  auth=admin  limit=default
+POST /admin/organizations  auth=admin  limit=5 per 1 minute by user_or_ip_key
+GET /admin/organizations/{org_id}  auth=admin  limit=default
+PATCH /admin/organizations/{org_id}  auth=admin  limit=default
+DELETE /admin/organizations/{org_id}  auth=admin  limit=default
+POST /admin/organizations/{org_id}/domains  auth=admin  limit=10 per 1 minute by user_or_ip_key
+DELETE /admin/organizations/{org_id}/domains/{domain_id}  auth=admin  limit=default
+GET /admin/organizations/{org_id}/users  auth=admin  limit=default
+GET /admin/workspaces/{workspace_id}/allowed-organizations  auth=admin  limit=default
+PUT /admin/workspaces/{workspace_id}/allowed-organizations  auth=admin  limit=default
+GET /auth/providers  auth=none  limit=default
+GET /auth/login/{provider}  auth=none  limit=10 per 1 minute by get_client_ip
+GET /auth/callback/{provider}  auth=none  limit=10 per 1 minute by get_client_ip
+POST /auth/workspaces  auth=none  limit=10 per 1 minute by get_client_ip
+POST /auth/token  auth=none  limit=10 per 1 minute by get_client_ip
+POST /auth/refresh  auth=none  limit=10 per 1 minute by get_client_ip
+POST /auth/logout  auth=user  limit=default
+GET /auth/admin/login/{provider}  auth=none  limit=5 per 1 minute by get_client_ip
+GET /auth/admin/callback/{provider}  auth=none  limit=5 per 1 minute by get_client_ip
+GET /auth/admin/me  auth=admin  limit=default
+POST /auth/admin/logout  auth=admin  limit=default
+GET /authz/idp/{provider}/login  auth=none  limit=10 per 1 minute by get_client_ip
+GET /authz/idp/{provider}/callback  auth=none  limit=10 per 1 minute by get_client_ip
+GET /users/me  auth=user-or-service-key+user  limit=default
+PATCH /users/me  auth=user  limit=default
+POST /workspaces  auth=user  limit=default
+GET /workspaces  auth=user  limit=default
+GET /workspaces/{workspace_id}  auth=user  limit=default
+PATCH /workspaces/{workspace_id}  auth=user  limit=default
+DELETE /workspaces/{workspace_id}  auth=user  limit=default
+GET /workspaces/{workspace_id}/members  auth=user-or-service-key+user  limit=60 per 1 minute by user_or_ip_key
+POST /workspaces/{workspace_id}/members/invite  auth=user  limit=default
+PATCH /workspaces/{workspace_id}/members/{user_id}  auth=user  limit=default
+DELETE /workspaces/{workspace_id}/members/{user_id}  auth=user  limit=default
+POST /workspaces/{workspace_id}/groups  auth=user  limit=default
+GET /workspaces/{workspace_id}/groups  auth=user-or-service-key+user  limit=default
+PATCH /workspaces/{workspace_id}/groups/{group_id}  auth=user  limit=default
+DELETE /workspaces/{workspace_id}/groups/{group_id}  auth=user  limit=default
+GET /workspaces/{workspace_id}/groups/{group_id}/members  auth=user-or-service-key+user  limit=60 per 1 minute by user_or_ip_key
+POST /workspaces/{workspace_id}/groups/{group_id}/members/{member_user_id}  auth=user  limit=default
+DELETE /workspaces/{workspace_id}/groups/{group_id}/members/{member_user_id}  auth=user  limit=default
+POST /internal/client-logs  auth=admin  limit=60 per 1 minute by user_or_ip_key
+GET /onboard  auth=none  limit=default
+GET /onboard/login  auth=none  limit=default
+GET /onboard/login/{provider}  auth=none  limit=10 per 1 minute by get_client_ip
+GET /onboard/callback/{provider}  auth=none  limit=10 per 1 minute by get_client_ip
+GET /onboard/home  auth=none  limit=default
+GET /onboard/confirm  auth=none  limit=default
+GET /onboard/done  auth=none  limit=default
+POST /onboard/logout  auth=none  limit=default
+POST /onboard/join  auth=none  limit=10 per 1 minute by get_client_ip
+POST /onboard/create  auth=none  limit=10 per 1 minute by get_client_ip
+GET /onboard/invites  auth=none  limit=default
+POST /onboard/invites  auth=none  limit=10 per 1 minute by get_client_ip
+POST /onboard/invites/{invitation_id}/revoke  auth=none  limit=default
+POST /onboard/members/{user_id}/role  auth=none  limit=10 per 1 minute by get_client_ip
+POST /onboard/members/{user_id}/remove  auth=none  limit=10 per 1 minute by get_client_ip
+POST /onboard/workspace/rename  auth=none  limit=10 per 1 minute by get_client_ip
+POST /onboard/leave  auth=none  limit=10 per 1 minute by get_client_ip
+GET /realm/whoami  auth=service-key  limit=60 per 1 minute by service_or_ip_key
+POST /realm/m2m-token  auth=service-key  limit=60 per 1 minute by service_or_ip_key
+POST /permissions/check  auth=service-key+user  limit=600 per 1 minute by service_user_key
+POST /permissions/accessible  auth=service-key+user  limit=default
+POST /permissions/{permission_id}/share  auth=service-key+user  limit=default
+POST /permissions/register  auth=service-key  limit=default
+PATCH /permissions/{permission_id}/visibility  auth=service-key  limit=default
+DELETE /permissions/{permission_id}/share  auth=service-key  limit=default
+DELETE /permissions/resource/{service_name}/{resource_type}/{resource_id}  auth=service-key  limit=default
+GET /permissions/resource/{service_name}/{resource_type}/{resource_id}  auth=service-key  limit=default
+GET /permissions/resource/{service_name}/{resource_type}/{resource_id}/enriched  auth=service-key  limit=60 per 1 minute by service_or_ip_key
+POST /authz/resolve  auth=service-key-or-origin  limit=60 per 1 minute by service_or_ip_key
+POST /roles/actions/register  auth=service-key  limit=default
+POST /roles/check-action  auth=service-key+user  limit=600 per 1 minute by service_user_key
+GET /roles/user-actions  auth=service-key+user  limit=default
+GET /organizations  auth=service-key  limit=default
+MOUNT /static/fonts  auth=none  limit=default
+GET /health  auth=none  limit=exempt
+GET /.well-known/jwks.json  auth=none  limit=default

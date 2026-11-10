@@ -94,6 +94,99 @@ jobs:
           JWT_PUBLIC_KEY_PATH: ${{ runner.temp }}/public.pem
         run: cd service && uv run --no-sync pytest -q
 
+  js-sdk:
+    name: JS SDK Build & Tests
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Same Node, install, build and test steps as publish-js-sdk.yml.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: sdks/package-lock.json
+
+      - name: Install dependencies
+        working-directory: sdks
+        run: npm ci
+
+      - name: Build all packages
+        working-directory: sdks
+        run: npm run build
+
+      - name: Run tests
+        working-directory: sdks
+        run: npm test
+
+  admin:
+    name: Admin Lint & Build
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: admin/package-lock.json
+
+      - name: Install dependencies
+        working-directory: admin
+        run: npm ci
+
+      - name: Lint
+        working-directory: admin
+        run: npm run lint
+
+      # tsc -b (type check) + vite build
+      - name: Build
+        working-directory: admin
+        run: npm run build
+
+  system-test:
+    # Boots docker-compose.prod.yml (plus a test overlay: Dex to sign in
+    # against, a TLS proxy in front) from an empty database and drives it from
+    # outside: sign-in, sessions, the three authorization tiers, rate limits,
+    # and both SDKs installed as an app would install them. Builds the service
+    # and admin images on the way. Run locally with `make system-test`.
+    name: System Tests (full stack)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: sdks/package-lock.json
+
+      - name: Install pnpm
+        run: npm install --global pnpm@11
+
+      # Whole workspace: the tests drive the service through the Python SDK.
+      - name: Install workspace with dev deps
+        run: uv sync --all-packages --extra dev
+
+      - name: Run the system tests
+        run: ./system-tests/run.sh
+
+      - name: Show the stack log
+        if: failure()
+        run: tail -n 400 system-tests/.work/stack.log || true
+
   tls-certs:
     # `make setup` certs must pass strict X.509 checks (Python 3.13+ verifies Redis
     # TLS that way). Runs weekly too, to catch a stricter OpenSSL before a release.
@@ -162,3 +255,20 @@ jobs:
           format: table
           severity: CRITICAL,HIGH
           exit-code: 1
+
+  all-checks:
+    # The one status check branch protection requires. It fails unless every job
+    # in `needs` succeeded, so a new gating job is added here, not in repo
+    # settings. `always()` matters: a job skipped because one it needs failed
+    # would otherwise count as passing.
+    name: All Checks
+    if: always() && github.event_name != 'schedule'
+    needs: [lint, sdk-test, service-test, js-sdk, admin, system-test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail unless every gating job succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$NEEDS" | jq -e 'all(.[]; .result == "success")' > /dev/null

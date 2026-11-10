@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-.PHONY: help setup start admin seed create-admin status clean nuke docs docs-serve lint fmt release docker pentest pentest-setup pentest-kali realm-fixtures
+.PHONY: help setup start admin seed create-admin status clean nuke docs docs-serve lint fmt release docker pentest pentest-setup pentest-kali realm-fixtures system-test
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -35,8 +35,8 @@ setup: ## One-time setup: keys, TLS certs, env files, deps, dev containers
 	fi
 	@# ── Prod env (.env.prod) ────────────────────────────────────────
 	@if [ ! -f .env.prod ]; then \
-		PG_PASS=$$(openssl rand -base64 24); \
-		REDIS_PASS=$$(openssl rand -base64 24); \
+		PG_PASS=$$(openssl rand -hex 24); \
+		REDIS_PASS=$$(openssl rand -hex 24); \
 		SESSION_KEY=$$(python3 -c "import secrets; print(secrets.token_urlsafe(32))"); \
 		sed "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$$PG_PASS|; \
 		     s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=$$REDIS_PASS|; \
@@ -91,6 +91,9 @@ fmt: ## Auto-fix lint and formatting issues
 
 realm-fixtures: ## Regenerate cross-SDK integration test fixtures
 	uv run python service/tests/integration/gen_fixtures.py
+
+system-test: ## Boot the production stack in Docker and run the system tests against it
+	./system-tests/run.sh
 
 docs: ## Build documentation site
 	uv run --extra docs mkdocs build

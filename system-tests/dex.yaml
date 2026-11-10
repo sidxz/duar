@@ -1,0 +1,42 @@
+# Throwaway OIDC provider for the system-test stack. In-memory, four local
+# accounts, one client (Duar). Nothing here is reachable outside a test run.
+issuer: http://dex:5556/dex
+
+storage:
+  type: memory
+
+web:
+  http: 0.0.0.0:5556
+
+oauth2:
+  skipApprovalScreen: true
+
+staticClients:
+  - id: duar-system-test
+    name: Duar (system test)
+    secretEnv: DEX_CLIENT_SECRET
+    redirectURIs:
+      - https://localhost:19443/auth/callback/dex
+      - https://localhost:19443/auth/admin/callback/dex
+
+enablePasswordDB: true
+
+# All share the password "password" (the hash from Dex's own example
+# config). The accounts exist only inside this container.
+staticPasswords:
+  - email: admin@duar.test
+    username: Admin
+    userID: 00000000-0000-4000-8000-00000000000a
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+  - email: alice@duar.test
+    username: Alice
+    userID: 00000000-0000-4000-8000-00000000000b
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+  - email: bob@duar.test
+    username: Bob
+    userID: 00000000-0000-4000-8000-00000000000c
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+  - email: eve@duar.test
+    username: Eve
+    userID: 00000000-0000-4000-8000-00000000000d
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"

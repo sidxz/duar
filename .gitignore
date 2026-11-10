@@ -55,3 +55,6 @@ pentest/.creds.local*
 # Internal planning/spec notes — kept out of the repo
 docs/superpowers/
 internal-docs/
+
+# System-test run output (generated keys, env file, logs)
+system-tests/.work/
