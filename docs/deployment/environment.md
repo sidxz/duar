@@ -173,6 +173,8 @@ These are used by `docker-compose.prod.yml` and `.env.prod`. They are not read b
 |----------|---------|----------|
 | `DUAR_BACKEND` | `duar:9003` | No |
 | `DUAR_ADMIN_BASE_PATH` | `/` | No |
+| `DUAR_ADMIN_BEHIND_PROXY` | `false` | No |
 
 - `DUAR_BACKEND` -- host:port the admin's nginx proxies `/api/*` to (the service's public listener).
 - `DUAR_ADMIN_BASE_PATH` -- path prefix the admin is served under (e.g. `/duar-admin`), applied at container start. See [Path-Prefix Deployment](subpath.md).
+- `DUAR_ADMIN_BEHIND_PROXY` -- set `true` when a reverse proxy in front of the admin container already appends the client address to `X-Forwarded-For` (the usual case: one ingress in front of both the admin panel and the service). The panel then passes the header on as received, so the service sees the same proxy chain for panel requests as for direct ones and `TRUSTED_PROXY_COUNT` resolves the browser's address on both paths. Leave `false` when browsers reach the admin container directly; its nginx then appends the client address itself. `docker-compose.prod.yml` sets `true`.

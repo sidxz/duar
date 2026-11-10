@@ -202,6 +202,10 @@ services:
     image: ghcr.io/sidxz/duar-admin:latest
     environment:
       DUAR_BACKEND: duar:9003
+      # This file puts a reverse proxy in front of both the service and the
+      # panel (BEHIND_PROXY above), so the panel passes X-Forwarded-For on as
+      # received and the service's TRUSTED_PROXY_COUNT holds for both paths.
+      DUAR_ADMIN_BEHIND_PROXY: "true"
     ports:
       - "${ADMIN_PORT:-9004}:80"
     depends_on:

@@ -1,5 +1,7 @@
 """The stack as deployed: what answers where, and what must not."""
 
+import secrets
+
 import httpx
 import jwt
 
@@ -44,6 +46,24 @@ def test_admin_panel_serves_the_app_and_proxies_the_api(api):
     # A deep link is the app's to route, not a 404.
     assert '<div id="root">' in api.get(f"{ADMIN}/workspaces/anything").text
     assert api.get(f"{ADMIN}/api/auth/providers").json() == {"providers": ["dex"]}
+
+
+def test_a_request_through_the_admin_panel_is_attributed_to_the_same_client(api, admin):
+    # Rate limits and the audit log key on the client address the service works
+    # out from the proxy chain. The panel's own proxy is one more hop on that
+    # chain, and must not change the answer.
+    probe = secrets.token_hex(4)
+    for base, path in ((BASE, "direct"), (f"{ADMIN}/api", "panel")):
+        refused = api.get(f"{base}/auth/admin/login/{path}-{probe}")
+        assert refused.status_code == 400  # no such provider; the refusal is audited
+    rows = admin.get("/admin/activity", params={"action": "admin_login_failed", "page_size": 20})["items"]
+    seen = {
+        row["detail"]["provider"].split("-")[0]: row["detail"]["ip"]
+        for row in rows
+        if row["detail"]["provider"].endswith(probe)
+    }
+    assert set(seen) == {"direct", "panel"}
+    assert seen["panel"] == seen["direct"]
 
 
 def test_database_and_redis_report_healthy(admin):
