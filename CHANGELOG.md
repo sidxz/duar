@@ -14,6 +14,10 @@ For versions prior to `0.11.0`, see the git tag history (`git log --oneline -- s
 
 ### Breaking changes
 - `@duar-auth/js` and `@duar-auth/nextjs` depend on `jose` 6 (was 5). The SDK API is unchanged. jose 6 is ESM-only and drops Node.js 18: an app that `require()`s the SDK needs Node.js 20.19+ or 22.12+; an app that `import`s it (Next.js, Vite, any bundler) is unaffected. jose 6 also fetches the signing keys with the platform `fetch` instead of Node's `https`, so a framework that caches `fetch` by default (Next.js 14) now applies that cache to the key fetch; Next.js 15 and 16 do not cache by default.
+- Rate limiting: every route without a limit of its own counts against the default tier (`RATE_LIMIT_DEFAULT`, 120/minute per client address and path) and the aggregate tier (`RATE_LIMIT_AGGREGATE`, 300/minute per client address). That includes the service-to-service routes `POST /permissions/accessible`, `POST /permissions/register`, the resource ACL, share and visibility routes, `POST /roles/actions/register` and `GET /roles/user-actions`, where the client address is the calling backend. Before upgrading, size both settings for your busiest backend, and behind a reverse proxy set `BEHIND_PROXY=true` (with `TRUSTED_PROXY_COUNT`) so the address is the real client, not the proxy. `/permissions/check`, `/roles/check-action` and `/authz/resolve` keep their own per-caller tiers.
+
+### Fixed
+- `PATCH /users/me` answers 404 when the token's user no longer exists, and `DELETE /workspaces/{workspace_id}` answers 404 when the workspace is already gone.
 
 ### Fixed
 - `docker-compose.prod.yml` and the admin image probe `127.0.0.1` in their health checks. They probed `localhost`, which resolves to IPv6 first inside the Alpine images while the service and nginx listen on IPv4, so the `duar`, `duar-internal` and `duar-admin` containers stayed unhealthy and anything waiting on them never started.

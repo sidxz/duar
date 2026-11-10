@@ -30,6 +30,9 @@ async def update_me(
     user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    return await user_service.update_user(
-        db, user.user_id, name=body.name, avatar_url=body.avatar_url
-    )
+    try:
+        return await user_service.update_user(
+            db, user.user_id, name=body.name, avatar_url=body.avatar_url
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
