@@ -20,7 +20,7 @@ updates:
       # pentest/tools/schemathesis_scan.py drives the v3 CLI (see the pin in
       # pentest/requirements.txt). Lift with that script's v4 migration.
       - dependency-name: "schemathesis"
-        update-types: ["version-update:semver-major"]
+        versions: [">=4"]
     groups:
       minor-and-patch:
         update-types:
