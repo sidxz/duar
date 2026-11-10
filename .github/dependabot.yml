@@ -50,6 +50,12 @@ updates:
       - /admin
     schedule:
       interval: weekly
+    ignore:
+      # A Python "minor" (3.14 -> 3.15) is a new interpreter: musl wheels for
+      # the locked dependencies lag it, and the image has no compiler. Move the
+      # base image deliberately, with a local image build.
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
     groups:
       minor-and-patch:
         update-types:
