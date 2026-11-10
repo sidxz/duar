@@ -323,7 +323,7 @@ async def get_resource_acl(
 )
 # Service-key-authed (require_service_key binds caller_service, never actor), so
 # key per calling service — user_or_ip_key would always fall back to IP here.
-@limiter.limit(settings.rate_limit_read, key_func=service_or_ip_key)
+@limiter.limit(settings.rate_limit_service, key_func=service_or_ip_key)
 async def get_enriched_resource_acl(
     request: Request,
     service_name: str,

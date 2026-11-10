@@ -73,7 +73,9 @@ async def create_group(
 
 
 @router.get("", response_model=list[GroupResponse])
+@limiter.limit(settings.rate_limit_read, key_func=user_or_ip_key)
 async def list_groups(
+    request: Request,
     workspace_id: uuid.UUID,
     user: CurrentUser = Depends(get_current_user_flexible),
     db: AsyncSession = Depends(get_db),

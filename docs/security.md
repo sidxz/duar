@@ -242,9 +242,9 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 | Auth | `RATE_LIMIT_AUTH` | `10/minute` | `/auth/login`, `/auth/callback`, `/auth/token`, `/auth/refresh` |
 | Auth admin | `RATE_LIMIT_AUTH_ADMIN` | `5/minute` | `/auth/admin/login`, `/auth/admin/callback` |
 | Authz resolve | `RATE_LIMIT_AUTHZ_RESOLVE` | `60/minute` | `POST /authz/resolve` |
-| Read | `RATE_LIMIT_READ` | `60/minute` | Member search, group listing, enriched ACL |
+| Read | `RATE_LIMIT_READ` | `60/minute` | Member search, group and group-member listing, `GET /users/me` — keyed per user |
 | Tool check | `RATE_LIMIT_TOOL_CHECK` | `600/minute` | `POST /roles/check-action`, `POST /permissions/check` (incl. MCP tool calls), `POST /permissions/accessible`, `POST /permissions/{id}/share`, `GET /roles/user-actions` — keyed per calling app + user |
-| Service | `RATE_LIMIT_SERVICE` | `3000/minute` | Service-key routes without a user: `POST /permissions/register`, visibility, share removal, resource ACL read and delete, `POST /roles/actions/register`, `GET /organizations` — keyed per calling service |
+| Service | `RATE_LIMIT_SERVICE` | `3000/minute` | Service-key routes without a user: `POST /permissions/register`, visibility, share removal, resource ACL reads (plain and enriched) and delete, `POST /roles/actions/register`, `GET /organizations` — keyed per calling service |
 | Admin write | `RATE_LIMIT_ADMIN_WRITE` | `10/minute` | Admin mutation endpoints |
 | Sensitive | `RATE_LIMIT_SENSITIVE` | `5/minute` | Service purge, key-rotation |
 

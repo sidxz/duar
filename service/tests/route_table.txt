@@ -95,7 +95,7 @@ GET /auth/admin/me  auth=admin  limit=default
 POST /auth/admin/logout  auth=admin  limit=default
 GET /authz/idp/{provider}/login  auth=none  limit=10 per 1 minute by get_client_ip
 GET /authz/idp/{provider}/callback  auth=none  limit=10 per 1 minute by get_client_ip
-GET /users/me  auth=user-or-service-key+user  limit=default
+GET /users/me  auth=user-or-service-key+user  limit=60 per 1 minute by user_or_ip_key
 PATCH /users/me  auth=user  limit=default
 POST /workspaces  auth=user  limit=default
 GET /workspaces  auth=user  limit=default
@@ -107,7 +107,7 @@ POST /workspaces/{workspace_id}/members/invite  auth=user  limit=default
 PATCH /workspaces/{workspace_id}/members/{user_id}  auth=user  limit=default
 DELETE /workspaces/{workspace_id}/members/{user_id}  auth=user  limit=default
 POST /workspaces/{workspace_id}/groups  auth=user  limit=default
-GET /workspaces/{workspace_id}/groups  auth=user-or-service-key+user  limit=default
+GET /workspaces/{workspace_id}/groups  auth=user-or-service-key+user  limit=60 per 1 minute by user_or_ip_key
 PATCH /workspaces/{workspace_id}/groups/{group_id}  auth=user  limit=default
 DELETE /workspaces/{workspace_id}/groups/{group_id}  auth=user  limit=default
 GET /workspaces/{workspace_id}/groups/{group_id}/members  auth=user-or-service-key+user  limit=60 per 1 minute by user_or_ip_key
@@ -141,7 +141,7 @@ PATCH /permissions/{permission_id}/visibility  auth=service-key  limit=3000 per 
 DELETE /permissions/{permission_id}/share  auth=service-key  limit=3000 per 1 minute by service_or_ip_key
 DELETE /permissions/resource/{service_name}/{resource_type}/{resource_id}  auth=service-key  limit=3000 per 1 minute by service_or_ip_key
 GET /permissions/resource/{service_name}/{resource_type}/{resource_id}  auth=service-key  limit=3000 per 1 minute by service_or_ip_key
-GET /permissions/resource/{service_name}/{resource_type}/{resource_id}/enriched  auth=service-key  limit=60 per 1 minute by service_or_ip_key
+GET /permissions/resource/{service_name}/{resource_type}/{resource_id}/enriched  auth=service-key  limit=3000 per 1 minute by service_or_ip_key
 POST /authz/resolve  auth=service-key-or-origin  limit=60 per 1 minute by service_or_ip_key
 POST /roles/actions/register  auth=service-key  limit=3000 per 1 minute by service_or_ip_key
 POST /roles/check-action  auth=service-key+user  limit=600 per 1 minute by service_user_key

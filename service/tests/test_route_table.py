@@ -196,13 +196,31 @@ def test_every_internal_listener_route_requires_a_service_credential():
     assert [row for row in rows if row[1] not in allowed] == []
 
 
-def test_every_service_key_route_is_limited_per_caller():
+def test_every_route_a_backend_calls_is_limited_per_caller():
     # A backend calls these from one address on behalf of all its users, so a
-    # per-address tier would throttle the whole app at once.
+    # per-address tier would throttle the whole app at once. That covers the
+    # routes that take a service key and the ones that take it optionally.
+    backend = {
+        "service-key",
+        "service-key+user",
+        "service-key-or-origin",
+        "user-or-service-key+user",
+    }
+    per_caller = (" by service_user_key", " by service_or_ip_key", " by user_or_ip_key")
+    rows = [(name, limit) for name, auth, limit in route_rows() if auth in backend]
+    assert len(rows) > 15
+    assert [row for row in rows if not row[1].endswith(per_caller)] == []
+
+
+def test_a_limit_shared_by_a_whole_service_is_on_a_service_sized_tier():
+    # Keyed by calling service means one bucket for all of that app's users.
+    # Only token minting (60/minute, cached by the SDKs) may sit below the
+    # service tier there.
+    minting = {"POST /authz/resolve", "GET /realm/whoami", "POST /realm/m2m-token"}
     rows = [
         (name, limit)
-        for name, auth, limit in route_rows()
-        if auth.startswith("service-key")
+        for name, _, limit in route_rows()
+        if limit.endswith(" by service_or_ip_key") and name not in minting
     ]
-    assert len(rows) > 10
-    assert [row for row in rows if " by service_" not in row[1]] == []
+    assert len(rows) > 5
+    assert [row for row in rows if not row[1].startswith("3000 per 1 minute")] == []
