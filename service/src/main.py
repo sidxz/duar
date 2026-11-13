@@ -4,7 +4,7 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 
 import structlog
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -32,7 +32,7 @@ from src.config import settings
 from src.logging_config import configure_logging
 from src.version import __version__
 from src.middleware.rate_limit import (
-    RateLimitMiddleware,
+    address_limits,
     limiter,
     rate_limit_exceeded_handler,
 )
@@ -272,6 +272,9 @@ def create_app(tier: str) -> FastAPI:
         description="Authentication, workspace management, and permissions",
         version=__version__,
         lifespan=lifespan,
+        # First in line on every route, ahead of its own dependencies: the
+        # per-address rate limits. See middleware/rate_limit.py.
+        dependencies=[Depends(address_limits)],
         docs_url="/docs" if settings.debug else None,
         redoc_url="/redoc" if settings.debug else None,
         openapi_url="/openapi.json" if settings.debug else None,
@@ -284,11 +287,6 @@ def create_app(tier: str) -> FastAPI:
 
     # Reject oversized request bodies (10 MB)
     app.add_middleware(MaxBodySizeMiddleware, max_bytes=10_485_760)
-
-    # Rate limiting (slowapi). Deliberately positioned INSIDE
-    # RequestContext/AccessLog/CORS (added after this) so a 429 still carries the
-    # request-id, is access-logged, and gets CORS headers. See middleware/rate_limit.py.
-    app.add_middleware(RateLimitMiddleware)
 
     # Security headers on every response
     app.add_middleware(SecurityHeadersMiddleware, hsts=settings.cookie_secure)

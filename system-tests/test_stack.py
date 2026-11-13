@@ -77,8 +77,15 @@ def test_the_stack_runs_with_production_settings(admin):
     settings = admin.get("/admin/system/settings")
     assert settings["security"]["cookie_secure"] is True
     assert settings["security"]["allowed_hosts"] == ["localhost"]
-    limits = {row["endpoint"].split(" ")[0]: row["limit"] for row in settings["rate_limits"]}
-    assert (limits["sensitive"], limits["authz"], limits["default"]) == ("5/minute", "60/minute", "120/minute")
+    limits = {}
+    for row in settings["rate_limits"]:
+        limits.setdefault(row["endpoint"].split(" ")[0], []).append(row["limit"])
+    # authz: per service and address, then the service as a whole.
+    assert (limits["sensitive"], limits["authz"], limits["default"]) == (
+        ["5/minute"],
+        ["60/minute", "600/minute"],
+        ["120/minute"],
+    )
 
 
 def test_internal_listener_carries_the_service_key_surface_only(api, world):

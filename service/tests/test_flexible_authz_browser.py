@@ -17,8 +17,9 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.testclient import TestClient
+from starlette.requests import Request
 
 from src.api.dependencies import CurrentUser, get_current_user_flexible
 from src.auth.jwt import create_access_token, create_authz_token
@@ -125,3 +126,30 @@ def test_naked_authz_bearer_still_rejected():
     client = TestClient(_build_app())
     resp = client.get("/whoami", headers={"Authorization": f"Bearer {_authz_token()}"})
     assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_a_proven_service_key_is_bound_before_the_user_token_is_judged(
+    monkeypatch,
+):
+    """A rejection after that point belongs to the service in the logs, and is
+    not counted as an anonymous failure by the rate limiter."""
+    from src.services import service_app_service
+
+    async def _valid(_key, _db):
+        return "notes", uuid.uuid4(), None
+
+    monkeypatch.setattr(service_app_service, "validate_key", _valid)
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/whoami",
+            "query_string": b"",
+            "headers": [(b"x-service-key", b"sk_live")],  # and no user token
+        }
+    )
+    with pytest.raises(HTTPException) as raised:
+        await get_current_user_flexible(request, db=None)
+    assert raised.value.status_code == 401
+    assert request.state.caller_service == "notes"

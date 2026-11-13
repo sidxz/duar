@@ -12,14 +12,23 @@ auth dependency if it is named in ``NO_AUTH_DEPENDENCY``, and the admin and
 internal surfaces may not carry a weaker credential than they do today.
 
 The limit column is what is declared at default settings; "default" means no
-decorator, so the route falls to the per-IP default and aggregate tiers.
+decorator, so the route falls to the per-IP default and aggregate tiers. Those,
+and the count of failed authentication on the other routes, are applied by the
+``address_limits`` dependency, which a rule below keeps first on every route.
 """
 
 import difflib
 import os
+import re
+import uuid
 from pathlib import Path
 
 from fastapi.routing import iter_route_contexts
+from fastapi.testclient import TestClient
+
+import src.middleware.rate_limit as rate_limit
+from src.config import settings
+from src.database import get_db
 
 from src.api.dependencies import (
     get_current_user,
@@ -30,7 +39,8 @@ from src.api.dependencies import (
     require_service_key,
 )
 from src.main import create_app
-from src.middleware.rate_limit import limiter
+from src.middleware.rate_limit import address_limits, limiter
+from src.services import service_app_service
 
 TABLE = Path(__file__).with_name("route_table.txt")
 
@@ -164,6 +174,109 @@ def test_the_table_covers_the_whole_app():
         "GET /workspaces/{workspace_id}/groups/{group_id}/members",
     ):
         assert expected in names
+
+
+def test_every_route_applies_the_address_limits_before_its_own_dependencies():
+    # First in line means ahead of authentication, on each listener.
+    for tier, at_least in (("all", 100), ("public", 80), ("internal", 10)):
+        dependants = [
+            (route.path, route.dependant)
+            for route in iter_route_contexts(create_app(tier).routes)
+            if getattr(route, "dependant", None) is not None
+        ]
+        assert len(dependants) > at_least, tier
+        assert [
+            path
+            for path, dependant in dependants
+            if dependant.dependencies[0].call is not address_limits
+        ] == [], tier
+
+
+def _counting_client(monkeypatch):
+    """The combined app without a database, and the list of buckets that
+    failed authentication gets counted in."""
+    counted = []
+
+    def record(active, call, lim, *bucket):
+        counted.append(bucket)
+        return True
+
+    async def no_db():
+        yield None
+
+    monkeypatch.setattr(rate_limit, "_storage_call", record)
+    monkeypatch.setattr(limiter, "enabled", True)
+    app = create_app("all")
+    app.dependency_overrides[get_db] = no_db
+    return TestClient(app, base_url=settings.base_url), counted
+
+
+def test_an_anonymous_request_to_a_route_limited_per_caller_is_a_counted_401(
+    monkeypatch,
+):
+    # Failed authentication is counted where a 401 passes through
+    # address_limits. A guard that answered 403, or returned its own response,
+    # would go uncounted on that route.
+    client, counted = _counting_client(monkeypatch)
+    per_caller = [
+        name
+        for name, _, limit in route_rows()
+        if limit not in ("default", "exempt") and not limit.endswith("get_client_ip")
+    ]
+    assert len(per_caller) > 25
+    for name in per_caller:
+        method, path = name.split()
+        counted.clear()
+        url = re.sub(r"\{[^}]+\}", str(uuid.uuid4()), path)
+        response = client.request(method, url, json={})
+        assert (response.status_code, len(counted)) == (401, 1), name
+
+
+def test_a_wrong_service_key_is_a_counted_401_whatever_origin_comes_with_it(
+    monkeypatch,
+):
+    async def unknown_key(key, db):
+        return None
+
+    async def registered_origin(origin, db):
+        return "notes", uuid.uuid4()
+
+    client, counted = _counting_client(monkeypatch)
+    monkeypatch.setattr(service_app_service, "validate_key", unknown_key)
+    monkeypatch.setattr(service_app_service, "validate_origin", registered_origin)
+    credentials = {"X-Service-Key": "sk_guess", "Origin": "https://notes.example"}
+    response = client.post("/authz/resolve", json={}, headers=credentials)
+    assert (response.status_code, len(counted)) == (401, 1)
+
+
+def test_a_401_behind_a_valid_service_key_is_not_counted(monkeypatch):
+    # A backend relays its users' tokens from one address. Both places a key
+    # is validated: the service-key routes and the ones that take one optionally.
+    async def valid_key(key, db):
+        return "notes", uuid.uuid4(), None
+
+    client, counted = _counting_client(monkeypatch)
+    monkeypatch.setattr(service_app_service, "validate_key", valid_key)
+    for method, path in (
+        ("POST", "/permissions/check"),
+        ("GET", f"/workspaces/{uuid.uuid4()}/members"),
+    ):
+        response = client.request(method, path, headers={"X-Service-Key": "sk_real"})
+        assert (response.status_code, counted) == (401, []), path
+
+
+def test_a_route_limited_per_address_takes_no_credential_in_a_dependency():
+    # Its limit is counted in the endpoint wrapper, which a rejection by a
+    # dependency never reaches, and failed authentication is only counted on
+    # the routes limited per caller.
+    rows = [
+        (name, auth)
+        for name, auth, limit in route_rows()
+        if limit not in ("default", "exempt")
+        and all(part.endswith(" by get_client_ip") for part in limit.split(", "))
+    ]
+    assert len(rows) > 5
+    assert [row for row in rows if row[1] != "none"] == []
 
 
 def test_only_listed_routes_go_without_an_auth_dependency():

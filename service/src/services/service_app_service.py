@@ -15,6 +15,10 @@ from src.services.token_service import get_redis
 _CACHE_KEY = "svc:key_cache"
 _CACHE_TTL = 300  # 5 minutes
 _ORIGIN_CACHE_KEY = "svc:origin_cache"
+# Field every reloaded cache carries, so that one with no apps in it still exists.
+_BUILT = "built"
+# How often a miss against a cache that is there may reload it anyway.
+_RECHECK_SECONDS = 5
 
 
 def _encode_cache(service_name: str, app_id: uuid.UUID, realm_slug: str | None) -> str:
@@ -88,25 +92,13 @@ async def validate_key(
 ) -> tuple[str, uuid.UUID, str | None] | None:
     """Validate a raw API key. Returns (service_name, app_id, realm_slug) or None."""
     sha = hashlib.sha256(raw_key.encode()).hexdigest()
-
-    r = await get_redis()
-    cached = await r.hget(_CACHE_KEY, sha)
-    if cached:
-        svc, app_id, realm_slug = _decode_cache(cached)
-        if not await _touch_last_used(db, app_id):
-            return None
-        return svc, app_id, realm_slug
-
-    await _rebuild_cache(db)
-
-    cached = await r.hget(_CACHE_KEY, sha)
-    if cached:
-        svc, app_id, realm_slug = _decode_cache(cached)
-        if not await _touch_last_used(db, app_id):
-            return None
-        return svc, app_id, realm_slug
-
-    return None
+    cached = await _cached(_CACHE_KEY, sha, _rebuild_cache, db)
+    if not cached:
+        return None
+    svc, app_id, realm_slug = _decode_cache(cached)
+    if not await _touch_last_used(db, app_id):
+        return None
+    return svc, app_id, realm_slug
 
 
 async def rotate_key(db: AsyncSession, app_id: uuid.UUID) -> tuple[ServiceApp, str]:
@@ -181,23 +173,37 @@ async def validate_origin(
     """Validate a request origin against service app allowed_origins.
     Returns (service_name, app_id) or None.
     """
-    r = await get_redis()
-    cached = await r.hget(_ORIGIN_CACHE_KEY, origin)
-    if cached:
-        svc, app_id_str = cached.split(":", 1)
-        return svc, uuid.UUID(app_id_str)
-
-    await _rebuild_origin_cache(db)
-
-    cached = await r.hget(_ORIGIN_CACHE_KEY, origin)
-    if cached:
-        svc, app_id_str = cached.split(":", 1)
-        return svc, uuid.UUID(app_id_str)
-
-    return None
+    cached = await _cached(_ORIGIN_CACHE_KEY, origin, _rebuild_origin_cache, db)
+    if not cached:
+        return None
+    svc, app_id_str = cached.split(":", 1)
+    return svc, uuid.UUID(app_id_str)
 
 
 # ── Internal helpers ─────────────────────────────────────────────────
+
+
+async def _cached(cache_key: str, field: str, rebuild, db: AsyncSession) -> str | None:
+    """``field`` of a cache hash, reloaded from the database when a miss may be
+    the cache's fault.
+
+    It is when the cache is gone: expired, or dropped by ``invalidate_cache``
+    after a write. A miss against a cache that is there is an unknown key or
+    origin. That reloads at most once every ``_RECHECK_SECONDS``: enough to
+    pick up a write that raced a reload, and it keeps a caller sending unknown
+    values off the database.
+    """
+    if field == _BUILT:
+        return None
+    r = await get_redis()
+    value, built = await r.hmget(cache_key, [field, _BUILT])
+    if value is None and (
+        not built
+        or await r.set(f"{cache_key}:recheck", 1, nx=True, ex=_RECHECK_SECONDS)
+    ):
+        await rebuild(db)
+        value = await r.hget(cache_key, field)
+    return value
 
 
 async def _rebuild_cache(db: AsyncSession) -> None:
@@ -211,6 +217,7 @@ async def _rebuild_cache(db: AsyncSession) -> None:
     rows = result.all()
     pipe = r.pipeline()
     pipe.delete(_CACHE_KEY)
+    pipe.hset(_CACHE_KEY, _BUILT, "1")
     for app, realm_slug in rows:
         pipe.hset(
             _CACHE_KEY,
@@ -230,6 +237,7 @@ async def _rebuild_origin_cache(db: AsyncSession) -> None:
     apps = result.scalars().all()
     pipe = r.pipeline()
     pipe.delete(_ORIGIN_CACHE_KEY)
+    pipe.hset(_ORIGIN_CACHE_KEY, _BUILT, "1")
     for app in apps:
         for origin in app.allowed_origins or []:
             pipe.hset(_ORIGIN_CACHE_KEY, origin, f"{app.service_name}:{app.id}")

@@ -27,7 +27,7 @@ TrustedHostMiddleware        -- Host header validation (production)
 DynamicCORSMiddleware        -- cross-origin request policy
   |
   v
-Rate Limiting (slowapi)      -- aggregate + per-endpoint tier throttling
+Rate Limiting (slowapi)      -- per-address tiers, first on the matched route; then its own tier
   |
   v
 Application Routes
@@ -230,29 +230,32 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 
 ## Rate Limiting
 
-[slowapi](https://github.com/laurents/slowapi) is the sole rate-limiting mechanism. It applies two complementary layers via Redis-backed per-IP counters:
+[slowapi](https://github.com/laurents/slowapi) is the sole rate-limiting mechanism, with Redis-backed counters. Every route gets one of two treatments:
 
-1. **Aggregate** (`RATE_LIMIT_AGGREGATE`, default `300/minute`) — a volumetric ceiling applied to every route that does **not** carry a per-route decorator. Provides baseline abuse prevention for undecorated read paths.
-2. **Per-route tiers** — decorated endpoints enforce a more specific limit from the tier set below. The aggregate does **not** additionally apply to these routes.
+1. **Per-IP tiers** — a route without a limit of its own counts against the default tier (`RATE_LIMIT_DEFAULT`, per IP and route) and the aggregate tier (`RATE_LIMIT_AGGREGATE`, per IP across all such routes). Both are checked before authentication.
+2. **Per-route tiers** — a decorated endpoint enforces a more specific limit from the tier set below, counted once the caller is known. The default and aggregate tiers do **not** additionally apply to it.
 
 | Tier | Env var | Default | Covered endpoints |
 |------|---------|---------|-------------------|
-| Aggregate | `RATE_LIMIT_AGGREGATE` | `300/minute` | All undecorated routes |
+| Aggregate | `RATE_LIMIT_AGGREGATE` | `300/minute` | All undecorated routes. Counted separately at the same rate: failed authentication on routes keyed per caller (below) |
 | Default | `RATE_LIMIT_DEFAULT` | `120/minute` | Each undecorated route (per-endpoint) |
 | Auth | `RATE_LIMIT_AUTH` | `10/minute` | `/auth/login`, `/auth/callback`, `/auth/token`, `/auth/refresh` |
 | Auth admin | `RATE_LIMIT_AUTH_ADMIN` | `5/minute` | `/auth/admin/login`, `/auth/admin/callback` |
-| Authz resolve | `RATE_LIMIT_AUTHZ_RESOLVE` | `60/minute` | `POST /authz/resolve` |
+| Authz resolve | `RATE_LIMIT_AUTHZ_RESOLVE` | `60/minute` | `POST /authz/resolve` — keyed per calling service + client IP |
+| Authz resolve, service | `RATE_LIMIT_AUTHZ_RESOLVE_SERVICE` | `600/minute` | `POST /authz/resolve` — keyed per calling service, across all client IPs |
 | Read | `RATE_LIMIT_READ` | `60/minute` | Member search, group and group-member listing, `GET /users/me` — keyed per user |
 | Tool check | `RATE_LIMIT_TOOL_CHECK` | `600/minute` | `POST /roles/check-action`, `POST /permissions/check` (incl. MCP tool calls), `POST /permissions/accessible`, `POST /permissions/{id}/share`, `GET /roles/user-actions` — keyed per calling app + user |
 | Service | `RATE_LIMIT_SERVICE` | `3000/minute` | Service-key routes without a user: `POST /permissions/register`, visibility, share removal, resource ACL reads (plain and enriched) and delete, `POST /roles/actions/register`, `GET /organizations` — keyed per calling service |
 | Admin write | `RATE_LIMIT_ADMIN_WRITE` | `10/minute` | Admin mutation endpoints |
 | Sensitive | `RATE_LIMIT_SENSITIVE` | `5/minute` | Service purge, key-rotation |
 
-Keys are per IP address, except the authenticated tiers: read and admin tiers key per user, authz resolve and service per calling service, and tool check per calling app + user (so one app's agent loop can't throttle that user in other apps). A limit counts every request to a route together, whatever the values of its path parameters. When `BEHIND_PROXY=true`, the client IP is read from `X-Forwarded-For` using the rightmost trusted hop (controlled by `TRUSTED_PROXY_COUNT`). Exceeding any limit returns `429 Too Many Requests` with a `Retry-After` header.
+Keys are per IP address, except the authenticated tiers: read and admin tiers key per user, service per calling service, authz resolve per calling service + client IP under a ceiling per calling service, and tool check per calling app + user (so one app's agent loop can't throttle that user in other apps). A limit counts every request to a route together, whatever the values of its path parameters. When `BEHIND_PROXY=true`, the client IP is read from `X-Forwarded-For` using the rightmost trusted hop (controlled by `TRUSTED_PROXY_COUNT`); an entry there that is not an IP address is ignored and the connecting peer is used. Exceeding any limit returns `429 Too Many Requests` with a `Retry-After` header.
 
-If Redis is unreachable the limiter **fails open** (requests are not blocked). This is intentional for availability; edge rate limiting should be the backstop for volumetric attacks.
+**Failed authentication.** A route keyed per user, per service or per app + user cannot count a request whose caller it never learns. A request answered `401` there counts per IP instead, across all such routes and in a count of its own (one per listener in a split deployment). Past `RATE_LIMIT_AGGREGATE` of them a minute, the answer is `429` in place of the `401` until the minute passes. Nothing is refused before authentication: a request with valid credentials is served whatever else has come from its address. A `401` for a caller that presented a valid service key is not counted, so a backend that relays its users' expired tokens from one address keeps its `401`s. An empty `RATE_LIMIT_AGGREGATE` turns this off along with the aggregate tier.
 
-> **Volumetric DoS protection requires edge rate limiting.** The app-layer aggregate (`RATE_LIMIT_AGGREGATE`) only covers routes without a per-route limit; decorated routes (`/authz/resolve`, `/auth/token`, `/roles/check-action`, `/permissions/check`, admin POSTs) enforce their own tier but are **not** in the aggregate and are **not** throttled before authentication. Put nginx/Cloudflare/ALB rate limiting in front of Duar for volumetric/bad-auth defense.
+If Redis is unreachable the limiter does not block requests for it: each process counts in memory until Redis is back, so a limit then applies per process instead of across the deployment. A call to a Redis that stops answering is abandoned after half a second. Edge rate limiting should be the backstop for volumetric attacks.
+
+> **Volumetric DoS protection requires edge rate limiting.** The app-layer limits run inside the application, once the router has matched the request and parsed its body, and a decorated route counts its caller only after its authentication ran: a request that fails authentication there has had its credentials checked, however many came before it. A request the framework answers itself (unknown path, wrong method, a body that does not parse) is not counted at all. Put nginx/Cloudflare/ALB rate limiting in front of Duar for volumetric defense.
 
 To disable rate limiting entirely (e.g. in a dedicated load-test environment), set `RATE_LIMIT_ENABLED=false`.
 
@@ -452,7 +455,7 @@ All SDK clients (Python and JavaScript) log a warning when initialized with a pl
 - [ ] `DEBUG=false`
 - [ ] `BEHIND_PROXY=true` if behind a reverse proxy
 - [ ] `TRUSTED_PROXY_COUNT` matches actual proxy hop count (default `1`; verify per deploy)
-- [ ] Edge rate limiting (nginx/Cloudflare/ALB) configured in front of Duar for volumetric/bad-auth defense
+- [ ] Edge rate limiting (nginx/Cloudflare/ALB) configured in front of Duar for volumetric defense
 - [ ] `ALLOWED_HOSTS` set to actual domain(s)
 - [ ] `CORS_ORIGINS` lists only your frontend origin(s)
 - [ ] RS256 key pair generated, private key `chmod 600`
