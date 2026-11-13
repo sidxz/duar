@@ -230,7 +230,7 @@ curl http://localhost:9003/permissions/resource/docu-store/document/c3d4e5f6-...
 
 ## GET /permissions/resource/{service_name}/{resource_type}/{resource_id}/enriched
 
-Retrieves the full permission record with user profiles resolved inline (names and emails for owner, grantees, and granters). Rate limited to **30 requests/minute**.
+Retrieves the full permission record with user profiles resolved inline (names and emails for owner, grantees, and granters). Rate limited with the other service-key routes: **3000 requests/minute** per calling service (`RATE_LIMIT_SERVICE`).
 
 **Auth:** Service key only.
 

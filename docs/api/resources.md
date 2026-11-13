@@ -8,7 +8,7 @@ All endpoints in this section require a Bearer JWT in the `Authorization` header
 
 ### GET /users/me
 
-Returns the authenticated user's profile.
+Returns the authenticated user's profile. Rate limited to **60 requests/minute** per user.
 
 **Response:** `200 OK`
 
@@ -94,7 +94,7 @@ Returns all workspaces the authenticated user belongs to.
 
 ### GET /workspaces/{id}/members
 
-Lists workspace members. Supports optional search and pagination. Rate limited to **60 requests/minute**.
+Lists workspace members. Supports optional search and pagination. Rate limited to **60 requests/minute** per user.
 
 **Query Parameters:**
 
@@ -147,7 +147,7 @@ Groups are scoped to a workspace. All routes are under `/workspaces/{workspace_i
 | Method | Path | Min Role | Description |
 |---|---|---|---|
 | POST | `/workspaces/{wid}/groups` | admin | Create group |
-| GET | `/workspaces/{wid}/groups` | any | List groups |
+| GET | `/workspaces/{wid}/groups` | any | List groups (60 requests/minute per user) |
 | PATCH | `/workspaces/{wid}/groups/{gid}` | admin | Update group |
 | DELETE | `/workspaces/{wid}/groups/{gid}` | admin | Delete group |
 | POST | `/workspaces/{wid}/groups/{gid}/members/{uid}` | admin | Add member |
@@ -176,7 +176,7 @@ Groups are scoped to a workspace. All routes are under `/workspaces/{workspace_i
 
 ### GET /workspaces/{workspace_id}/groups/{group_id}/members
 
-Lists members of a group. The group must belong to the specified workspace. Rate limited to **60 requests/minute**.
+Lists members of a group. The group must belong to the specified workspace. Rate limited to **60 requests/minute** per user, across all groups.
 
 **Response:** `200 OK` -- `GroupMemberResponse[]`.
 

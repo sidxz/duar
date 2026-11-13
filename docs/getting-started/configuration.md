@@ -106,13 +106,14 @@ These callbacks are only used for the admin panel's server-side OAuth flow. In A
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `RATE_LIMIT_ENABLED` | `true` | Master switch. Set `false` to disable all rate limiting (e.g. load-test environments). |
-| `RATE_LIMIT_AGGREGATE` | `300/minute` | Per-IP volumetric ceiling applied to routes **without** a per-route limit. Empty string disables the aggregate. See the edge-limiting note in [Security](../security.md#rate-limiting). |
+| `RATE_LIMIT_AGGREGATE` | `300/minute` | Per-IP ceiling across the routes **without** a per-route limit. Also the rate of failed authentication (`401`) per IP on the routes limited per caller, counted separately, past which the answer is `429`. Empty string disables both. See [Security](../security.md#rate-limiting). |
 | `RATE_LIMIT_DEFAULT` | `120/minute` | Per-IP limit applied to each **undecorated** route individually (the long tail); the cross-route ceiling is `RATE_LIMIT_AGGREGATE`. |
 | `RATE_LIMIT_AUTH` | `10/minute` | Auth flow endpoints (`/auth/login`, `/auth/callback`, `/auth/token`, `/auth/refresh`). |
 | `RATE_LIMIT_AUTH_ADMIN` | `5/minute` | Admin auth endpoints (`/auth/admin/login`, `/auth/admin/callback`). |
-| `RATE_LIMIT_AUTHZ_RESOLVE` | `60/minute` | `POST /authz/resolve` — authz token minting. |
+| `RATE_LIMIT_AUTHZ_RESOLVE` | `60/minute` | `POST /authz/resolve` — authz token minting, per calling service + client IP. |
+| `RATE_LIMIT_AUTHZ_RESOLVE_SERVICE` | `600/minute` | `POST /authz/resolve` for one calling service across all client IPs. The SDKs cache a token for its lifetime, so this is about one mint per active user every `AUTHZ_TOKEN_EXPIRE_MINUTES`. |
 | `RATE_LIMIT_READ` | `60/minute` | Directory reads made for a user (member search, group and group-member listing, `/users/me`), per user. |
-| `RATE_LIMIT_TOOL_CHECK` | `600/minute` | Permission checks and lookups made for a user (`/roles/check-action`, `/permissions/check`, incl. MCP tool calls, `/permissions/accessible`, `/permissions/{id}/share`, `/roles/user-actions`), per calling app + user. Not throttled before authentication — see the edge-limiting note in [Security](../security.md#rate-limiting). |
+| `RATE_LIMIT_TOOL_CHECK` | `600/minute` | Permission checks and lookups made for a user (`/roles/check-action`, `/permissions/check`, incl. MCP tool calls, `/permissions/accessible`, `/permissions/{id}/share`, `/roles/user-actions`), per calling app + user. Failed authentication there counts per IP — see [Security](../security.md#rate-limiting). |
 | `RATE_LIMIT_SERVICE` | `3000/minute` | Service-key routes without a user (`/permissions/register`, visibility, share removal, resource ACL reads and delete, `/roles/actions/register`, `/organizations`), per calling service. A ceiling for a runaway loop; raise it for bulk imports. |
 | `RATE_LIMIT_ADMIN_WRITE` | `10/minute` | Admin mutation endpoints (POST/PATCH/PUT/DELETE under `/admin/`). |
 | `RATE_LIMIT_SENSITIVE` | `5/minute` | High-sensitivity endpoints (service purge, key rotation). |
@@ -126,7 +127,7 @@ These callbacks are only used for the admin panel's server-side OAuth flow. In A
 - `REDIS_TLS_VERIFY=required`
 - `DEBUG=false`
 - `BEHIND_PROXY=true` + `TRUSTED_PROXY_COUNT` matching the real proxy hop count (default `1`; verify per deploy -- a wrong value collapses all clients into one rate-limit bucket)
-- Edge rate limiting (nginx/Cloudflare/ALB) in front of Duar -- required for volumetric/bad-auth defense (the app-layer aggregate does not cover decorated routes)
+- Edge rate limiting (nginx/Cloudflare/ALB) in front of Duar -- required for volumetric defense (the app-layer limits run after a request is routed and parsed)
 
 ---
 

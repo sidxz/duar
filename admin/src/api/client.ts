@@ -34,6 +34,19 @@ import { BASE_PATH } from "../lib/base";
 
 export const API_BASE = `${BASE_PATH}api`;
 
+/** A refused request: its status and, when the server named one, the wait it asked for. */
+export class ApiError extends Error {
+  status: number;
+  /** Seconds, from the `Retry-After` header. */
+  retryAfter?: number;
+
+  constructor(message: string, status: number, retryAfter?: number) {
+    super(message);
+    this.status = status;
+    this.retryAfter = retryAfter;
+  }
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: {
@@ -57,7 +70,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
       const event = res.status === 401 || res.status === 403 ? "client.auth.denied" : "client.api.error";
       clientLog(event, res.status >= 500 ? "error" : "warning", { status: res.status, path });
     }
-    throw new Error(message);
+    const retryAfter = Number(res.headers.get("retry-after"));
+    throw new ApiError(message, res.status, retryAfter > 0 ? retryAfter : undefined);
   }
   if (res.status === 204) return undefined as T;
   return res.json();

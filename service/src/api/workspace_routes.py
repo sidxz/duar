@@ -138,20 +138,18 @@ async def delete_workspace(
     _require_workspace_match(user, workspace_id)
     _require_role(user, "owner")
     workspace = await workspace_service.get_workspace(db, workspace_id)
-    try:
-        await workspace_service.delete_workspace(db, workspace_id)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    if workspace:
-        await activity_service.log_activity(
-            db,
-            action="workspace_deleted",
-            target_type="workspace",
-            target_id=workspace_id,
-            actor_id=user.user_id,
-            detail={"name": workspace.name, "slug": workspace.slug},
-        )
-        await db.commit()
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    await workspace_service.delete_workspace(db, workspace_id)
+    await activity_service.log_activity(
+        db,
+        action="workspace_deleted",
+        target_type="workspace",
+        target_id=workspace_id,
+        actor_id=user.user_id,
+        detail={"name": workspace.name, "slug": workspace.slug},
+    )
+    await db.commit()
 
 
 # --- Members ---

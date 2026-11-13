@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
+import { ApiError } from "../api/client";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -240,6 +241,9 @@ export function AddItemsDialog({
   );
 }
 
+/** Longest wait, in seconds, batchAdd will sit out for the server's rate limit. */
+const MAX_RATE_LIMIT_WAIT = 120;
+
 /** Run one call per item, then toast a single summary. Never throws. */
 // eslint-disable-next-line react-refresh/only-export-components
 export async function batchAdd(
@@ -248,6 +252,30 @@ export async function batchAdd(
   noun: string,
 ): Promise<void> {
   const results = await Promise.allSettled(selected.map((i) => call(i)));
+  // The server counts requests per minute and a large selection can run past
+  // that. It names the wait in Retry-After: sit it out, then send the refused
+  // ones again.
+  // ponytail: one more round, which covers a selection up to twice the limit;
+  // loop here if larger ones become normal.
+  const limited = results.flatMap((result, idx) =>
+    result.status === "rejected" &&
+    result.reason instanceof ApiError &&
+    result.reason.status === 429
+      ? [{ idx, wait: result.reason.retryAfter ?? 60 }]
+      : [],
+  );
+  const wait = Math.max(0, ...limited.map((l) => l.wait));
+  if (limited.length > 0 && wait <= MAX_RATE_LIMIT_WAIT) {
+    const notice = toast.loading(
+      `Added ${selected.length - limited.length}. The server is rate limiting: sending the other ${limited.length} in ${wait}s`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, wait * 1000));
+    const again = await Promise.allSettled(limited.map((l) => call(selected[l.idx])));
+    limited.forEach((l, n) => {
+      results[l.idx] = again[n];
+    });
+    toast.dismiss(notice);
+  }
   const failures = results
     .map((result, idx) => ({ result, item: selected[idx] }))
     .filter(

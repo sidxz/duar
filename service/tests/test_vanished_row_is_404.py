@@ -10,34 +10,17 @@ import uuid
 import pytest
 import pytest_asyncio
 from fastapi import HTTPException
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api import user_routes, workspace_routes
 from src.api.dependencies import CurrentUser
-from src.database import Base
 from src.schemas.user import UserUpdateRequest
-
-
-@compiles(JSONB, "sqlite")
-def _jsonb_sqlite(type_, compiler, **kw):
-    return "JSON"
+from tests.self_serve_fixtures import make_engine
 
 
 @pytest_asyncio.fixture
 async def db():
-    engine = create_async_engine("sqlite+aiosqlite://")
-    async with engine.begin() as conn:
-        await conn.run_sync(
-            lambda c: Base.metadata.create_all(
-                c,
-                tables=[
-                    Base.metadata.tables[n]
-                    for n in ("users", "workspaces", "activity_logs")
-                ],
-            )
-        )
+    engine = await make_engine()
     async with AsyncSession(engine) as session:
         yield session
     await engine.dispose()

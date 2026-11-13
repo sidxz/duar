@@ -95,7 +95,7 @@ what makes the stream learnable by an anomaly-detection pipeline.
 | `authz.token.issued` | security | success | `caller_service`, `workspace_role`, `actions_count` |
 | `authz.token.denied` | security | denied | `reason`, `caller_service` |
 | `authz.idp.validation_failed` | security | failure | `provider`, `reason` |
-| `ratelimit.exceeded` | security | denied | `limit`, `http.route`, `source_ip` |
+| `ratelimit.exceeded` | security | denied | `reason` (`route_limit`, `aggregate`, `failed_auth`), `limit`, `http.route`, `source_ip` |
 | `permission.registered` | audit | success | `caller_service`, `resource_type`, `resource_id` |
 | `permission.share.granted` | audit | success | `resource_type`, `resource_id`, `grantee` |
 | `permission.share.revoked` | audit | success | `resource_type`, `resource_id`, `grantee` |
@@ -153,6 +153,7 @@ patterns baseline-able and alertable without custom parsing:
 | Credential stuffing / brute force | `auth.login.failed` velocity per `source_ip` or `actor` | Repeated login failures from one IP or against one account |
 | Token compromise | `auth.token.reuse_detected` any occurrence | Near-zero baseline; any hit is a hard compromise signal |
 | Rate-limit abuse / DoS | `ratelimit.exceeded` spikes per `source_ip` or `http.route` | Scraping, enumeration, DDoS probes |
+| Credential guessing | `ratelimit.exceeded` with `reason=failed_auth` | One address failing authentication past its per-minute allowance |
 | Lateral movement / misconfiguration | New `(caller_service, workspace_id)` pairs in `authz.token.issued` | A service accessing workspaces it has never touched before |
 | Cross-tenant access attempts | `authz.token.denied` with `reason=not_member` or `reason=org_not_allowed` | Users probing workspaces they don't belong to |
 | Route-level error regressions | 4xx/5xx ratio shifts per `http.route` in `http.access` | Broken deploys, probing, schema mismatches |

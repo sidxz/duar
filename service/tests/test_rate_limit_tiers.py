@@ -6,7 +6,7 @@ Uses fresh in-memory Limiters so the suite never touches Redis and never mutates
 the module singleton's route registry.
 """
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from starlette.testclient import TestClient
@@ -68,9 +68,11 @@ def test_falls_back_to_ip_without_identity():
     assert c.get("/r").status_code == 429  # same TestClient IP shares one bucket
 
 
-def test_singleton_limiter_is_fail_open():
-    # A Redis blip must let traffic through, not 500 or throttle.
+def test_singleton_limiter_survives_a_storage_error():
+    # A Redis blip must not 500 or refuse traffic: the error is swallowed and
+    # the limiter counts in memory until Redis is back.
     assert rl.limiter._swallow_errors is True
+    assert rl.limiter._in_memory_fallback_enabled is True
 
 
 def test_route_keying_is_wired():
@@ -83,6 +85,13 @@ def test_route_keying_is_wired():
         name: {lim.key_func for lim in lims}
         for name, lims in rl.limiter._route_limits.items()
     }
+
+    # Minting is counted per service and client address first, then against the
+    # service's ceiling: in that order, so a client past its own share does not
+    # use up the ceiling for everyone else.
+    assert [
+        lim.key_func for lim in rl.limiter._route_limits["src.api.authz_routes.resolve"]
+    ] == [rl.service_address_key, rl.service_or_ip_key]
 
     # Service-key-authed routes bind caller_service (never actor), so they MUST
     # key per calling service — user_or_ip_key would silently degrade to per-IP.
@@ -119,8 +128,8 @@ def test_fail_open_when_storage_unreachable():
     # swallow_errors alone is not enough: slowapi leaves request.state.view_rate_limit
     # unset on a swallowed storage error, and header injection then AttributeErrors
     # -> HTTP 500. _FailOpenLimiter pre-seeds the attribute so a Redis outage passes
-    # traffic through (with the real response) on BOTH the undecorated (middleware)
-    # and decorated (endpoint-wrapper) paths.
+    # traffic through (with the real response) on the undecorated path, the
+    # decorated (endpoint-wrapper) path and the failed-authentication count.
     dead_redis = "redis://127.0.0.1:6390/0"  # nothing listening -> connection refused
     lim = rl._FailOpenLimiter(
         key_func=rl.get_client_ip,
@@ -130,10 +139,9 @@ def test_fail_open_when_storage_unreachable():
         swallow_errors=True,
         enabled=True,
     )
-    app = FastAPI()
+    app = FastAPI(dependencies=[Depends(rl.address_limits)])
     app.state.limiter = lim
     app.add_exception_handler(RateLimitExceeded, rl.rate_limit_exceeded_handler)
-    app.add_middleware(rl.RateLimitMiddleware)
 
     @app.get("/u")
     async def u(request: Request):
@@ -144,9 +152,57 @@ def test_fail_open_when_storage_unreachable():
     async def d(request: Request):
         return {"ok": True}
 
+    @app.get("/rejected")
+    @lim.limit("10/minute", key_func=rl.user_or_ip_key)
+    async def rejected(request: Request):
+        raise HTTPException(401, "Not authenticated")
+
     c = TestClient(app, raise_server_exceptions=False)
     assert c.get("/u").status_code == 200  # undecorated path fails open, not 500
     assert c.get("/d").status_code == 200  # decorated path fails open, not 500
+    assert c.get("/rejected").status_code == 401  # so does counting the failure
+
+
+def _unreachable_limiter(**limits):
+    return rl._FailOpenLimiter(
+        key_func=rl.get_client_ip,
+        storage_uri="redis://127.0.0.1:6390/0",  # nothing listening
+        swallow_errors=True,
+        **limits,
+    )
+
+
+def test_limits_are_counted_in_memory_while_the_storage_is_unreachable():
+    lim = _unreachable_limiter(default_limits=["2/minute"])
+    app = FastAPI(dependencies=[Depends(rl.address_limits)])
+    app.state.limiter = lim
+    app.add_exception_handler(RateLimitExceeded, rl.rate_limit_exceeded_handler)
+
+    @app.get("/u")
+    async def u(request: Request):
+        return {"ok": True}
+
+    c = TestClient(app)
+    assert [c.get("/u").status_code for _ in range(3)] == [200, 200, 429]
+
+
+def test_failed_authentication_is_counted_in_memory_while_the_storage_is_unreachable():
+    lim = _unreachable_limiter(application_limits=["2/minute"])
+    app = FastAPI(dependencies=[Depends(rl.address_limits)])
+    app.state.limiter = lim
+    app.add_exception_handler(RateLimitExceeded, rl.rate_limit_exceeded_handler)
+
+    async def signed_in():
+        raise HTTPException(401, "Not authenticated")
+
+    @app.get("/me")
+    @lim.limit("100/minute", key_func=rl.user_or_ip_key)
+    async def me(request: Request, _: None = Depends(signed_in)):
+        return {"ok": True}
+
+    c = TestClient(app)
+    # The first meets the storage error and is let through uncounted.
+    assert [c.get("/me").status_code for _ in range(4)] == [401, 401, 401, 429]
 
 
 def test_rate_limit_report_reflects_live_settings(monkeypatch):
@@ -178,3 +234,93 @@ def test_service_user_key_buckets_per_app_and_user():
     assert a == "svc:app-a|user:u1" and a != b
     assert rl.service_user_key(req(actor="u1")) == "user:u1"
     assert rl.service_user_key(req()) == "ip:10.0.0.1"
+
+
+def test_service_address_key_buckets_per_service_and_address():
+    from types import SimpleNamespace
+
+    def req(host, **state):
+        return SimpleNamespace(
+            state=SimpleNamespace(**state),
+            headers={},
+            client=SimpleNamespace(host=host),
+        )
+
+    a = rl.service_address_key(req("10.0.0.1", caller_service="notes"))
+    assert a == "svc:notes|ip:10.0.0.1"
+    assert a != rl.service_address_key(req("10.0.0.2", caller_service="notes"))
+    assert a != rl.service_address_key(req("10.0.0.1", caller_service="wiki"))
+    assert rl.service_address_key(req("10.0.0.1")) == "ip:10.0.0.1"
+
+
+def test_a_client_past_its_own_share_does_not_use_up_the_services_ceiling(
+    monkeypatch,
+):
+    monkeypatch.setattr(rl.settings, "behind_proxy", True)
+    monkeypatch.setattr(rl.settings, "trusted_proxy_count", 1)
+    # The shape of POST /authz/resolve: 2 a minute per service and address under
+    # a ceiling of 5 a minute for the service.
+    lim = Limiter(
+        key_func=rl.get_client_ip, storage_uri="memory://", swallow_errors=True
+    )
+    app = FastAPI()
+    app.state.limiter = lim
+    app.add_exception_handler(RateLimitExceeded, rl.rate_limit_exceeded_handler)
+
+    async def bind(request: Request):
+        request.scope.setdefault("state", {})["caller_service"] = "notes"
+
+    @app.get("/mint")
+    @lim.limit("5/minute", key_func=rl.service_or_ip_key)
+    @lim.limit("2/minute", key_func=rl.service_address_key)
+    async def mint(request: Request, _: None = Depends(bind)):
+        return {"ok": True}
+
+    client = TestClient(app)
+
+    def from_address(host, n):
+        forwarded = {"X-Forwarded-For": host}
+        return [client.get("/mint", headers=forwarded).status_code for _ in range(n)]
+
+    assert from_address("10.0.0.1", 10) == [200, 200] + [429] * 8
+    assert from_address("10.0.0.2", 2) == [200, 200]  # unaffected by the first
+    assert from_address("10.0.0.3", 2) == [200, 429]  # the fifth, then the ceiling
+
+
+def test_a_redis_that_stops_answering_is_an_error_not_a_wait():
+    import socket
+    import time
+
+    silent = socket.socket()  # accepts connections, never answers
+    silent.bind(("127.0.0.1", 0))
+    silent.listen()
+    try:
+        lim = rl._FailOpenLimiter(
+            key_func=rl.get_client_ip,
+            default_limits=["2/minute"],
+            storage_uri=f"redis://127.0.0.1:{silent.getsockname()[1]}/0",
+            storage_options=rl._STORAGE_TIMEOUTS,
+            swallow_errors=True,
+        )
+        app = FastAPI(dependencies=[Depends(rl.address_limits)])
+        app.state.limiter = lim
+
+        @app.get("/u")
+        async def u(request: Request):
+            return {"ok": True}
+
+        client = TestClient(app)
+        started = time.monotonic()
+        assert client.get("/u").status_code == 200
+        assert time.monotonic() - started < 5
+        # Only that request waited: the rest are counted in memory.
+        assert lim._storage_dead is True
+        assert [client.get("/u").status_code for _ in range(2)] == [200, 429]
+    finally:
+        silent.close()
+
+
+def test_the_service_limiter_has_storage_timeouts():
+    pool = rl.limiter._storage.storage.connection_pool
+    assert pool.connection_kwargs["socket_timeout"] == 0.5
+    assert pool.connection_kwargs["socket_connect_timeout"] == 0.5

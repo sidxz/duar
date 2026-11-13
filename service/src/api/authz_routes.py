@@ -16,7 +16,11 @@ from src.auth.jwt import create_authz_token
 from src.config import settings
 from src.database import get_db
 from src.logging_events import log_security
-from src.middleware.rate_limit import limiter, service_or_ip_key
+from src.middleware.rate_limit import (
+    limiter,
+    service_address_key,
+    service_or_ip_key,
+)
 from src.middleware.request_context import bind_identity
 from src.models.service_app import ServiceApp
 from src.models.workspace import Workspace, WorkspaceMembership
@@ -248,8 +252,11 @@ async def idp_callback(
     return RedirectResponse(url=f"{redirect_uri}#{fragment}", status_code=302)
 
 
+# Two limits, checked bottom-up: a client past its own share stops there and
+# does not count against the service's ceiling.
 @router.post("/resolve", response_model=AuthzResolveResponse)
-@limiter.limit(settings.rate_limit_authz_resolve, key_func=service_or_ip_key)
+@limiter.limit(settings.rate_limit_authz_resolve_service, key_func=service_or_ip_key)
+@limiter.limit(settings.rate_limit_authz_resolve, key_func=service_address_key)
 async def resolve(
     request: Request,
     body: AuthzResolveRequest,

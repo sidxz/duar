@@ -74,7 +74,7 @@ class Settings(BaseSettings):
     )
 
     # Rate-limit tiers — limits-library strings ("10/minute"). Only the two
-    # middleware-level tiers below (default, aggregate) accept "" to disable them.
+    # per-address tiers below (default, aggregate) accept "" to disable them.
     # The per-route (decorated) tiers must be non-empty: "" there means
     # @limiter.limit("") = NO throttle AND exemption from the aggregate, so it is
     # rejected at startup (see _validate_decorated_tier). Read at import time
@@ -89,8 +89,10 @@ class Settings(BaseSettings):
     )
     rate_limit_auth_admin: str = "5/minute"  # admin login/callback (per IP)
     rate_limit_authz_resolve: str = (
-        "60/minute"  # POST /authz/resolve (per calling service)
+        "60/minute"  # POST /authz/resolve (per calling service + client address)
     )
+    # POST /authz/resolve for one calling service across all client addresses.
+    rate_limit_authz_resolve_service: str = "600/minute"
     rate_limit_read: str = "60/minute"  # authenticated reads (per user)
     rate_limit_admin_write: str = "10/minute"  # admin mutations (per user)
     rate_limit_sensitive: str = "5/minute"  # destructive/expensive admin ops (per user)
@@ -109,10 +111,21 @@ class Settings(BaseSettings):
         # Every URL built from these is f"{base}/path" — a trailing slash would double it.
         return v.rstrip("/")
 
+    @field_validator("rate_limit_default", "rate_limit_aggregate")
+    @classmethod
+    def _validate_address_tier(cls, v: str) -> str:
+        """The two per-address tiers: "" turns one off, anything else must parse."""
+        from limits import parse_many
+
+        if v:
+            parse_many(v)  # raises ValueError on a malformed limit string
+        return v
+
     @field_validator(
         "rate_limit_auth",
         "rate_limit_auth_admin",
         "rate_limit_authz_resolve",
+        "rate_limit_authz_resolve_service",
         "rate_limit_read",
         "rate_limit_admin_write",
         "rate_limit_sensitive",

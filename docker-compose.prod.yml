@@ -107,15 +107,23 @@ services:
       # Number of trusted proxy hops in front of Duar (CDN/LB + nginx = 2, etc.).
       # MUST match reality or all clients collapse into one IP bucket. Verify per deploy.
       TRUSTED_PROXY_COUNT: ${TRUSTED_PROXY_COUNT:-1}
-      # Rate-limit tiers (tunable without an image rebuild). Aggregate is the per-IP
-      # volumetric ceiling for undecorated routes; "" disables it. NOTE: decorated
-      # routes are NOT covered by the aggregate — deploy edge rate limiting for
-      # volumetric/bad-auth protection. See docs/security.md.
+      # Rate-limit tiers (tunable without an image rebuild); defaults match
+      # config.py, and an empty value here means the default. Aggregate is the
+      # per-IP ceiling across routes without a limit of their own, and the rate
+      # past which failed authentication from one IP is answered 429. This is
+      # not volumetric protection: deploy edge rate limiting for that. See
+      # docs/security.md.
       RATE_LIMIT_AGGREGATE: ${RATE_LIMIT_AGGREGATE:-300/minute}
       RATE_LIMIT_DEFAULT: ${RATE_LIMIT_DEFAULT:-120/minute}
+      RATE_LIMIT_AUTH: ${RATE_LIMIT_AUTH:-10/minute}
+      RATE_LIMIT_AUTH_ADMIN: ${RATE_LIMIT_AUTH_ADMIN:-5/minute}
       RATE_LIMIT_AUTHZ_RESOLVE: ${RATE_LIMIT_AUTHZ_RESOLVE:-60/minute}
+      RATE_LIMIT_AUTHZ_RESOLVE_SERVICE: ${RATE_LIMIT_AUTHZ_RESOLVE_SERVICE:-600/minute}
+      RATE_LIMIT_READ: ${RATE_LIMIT_READ:-60/minute}
       RATE_LIMIT_TOOL_CHECK: ${RATE_LIMIT_TOOL_CHECK:-600/minute}
       RATE_LIMIT_SERVICE: ${RATE_LIMIT_SERVICE:-3000/minute}
+      RATE_LIMIT_ADMIN_WRITE: ${RATE_LIMIT_ADMIN_WRITE:-10/minute}
+      RATE_LIMIT_SENSITIVE: ${RATE_LIMIT_SENSITIVE:-5/minute}
       # Security signals (detect-only). Tunable from .env.prod; defaults match config.py.
       SIGNALS_ENABLED: ${SIGNALS_ENABLED:-true}
       SIGNAL_IMPOSSIBLE_TRAVEL_KMH: ${SIGNAL_IMPOSSIBLE_TRAVEL_KMH:-900}

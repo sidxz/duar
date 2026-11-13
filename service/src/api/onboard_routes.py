@@ -822,7 +822,6 @@ async def _manage_actor(
 
 
 @router.post("/members/{user_id}/role")
-@limiter.limit(settings.rate_limit_auth)
 async def change_member_role(
     request: Request,
     user_id: uuid.UUID,
@@ -863,7 +862,6 @@ async def change_member_role(
 
 
 @router.post("/members/{user_id}/remove")
-@limiter.limit(settings.rate_limit_auth)
 async def remove_member(
     request: Request,
     user_id: uuid.UUID,

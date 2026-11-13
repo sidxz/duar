@@ -106,6 +106,7 @@ async def require_service_context(
             )
         service_name, app_id, realm_slug = result
         bind_identity(request, caller_service=service_name)
+        request.state.service_key_proven = True
         return ServiceKeyContext(
             service_name=service_name, app_id=app_id, realm_slug=realm_slug
         )
@@ -471,6 +472,10 @@ async def get_current_user_flexible(
         if result is not None:
             service_key_service_name = result[0]
             service_key_effective_scope = result[2] or result[0]
+            # Bound as soon as the key is proven, so a rejection further down
+            # is logged, and rate limited, as this service's.
+            bind_identity(request, caller_service=service_key_service_name)
+            request.state.service_key_proven = True
 
     has_valid_service_key = service_key_service_name is not None
     # Browser authz-mode path: the Bearer slot carries the IdP token (which

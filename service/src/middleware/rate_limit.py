@@ -1,47 +1,82 @@
 """Rate limiting via slowapi (Redis-backed). slowapi is the SOLE mechanism.
 
 Coverage model (slowapi 0.1.10 — verified against the installed source):
+  * ``address_limits`` is an app-level dependency: it runs on every route once
+    the router has picked it, ahead of the route's own dependencies, so ahead
+    of authentication.
   * Routes WITHOUT a decorator → ``application_limits`` (per-IP aggregate,
-    "global" scope) + ``default_limits`` (per-IP, per-route), enforced by
-    ``RateLimitMiddleware`` (below) BEFORE auth/dependencies run.
-  * Routes WITH an ``@limiter.limit(...)`` decorator → ONLY that decorator's
-    limit. slowapi intentionally EXEMPTS decorated routes from the middleware,
-    so aggregate/default limits do NOT apply, and the decorator's check runs in
-    the endpoint wrapper AFTER dependencies — a request rejected by an auth
-    ``Depends`` (bad token/service key) is therefore not throttled here.
+    "global" scope) + ``default_limits`` (per-IP, per-route), checked there.
+  * Routes WITH an ``@limiter.limit(...)`` decorator → that decorator's limit
+    only, checked in the endpoint wrapper AFTER dependencies, when the caller
+    is known.
+  * A decorated route keyed per caller (user, service, app + user) has no
+    caller to count a request against when authentication fails, so a 401
+    there counts per IP instead: at the aggregate tier's rate, in a bucket of
+    its own on each listener. Past that rate the answer is 429 in place of the
+    401. Nothing is refused before authentication, so valid credentials always
+    get through, whatever else has come from their address. A 401 for a caller
+    that proved a service key is not counted: a backend relays its users'
+    tokens from one address.
   * A route is one bucket per key (``key_style="endpoint"``): requests to
     ``/things/a`` and ``/things/b`` count together against ``/things/{id}``.
+  * Never counted: a request the framework answers before any dependency runs
+    (unknown path, wrong method, a body that does not parse), the static mount
+    and, with DEBUG on, the docs pages. On a decorated route, a request that a
+    dependency rejects with anything but 401, or whose input fails validation.
 
-ACCEPTED TRADEOFF: app-layer limiting provides NO volumetric DoS protection and
-NO pre-auth throttling for decorated routes (/authz/resolve, /auth/token,
-/roles/check-action, /permissions/check, admin POSTs). Deploy EDGE rate limiting (nginx/Cloudflare/ALB) for that. See
-docs/security.md.
+ACCEPTED TRADEOFF: app-layer limiting provides NO volumetric DoS protection.
+The check runs after the router has read and parsed the request body, and a
+decorated route counts its caller only after its dependencies ran: a request
+that fails authentication there has had its credentials looked at, however
+many came before it. Deploy EDGE rate limiting (nginx/Cloudflare/ALB) for
+that. See docs/security.md.
 
-Fail-open: ``swallow_errors=True`` — a storage (Redis) error lets the request
-through rather than 500ing or throttling. Real limit breaches still 429.
+Storage failure: a storage (Redis) error never 500s or refuses a request. The
+request that meets the error is let through, and from then on this process
+counts in memory (slowapi's ``in_memory_fallback_enabled``), looking for Redis
+again at 1 to 32 second intervals. Real limit breaches still 429. The storage
+client has socket timeouts (``_STORAGE_TIMEOUTS``), so a Redis which stops
+answering is an error too, not a wait.
 
-NOTE on fail-open correctness: ``swallow_errors`` alone is NOT sufficient. When
+NOTE on storage-failure correctness: ``swallow_errors`` alone is NOT sufficient. When
 slowapi swallows a storage error it never sets ``request.state.view_rate_limit``,
-and its header-injection path (both the ASGI middleware and the decorated-route
-wrapper) then dereferences that attribute unconditionally — raising
+and its header-injection path (in the decorated-route wrapper) then
+dereferences that attribute unconditionally — raising
 ``AttributeError`` → HTTP 500 on every request during a Redis outage. We close
 that hole with ``_FailOpenLimiter`` below, which guarantees the attribute is
 always defined so the (no-op, headers-disabled) injection can't crash.
 """
 
-from collections.abc import Callable, Sequence
+import ipaddress
+import itertools
+from collections.abc import AsyncIterator, Callable
 
-from fastapi.routing import iter_route_contexts
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import _should_exempt, async_check_limits
+from slowapi.wrappers import Limit
+from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-from starlette.routing import BaseRoute, Match
-from starlette.types import ASGIApp, Receive, Scope, Send
 
 from src.config import settings
 from src.logging_events import log_security
+
+
+def _as_ip(value: str) -> str | None:
+    """``value`` as a normalised IP address, or None when it is not one.
+
+    Takes the ``ip:port`` and ``[ip]:port`` forms some proxies write. An IPv6
+    zone (``%eth0``) is dropped: it is free text, and not part of the address.
+    """
+    host = value
+    if host.startswith("["):
+        host = host[1:].partition("]")[0]
+    elif host.count(":") == 1:
+        host = host.partition(":")[0]
+    try:
+        return str(ipaddress.ip_address(host.partition("%")[0]))
+    except ValueError:
+        return None
 
 
 def get_client_ip(request: Request) -> str:
@@ -51,15 +86,18 @@ def get_client_ip(request: Request) -> str:
     entry from the RIGHT of ``X-Forwarded-For`` — the hop our trusted proxy
     appended. The leftmost entries are client-controlled and must never be
     trusted, otherwise an attacker can rotate them to evade per-IP rate limits.
-    Falls back to the direct peer when the chain is shorter than expected.
+    A header sent on several lines is one list, in order: a proxy that adds a
+    line of its own instead of appending is still the last entry. Falls back to
+    the direct peer when the chain is shorter than expected or the entry is not
+    an IP address, so what a client writes there never becomes a bucket key.
     """
     if settings.behind_proxy:
-        forwarded = request.headers.get("x-forwarded-for")
-        if forwarded:
-            parts = [p.strip() for p in forwarded.split(",") if p.strip()]
-            idx = settings.trusted_proxy_count
-            if parts and 0 < idx <= len(parts):
-                return parts[-idx]
+        forwarded = ",".join(request.headers.getlist("x-forwarded-for"))
+        parts = [p.strip() for p in forwarded.split(",") if p.strip()]
+        idx = settings.trusted_proxy_count
+        if 0 < idx <= len(parts):
+            if ip := _as_ip(parts[-idx]):
+                return ip
     if request.client:
         return request.client.host
     return "unknown"
@@ -93,6 +131,19 @@ def service_or_ip_key(request: Request) -> str:
     return f"ip:{get_client_ip(request)}"
 
 
+def service_address_key(request: Request) -> str:
+    """Rate-limit key for POST /authz/resolve: bucket by (calling service, client address).
+
+    A backend that calls directly is one address, so it is one bucket. Behind
+    the SDK proxy helpers the address is the one the proxy chain reports for
+    the browser. ``RATE_LIMIT_AUTHZ_RESOLVE_SERVICE`` caps a service across all
+    addresses.
+    """
+    svc = getattr(request.state, "caller_service", None)
+    ip = get_client_ip(request)
+    return f"svc:{svc}|ip:{ip}" if svc else f"ip:{ip}"
+
+
 def service_user_key(request: Request) -> str:
     """Rate-limit key for the permission-check hot path: bucket by (calling app, user).
 
@@ -122,6 +173,10 @@ def rate_limit_report() -> list[dict[str, str]]:
             "limit": settings.rate_limit_default or "disabled",
         },
         {
+            "endpoint": "failed authentication · per IP · all routes limited per caller",
+            "limit": settings.rate_limit_aggregate or "disabled",
+        },
+        {
             "endpoint": "auth (login/callback/token/refresh) · per IP",
             "limit": settings.rate_limit_auth,
         },
@@ -130,8 +185,12 @@ def rate_limit_report() -> list[dict[str, str]]:
             "limit": settings.rate_limit_auth_admin,
         },
         {
-            "endpoint": "authz resolve · per service",
+            "endpoint": "authz resolve · per service + IP",
             "limit": settings.rate_limit_authz_resolve,
+        },
+        {
+            "endpoint": "authz resolve · per service · all addresses",
+            "limit": settings.rate_limit_authz_resolve_service,
         },
         {
             "endpoint": "authenticated reads · per user",
@@ -157,7 +216,9 @@ def rate_limit_report() -> list[dict[str, str]]:
 
 
 class _FailOpenLimiter(Limiter):
-    """Limiter that truly fails open when the storage (Redis) is unreachable.
+    """Limiter that never 500s or refuses a request over a storage (Redis) error.
+
+    While the storage is unreachable it counts in memory, per process.
 
     slowapi's ``swallow_errors`` swallows the storage exception during the limit
     check but leaves ``request.state.view_rate_limit`` unset; the subsequent
@@ -171,6 +232,8 @@ class _FailOpenLimiter(Limiter):
         # One bucket per route: every request to a route counts together,
         # whatever the values of its path parameters.
         kwargs.setdefault("key_style", "endpoint")
+        # After a storage error, count in memory until the storage is back.
+        kwargs.setdefault("in_memory_fallback_enabled", True)
         super().__init__(*args, **kwargs)
 
     def _check_request_limit(self, request, endpoint_func, in_middleware=True):
@@ -181,6 +244,10 @@ class _FailOpenLimiter(Limiter):
         return super()._check_request_limit(request, endpoint_func, in_middleware)
 
 
+# The storage client is synchronous and runs on the event loop: these bound how
+# long one call to it can wait on Redis.
+_STORAGE_TIMEOUTS = {"socket_timeout": 0.5, "socket_connect_timeout": 0.5}
+
 limiter = _FailOpenLimiter(
     key_func=get_client_ip,
     default_limits=[settings.rate_limit_default] if settings.rate_limit_default else [],
@@ -188,68 +255,102 @@ limiter = _FailOpenLimiter(
         [settings.rate_limit_aggregate] if settings.rate_limit_aggregate else []
     ),
     storage_uri=settings.redis_url,
-    storage_options=settings.redis_ssl_kwargs,
-    swallow_errors=True,  # fail OPEN: a Redis blip must not 500 or throttle legit traffic
+    storage_options={**settings.redis_ssl_kwargs, **_STORAGE_TIMEOUTS},
+    swallow_errors=True,  # a Redis blip must not 500 or refuse legit traffic
     enabled=settings.rate_limit_enabled,  # master switch (False on ephemeral pentest targets)
 )
 
 
-def find_route_handler(routes: Sequence[BaseRoute], scope: Scope) -> Callable | None:
-    """The endpoint a request will reach, or None when no route serves it.
+class FailedAuthLimitExceeded(RateLimitExceeded):
+    """An address is past its rate of failed authentication (see ``address_limits``)."""
 
-    Walks every registered route, including those added with
-    ``include_router()``, which FastAPI keeps grouped under their router rather
-    than listing in ``app.routes``. First full match wins, as in the router.
+
+def _service_key_proven(request: Request) -> bool:
+    """Whether the caller presented a service key that validated.
+
+    The auth dependencies set the flag where a key validates.
+    ``caller_service`` does not say so: it is also bound from a matching
+    ``Origin`` header, which any client can send.
     """
-    for route in iter_route_contexts(routes):
-        match, _ = route.matches(scope)
-        if match == Match.FULL and route.endpoint is not None:
-            return route.endpoint
-    return None
+    return getattr(request.state, "service_key_proven", False)
 
 
-class RateLimitMiddleware:
-    """Applies the default and aggregate tiers to undecorated routes.
+def _storage_call(
+    active: Limiter, call: Callable[..., bool], lim: Limit, *bucket: str
+) -> bool:
+    """``call`` (the storage's ``hit``) for one limit and bucket.
 
-    Decorated and exempt routes pass straight through (the decorator enforces
-    its own limit in the endpoint wrapper), as does a request no route serves.
+    A storage error counts as within the limit and, as inside slowapi, moves
+    the limiter to counting in memory until its next check finds the storage
+    back.
     """
+    try:
+        return call(lim.limit, *bucket)
+    except Exception:
+        if not active._swallow_errors:
+            raise
+        active.logger.exception("Failed to rate limit. Swallowing error")
+        active._storage_dead = True
+        return True
 
-    def __init__(self, app: ASGIApp) -> None:
-        self.app = app
 
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] == "http":
-            app = scope["app"]
-            active: Limiter = app.state.limiter
-            if active.enabled:
-                handler = find_route_handler(app.routes, scope)
-                if not _should_exempt(active, handler):
-                    request = Request(scope, receive=receive, send=send)
-                    rejection, _ = await async_check_limits(
-                        active, request, handler, app
-                    )
-                    if rejection is not None:
-                        return await rejection(scope, receive, send)
-        await self.app(scope, receive, send)
+async def address_limits(request: Request) -> AsyncIterator[None]:
+    """The per-address limits, applied before a route's own dependencies run.
+
+    Installed app-wide: ``FastAPI(dependencies=[Depends(address_limits)])``.
+    See the module docstring for which limit a route gets.
+    """
+    active: Limiter = request.app.state.limiter
+    endpoint = request.scope["endpoint"]
+    route = f"{endpoint.__module__}.{endpoint.__name__}"
+    count_failures = False
+    if active.enabled and route not in active._exempt_routes:
+        own = active._route_limits.get(route)
+        if own is None:
+            active._check_request_limit(request, endpoint, True)
+        else:
+            count_failures = any(lim.key_func is not get_client_ip for lim in own)
+    try:
+        yield
+    except HTTPException as exc:
+        # A rejection by any later dependency, or by the handler, passes through
+        # here. One hit both counts it and says whether it is one too many.
+        if (
+            count_failures
+            and exc.status_code == 401
+            and not _service_key_proven(request)
+        ):
+            # Per listener: the public and internal ones learn the client
+            # address from different proxy chains.
+            tier = getattr(request.app.state, "tier", "all")
+            bucket = ("failed-auth", tier, get_client_ip(request))
+            for lim in itertools.chain(*active._application_limits):
+                if not _storage_call(active, active.limiter.hit, lim, *bucket):
+                    raise FailedAuthLimitExceeded(lim) from exc
+        raise
 
 
 async def rate_limit_exceeded_handler(
     request: Request, exc: RateLimitExceeded
 ) -> JSONResponse:
-    # Distinguish the per-IP volumetric aggregate (application_limits, "global"
-    # scope) from per-route limits so log-based alerting can separate volumetric
-    # abuse from a single actor hitting a strict route tier.
-    reason = (
-        "aggregate" if getattr(exc.limit, "scope", "") == "global" else "route_limit"
-    )
+    from src.middleware.access_log import _route_template  # it imports this module
+
+    # Tell the three apart so log-based alerting can separate volumetric abuse
+    # (the per-IP aggregate: application_limits, "global" scope), an address
+    # that keeps failing authentication, and one caller on a route's own tier.
+    if isinstance(exc, FailedAuthLimitExceeded):
+        reason = "failed_auth"
+    elif getattr(exc.limit, "scope", "") == "global":
+        reason = "aggregate"
+    else:
+        reason = "route_limit"
     log_security(
         "ratelimit.exceeded",
         outcome="denied",
         reason=reason,
         limit=str(exc.limit.limit),
         source_ip=get_client_ip(request),
-        **{"http.route": request.url.path},
+        **{"http.route": _route_template(request.scope)},
     )
     return JSONResponse(
         status_code=429,

@@ -15,6 +15,7 @@ TIERS = [
     "rate_limit_auth",
     "rate_limit_auth_admin",
     "rate_limit_authz_resolve",
+    "rate_limit_authz_resolve_service",
     "rate_limit_read",
     "rate_limit_admin_write",
     "rate_limit_sensitive",
@@ -26,6 +27,7 @@ DECORATED_TIERS = [
     "rate_limit_auth",
     "rate_limit_auth_admin",
     "rate_limit_authz_resolve",
+    "rate_limit_authz_resolve_service",
     "rate_limit_read",
     "rate_limit_admin_write",
     "rate_limit_sensitive",
@@ -58,3 +60,16 @@ def test_empty_aggregate_and_default_are_allowed():
     s = Settings(rate_limit_aggregate="", rate_limit_default="")
     assert s.rate_limit_aggregate == ""
     assert s.rate_limit_default == ""
+
+
+@pytest.mark.parametrize("name", ["rate_limit_default", "rate_limit_aggregate"])
+@pytest.mark.parametrize("value", ["300/minut", "120", "fast"])
+def test_malformed_address_tier_is_rejected(name, value):
+    # Only "" turns one of these off.
+    with pytest.raises(ValidationError):
+        Settings(**{name: value})
+
+
+def test_an_address_tier_may_carry_several_windows():
+    s = Settings(rate_limit_aggregate="300/minute;3000/hour")
+    assert s.rate_limit_aggregate == "300/minute;3000/hour"

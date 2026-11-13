@@ -127,8 +127,8 @@ POST /onboard/create  auth=none  limit=10 per 1 minute by get_client_ip
 GET /onboard/invites  auth=none  limit=default
 POST /onboard/invites  auth=none  limit=10 per 1 minute by get_client_ip
 POST /onboard/invites/{invitation_id}/revoke  auth=none  limit=default
-POST /onboard/members/{user_id}/role  auth=none  limit=10 per 1 minute by get_client_ip
-POST /onboard/members/{user_id}/remove  auth=none  limit=10 per 1 minute by get_client_ip
+POST /onboard/members/{user_id}/role  auth=none  limit=default
+POST /onboard/members/{user_id}/remove  auth=none  limit=default
 POST /onboard/workspace/rename  auth=none  limit=10 per 1 minute by get_client_ip
 POST /onboard/leave  auth=none  limit=10 per 1 minute by get_client_ip
 GET /realm/whoami  auth=service-key  limit=60 per 1 minute by service_or_ip_key
@@ -142,7 +142,7 @@ DELETE /permissions/{permission_id}/share  auth=service-key  limit=3000 per 1 mi
 DELETE /permissions/resource/{service_name}/{resource_type}/{resource_id}  auth=service-key  limit=3000 per 1 minute by service_or_ip_key
 GET /permissions/resource/{service_name}/{resource_type}/{resource_id}  auth=service-key  limit=3000 per 1 minute by service_or_ip_key
 GET /permissions/resource/{service_name}/{resource_type}/{resource_id}/enriched  auth=service-key  limit=3000 per 1 minute by service_or_ip_key
-POST /authz/resolve  auth=service-key-or-origin  limit=60 per 1 minute by service_or_ip_key
+POST /authz/resolve  auth=service-key-or-origin  limit=60 per 1 minute by service_address_key, 600 per 1 minute by service_or_ip_key
 POST /roles/actions/register  auth=service-key  limit=3000 per 1 minute by service_or_ip_key
 POST /roles/check-action  auth=service-key+user  limit=600 per 1 minute by service_user_key
 GET /roles/user-actions  auth=service-key+user  limit=600 per 1 minute by service_user_key
