@@ -12,11 +12,16 @@ For versions prior to `0.11.0`, see the git tag history (`git log --oneline -- s
 
 <!-- Add next-version entries here -->
 
+## [2.2.0] - 2026-11-22 — Org directory in the Python SDK, AuthZ sign-ins in Activity
+
 ### Added
 - Python SDK: `Duar.list_organizations(include_disabled=False)` returns Duar's org directory (`GET /organizations`, service key) as `OrgDirectoryEntry` objects (`id`, `slug`, `name`, `is_public`, `enabled`), exported from `duar_auth` and `duar_auth.types`.
 
 ### Fixed
 - AuthZ-mode sign-ins appear in Activity as `user_login`, with `flow: "authz"` and the calling app's service name in the detail, and they run the login security signals. The sign-in is the workspace-discovery call to `POST /authz/resolve` (no `workspace_id`), which the SDKs make once after the IdP redirect; token mints and refreshes are not recorded.
+
+### Changed
+- The JS SDKs and the admin image have no changes and are republished for version alignment.
 
 ## [2.1.0] - 2026-11-21 — Member organizations
 
