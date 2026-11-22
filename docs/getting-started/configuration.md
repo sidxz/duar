@@ -133,7 +133,7 @@ These callbacks are only used for the admin panel's server-side OAuth flow. In A
 
 ## Security Signals
 
-Detect-only anomaly flags (Tier 1 of the [AI security roadmap](../ai-security-roadmap.md)) evaluated on login success, refresh-context change, and login failure. Signals become activity rows + `auth.signal.*` stream events surfaced on the admin Dashboard/Activity pages. They never block or alter an auth decision.
+Detect-only anomaly flags (Tier 1 of the [AI security roadmap](../ai-security-roadmap.md)) evaluated on login success, refresh-context change, and login failure. In AuthZ mode the login is the workspace-discovery call to `POST /authz/resolve` (no `workspace_id`); its IP is the address that call arrives from, so when the app proxies it through its backend the country and travel rules see the backend's address unless Duar is configured to trust the forwarded client address (`BEHIND_PROXY`, `TRUSTED_PROXY_COUNT`). Signals become activity rows + `auth.signal.*` stream events surfaced on the admin Dashboard/Activity pages. They never block or alter an auth decision.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
