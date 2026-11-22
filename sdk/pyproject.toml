@@ -1,6 +1,6 @@
 [project]
 name = "duar-auth"
-version = "2.1.0"
+version = "2.2.0"
 description = "Duar SDK — JWT middleware, FastAPI dependencies, permission client"
 requires-python = ">=3.12"
 dependencies = [

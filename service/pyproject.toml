@@ -1,6 +1,6 @@
 [project]
 name = "duar-service"
-version = "2.1.0"
+version = "2.2.0"
 description = "Duar — FastAPI microservice"
 requires-python = ">=3.12"
 dependencies = [
