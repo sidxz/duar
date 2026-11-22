@@ -35,6 +35,7 @@ class WorkspaceMemberResponse(BaseModel):
     avatar_url: str | None
     role: str
     joined_at: datetime
+    org_id: uuid.UUID | None = None
 
 
 class InviteMemberRequest(BaseModel):
