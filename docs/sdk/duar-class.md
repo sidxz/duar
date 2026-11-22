@@ -144,6 +144,22 @@ allowed = await duar.roles.check_action(token, "reports:export", workspace_id)
 
 Lazily-created client for the authz token exchange endpoint.
 
+## `list_organizations(include_disabled=False)`
+
+Returns Duar's organizations as a list of `OrgDirectoryEntry` (`id`, `slug`, `name`, `is_public`, `enabled`). It calls `GET {base_url}/organizations` with the service key. The `id` is the same value as the `oid` claim on user tokens, and as `org_id` on workspace members.
+
+```python
+orgs = await duar.list_organizations(include_disabled=True)
+names = {o.id: o.name for o in orgs}
+pickable = [o for o in orgs if o.enabled and not o.is_public]
+```
+
+- `include_disabled=True` also returns orgs an admin switched off, so ids you stored earlier still resolve to a name.
+- The org with `is_public=True` is the catch-all for users whose email domain matches no real organization. Leave it out of "pick an organization" lists.
+- The SDK does not cache the result; cache it on your side (a few minutes is plenty).
+- `/organizations` is a service-key route. In a deployment that splits Duar into public and internal listeners, it is served by the internal one, so `base_url` must reach that listener.
+- Raises `DuarError` on a non-200 response (with `status_code`, and `retry_after` on a 429) or when the response is not JSON.
+
 ## Dependencies
 
 ### `duar.require_user`

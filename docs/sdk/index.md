@@ -17,7 +17,8 @@ Import as `duar_auth`.
 - **`RequestAuth`** -- per-request auth context for DDD integration
 - **`SystemAuth`** -- no-user (m2m) in-realm caller context for [Flow B](../guide/realms.md#flow-b-no-user)
 - **Realm m2m** -- `mint_m2m_token()`, `verify_m2m_token()`, `require_system` ([Realms & M2M](realms.md))
-- **Type definitions** -- `AuthenticatedUser`, `WorkspaceContext`, `DuarError`
+- **Org directory** -- `list_organizations()` returns Duar's organizations as `OrgDirectoryEntry` ([Duar Class](duar-class.md#list_organizationsinclude_disabledfalse))
+- **Type definitions** -- `AuthenticatedUser`, `WorkspaceContext`, `OrgDirectoryEntry`, `DuarError`
 
 ## Minimal Example
 
