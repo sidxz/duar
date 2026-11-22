@@ -9,7 +9,12 @@ from duar_auth.middleware import JWTAuthMiddleware
 from duar_auth.permissions import PermissionClient
 from duar_auth.proxy import create_proxy_router
 from duar_auth.roles import RoleClient
-from duar_auth.types import AuthenticatedUser, DuarError, WorkspaceContext
+from duar_auth.types import (
+    AuthenticatedUser,
+    DuarError,
+    OrgDirectoryEntry,
+    WorkspaceContext,
+)
 
 __version__ = version("duar-auth")
 __all__ = [
@@ -17,6 +22,7 @@ __all__ = [
     "AuthzClient",
     "AuthzMiddleware",
     "JWTAuthMiddleware",
+    "OrgDirectoryEntry",
     "PermissionClient",
     "RequestAuth",
     "RoleClient",

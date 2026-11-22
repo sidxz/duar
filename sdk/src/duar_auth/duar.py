@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import uuid
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 
@@ -20,7 +21,7 @@ from duar_auth.dependencies import require_action as _require_action
 from duar_auth.middleware import JWTAuthMiddleware
 from duar_auth.permissions import PermissionClient
 from duar_auth.roles import RoleClient
-from duar_auth.types import DuarError
+from duar_auth.types import DuarError, OrgDirectoryEntry
 
 _AUD_M2M = "duar:m2m"
 
@@ -408,6 +409,42 @@ class Duar:
         self._m2m_token = data["token"]
         self._m2m_refresh_at = time.monotonic() + data["expires_in"] * 0.8
         return self._m2m_token
+
+    async def list_organizations(self, include_disabled: bool = False) -> list[OrgDirectoryEntry]:
+        """List Duar's organizations (``GET /organizations`` with the service key).
+
+        ``include_disabled=True`` also returns orgs an admin switched off, so ids you
+        stored earlier still resolve to a name. Not cached: cache on your side.
+        """
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                f"{self.base_url}/organizations",
+                params={"include_disabled": "true"} if include_disabled else None,
+                headers={"X-Service-Key": self.service_key},
+            )
+        if resp.status_code != 200:
+            raise DuarError(
+                f"org directory failed: {resp.status_code}",
+                resp.status_code,
+                retry_after=resp.headers.get("retry-after"),
+            )
+        try:
+            rows = resp.json()
+        except ValueError:
+            raise DuarError(
+                "org directory returned non-JSON; is /organizations routed to Duar?",
+                resp.status_code,
+            ) from None
+        return [
+            OrgDirectoryEntry(
+                id=uuid.UUID(o["id"]),
+                slug=o["slug"],
+                name=o["name"],
+                is_public=o["is_public"],
+                enabled=o["enabled"],
+            )
+            for o in rows
+        ]
 
     @property
     def require_system(self) -> Callable:

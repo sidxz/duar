@@ -99,6 +99,26 @@ class WorkspaceContext:
     role: str
 
 
+@dataclass(frozen=True)
+class OrgDirectoryEntry:
+    """One organization from Duar's org directory (``Duar.list_organizations``).
+
+    Attributes:
+        id: The organization's ID, the value of the ``oid`` token claim.
+        slug: URL-friendly slug (the ``oslug`` claim).
+        name: Display name.
+        is_public: True only for the catch-all public org, which holds users whose
+            email domain matches no real organization. It is not a real organization.
+        enabled: False when an admin has switched a real org off.
+    """
+
+    id: uuid.UUID
+    slug: str
+    name: str
+    is_public: bool
+    enabled: bool
+
+
 class DuarError(Exception):
     """Raised when the Duar identity service returns an error or is unreachable."""
 
