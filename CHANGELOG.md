@@ -12,6 +12,9 @@ For versions prior to `0.11.0`, see the git tag history (`git log --oneline -- s
 
 <!-- Add next-version entries here -->
 
+### Fixed
+- AuthZ-mode sign-ins appear in Activity as `user_login`, with `flow: "authz"` and the calling app's service name in the detail, and they run the login security signals. The sign-in is the workspace-discovery call to `POST /authz/resolve` (no `workspace_id`), which the SDKs make once after the IdP redirect; token mints and refreshes are not recorded.
+
 ## [2.1.0] - 2026-11-21 — Member organizations
 
 ### Added

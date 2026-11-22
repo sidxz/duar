@@ -74,6 +74,15 @@ class _FakeDB:
     async def get(self, _model, _pk):
         return None
 
+    def add(self, _obj):
+        pass
+
+    async def flush(self):
+        pass
+
+    async def commit(self):
+        pass
+
 
 def _app(db) -> FastAPI:
     app = FastAPI()
@@ -135,6 +144,11 @@ def test_authz_passes_org_through_provisioning(monkeypatch):
         return _User(kwargs["organization_id"])
 
     monkeypatch.setattr(authz_routes.auth_service, "find_or_create_user", _foc)
+
+    async def _no_signals(_db, **_kw):
+        return None
+
+    monkeypatch.setattr(authz_routes.signal_service, "on_login_success", _no_signals)
 
     # Discovery path (no workspace_id): one execute() for the workspace list.
     db = _FakeDB(execute_results=[_Result(all_rows=[])])

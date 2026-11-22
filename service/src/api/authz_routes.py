@@ -17,6 +17,7 @@ from src.config import settings
 from src.database import get_db
 from src.logging_events import log_security
 from src.middleware.rate_limit import (
+    get_client_ip,
     limiter,
     service_address_key,
     service_or_ip_key,
@@ -31,7 +32,13 @@ from src.schemas.authz import (
     AuthzWorkspaceOption,
     AuthzWorkspaceResponse,
 )
-from src.services import auth_service, organization_service, service_app_service
+from src.services import (
+    activity_service,
+    auth_service,
+    organization_service,
+    service_app_service,
+    signal_service,
+)
 from src.services.idp_validator import IdpValidationError, validate_idp_token
 from src.services.role_service import get_user_actions
 
@@ -398,6 +405,30 @@ async def resolve(
             for ws, role in rows
             if ws.id in allowed_ws_ids
         ]
+        # Discovery is the sign-in step: the SDKs call it once after the IdP
+        # redirect, and refreshes and per-request mints carry a workspace_id.
+        # Recorded here so AuthZ-mode sign-ins land in Activity and the login
+        # signals, the same as the browser OAuth callback.
+        ip = get_client_ip(request)
+        user_agent = request.headers.get("user-agent", "")[:200]
+        await activity_service.log_activity(
+            db,
+            action="user_login",
+            target_type="user",
+            target_id=user.id,
+            actor_id=user.id,
+            detail={
+                "provider": body.provider,
+                "flow": "authz",
+                "service": service_ctx.service_name,
+                "ip": ip,
+                "user_agent": user_agent,
+            },
+        )
+        await db.commit()
+        await signal_service.on_login_success(
+            db, user_id=user.id, ip=ip, user_agent=user_agent
+        )
         return AuthzResolveResponse(user=user_resp, workspaces=workspaces)
 
     # 4. Resolve workspace membership
