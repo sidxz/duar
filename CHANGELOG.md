@@ -12,6 +12,14 @@ For versions prior to `0.11.0`, see the git tag history (`git log --oneline -- s
 
 <!-- Add next-version entries here -->
 
+## [2.1.0] - 2026-11-21 — Member organizations
+
+### Added
+- `GET /workspaces/{id}/members` (and the admin variant) returns `org_id` for each member, the same value as the `oid` token claim, or null when the user has no organization. Look up names with the internal `GET /organizations`. `WorkspaceMember` in `@duar-auth/js` has the new field. The Python SDK's `PermissionClient.search_workspace_members` returns the response as-is, so `org_id` is included there without an SDK change.
+
+### Changed
+- Dependencies: the service picks up minor and patch updates, including Authlib 1.9.9 and FastAPI 0.163.2. `@duar-auth/js` and `@duar-auth/nextjs` require `jose` ^6.2.17. The admin image is rebuilt with updated frontend dependencies. The Python SDK has no other changes and is republished for version alignment.
+
 ## [2.0.0] - 2026-11-13 — Rate-limit tiering and jose 6
 
 ### Breaking changes

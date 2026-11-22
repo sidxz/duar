@@ -241,6 +241,7 @@ async def list_members(
             "avatar_url": user.avatar_url,
             "role": membership.role,
             "joined_at": membership.joined_at,
+            "org_id": user.organization_id,
         }
         for membership, user in result.all()
     ]

@@ -118,6 +118,7 @@ Not returned directly. Describes the access token payload.
 | `avatar_url` | string or null | Avatar URL |
 | `role` | string | `owner`, `admin`, `editor`, or `viewer` |
 | `joined_at` | datetime | Join timestamp |
+| `org_id` | UUID or null | The member's organization (same value as the `oid` token claim). Null when the user has no organization assigned. Only the list routes fill it in; the invite response returns null. Look up org names with the internal `GET /organizations`. |
 
 ### InviteMemberRequest
 

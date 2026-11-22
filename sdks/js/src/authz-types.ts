@@ -146,6 +146,8 @@ export interface WorkspaceMember {
   avatar_url: string | null
   role: WorkspaceRole
   joined_at: string
+  /** The member's organization id; null when unassigned. Names come from GET /organizations. */
+  org_id: string | null
 }
 
 export interface GroupInfo {
