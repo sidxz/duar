@@ -34,10 +34,10 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "jose": "^6.2.17"
+    "jose": "^6.2.18"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^5.1.0",
+    "@vitest/coverage-v8": "^5.1.1",
     "happy-dom": "^21.0.4",
     "tsup": "^9.0.0",
     "typescript": "^5.5.0",
